@@ -9,7 +9,8 @@ import uuid
 from collections.abc import AsyncIterator
 
 import httpx
-from fastapi import FastAPI, File, Form, Header, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, Header, HTTPException, Request, UploadFile, WebSocket
+from fastapi import WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -49,17 +50,12 @@ async def rate_limit_api(request: Request, call_next):
     if request.url.path == "/api/health":
         return await call_next(request)
 
-    now = time.monotonic()
     client_host = request.client.host if request.client else "unknown"
-    window_start = now - settings.rate_limit_window_seconds
-    timestamps = [ts for ts in request_timestamps.get(client_host, []) if ts >= window_start]
-    if len(timestamps) >= settings.rate_limit_requests:
+    if not _consume_rate_limit(client_host):
         return JSONResponse(
             {"detail": "Too many requests. Please wait before trying again."},
             status_code=429,
         )
-    timestamps.append(now)
-    request_timestamps[client_host] = timestamps
     return await call_next(request)
 
 
@@ -84,6 +80,7 @@ async def health() -> dict[str, object]:
         "llm_reasoning_effort": settings.llm_reasoning_effort,
         "knowledge_enabled": knowledge_base.enabled,
         "elevenlabs_stt_model": settings.elevenlabs_stt_model,
+        "elevenlabs_realtime_stt_model": settings.elevenlabs_realtime_stt_model,
         "elevenlabs_tts_model": settings.elevenlabs_tts_model,
         "elevenlabs_stream_output_format": settings.elevenlabs_stream_output_format,
         "has_elevenlabs_key": bool(settings.elevenlabs_api_key),
@@ -126,6 +123,7 @@ async def chat_stream(
             with_audio=False,
             brain_api_key=brain_api_key,
             voice_api_key=None,
+            voice_id=None,
         ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
@@ -138,6 +136,8 @@ async def turn_stream(
     session_id: str | None = Form(None),
     brain_api_key: str | None = Header(None, alias="X-OS1-Brain-API-Key"),
     voice_api_key: str | None = Header(None, alias="X-OS1-Voice-API-Key"),
+    voice_id: str | None = Header(None, alias="X-OS1-Voice-ID"),
+    voice_gender: str | None = Header(None, alias="X-OS1-Voice-Gender"),
 ) -> StreamingResponse:
     audio_data = await _read_limited_upload(file)
     current_session_id = session_id or _new_session_id()
@@ -166,6 +166,7 @@ async def turn_stream(
                 with_audio=True,
                 brain_api_key=brain_api_key,
                 voice_api_key=voice_api_key,
+                voice_id=_resolve_request_voice_id(voice_id, voice_gender),
             ):
                 yield event
         except Exception as exc:
@@ -178,10 +179,63 @@ async def turn_stream(
     )
 
 
+@app.websocket("/api/realtime/turn")
+async def realtime_turn(websocket: WebSocket) -> None:
+    await websocket.accept()
+    client_host = websocket.client.host if websocket.client else "unknown"
+    if not _consume_rate_limit(client_host):
+        await _ws_send_event(
+            websocket,
+            "error",
+            {"message": "Too many requests. Please wait before trying again."},
+        )
+        await websocket.close(code=1008)
+        return
+
+    try:
+        init_raw = await asyncio.wait_for(websocket.receive_text(), timeout=10)
+        init = json.loads(init_raw)
+        if init.get("type") != "start":
+            await _ws_send_event(websocket, "error", {"message": "Invalid realtime start message."})
+            await websocket.close(code=1003)
+            return
+
+        session_id = str(init.get("session_id") or "") or _new_session_id()
+        brain_api_key = str(init.get("brain_api_key") or "")
+        voice_api_key = str(init.get("voice_api_key") or "")
+        voice_id = str(init.get("voice_id") or "")
+        voice_gender = str(init.get("voice_gender") or "")
+        sample_rate = int(init.get("sample_rate") or 16000)
+        if sample_rate not in {8000, 16000, 22050, 24000, 44100, 48000}:
+            await _ws_send_event(websocket, "error", {"message": "Unsupported audio sample rate."})
+            await websocket.close(code=1003)
+            return
+
+        await _run_realtime_turn(
+            websocket,
+            session_id=session_id,
+            brain_api_key=brain_api_key,
+            voice_api_key=voice_api_key,
+            voice_id=_resolve_request_voice_id(voice_id, voice_gender),
+            sample_rate=sample_rate,
+        )
+    except WebSocketDisconnect:
+        return
+    except Exception as exc:
+        await _safe_ws_send_event(websocket, "error", {"message": _public_error(exc)})
+    finally:
+        try:
+            await websocket.close()
+        except RuntimeError:
+            pass
+
+
 @app.post("/api/tts")
 async def tts(
     request: TTSRequest,
     voice_api_key: str | None = Header(None, alias="X-OS1-Voice-API-Key"),
+    voice_id: str | None = Header(None, alias="X-OS1-Voice-ID"),
+    voice_gender: str | None = Header(None, alias="X-OS1-Voice-Gender"),
 ) -> StreamingResponse:
     text = request.text.strip()
     if not text:
@@ -189,7 +243,11 @@ async def tts(
     _validate_text("text", text, settings.max_tts_chars)
 
     try:
-        stream = voice_client.stream_tts(text, api_key=voice_api_key)
+        stream = voice_client.stream_tts(
+            text,
+            api_key=voice_api_key,
+            voice_id=_resolve_request_voice_id(voice_id, voice_gender),
+        )
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -207,6 +265,129 @@ async def knowledge_reindex() -> dict[str, object]:
     }
 
 
+async def _run_realtime_turn(
+    websocket: WebSocket,
+    *,
+    session_id: str,
+    brain_api_key: str | None,
+    voice_api_key: str | None,
+    voice_id: str | None,
+    sample_rate: int,
+) -> None:
+    audio_queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=24)
+    committed_parts: list[str] = []
+    partial_text = ""
+    total_audio_bytes = 0
+
+    await _ws_send_event(websocket, "status", {"state": "listening", "session_id": session_id})
+
+    async def receive_browser_audio() -> None:
+        nonlocal total_audio_bytes
+        try:
+            while True:
+                message = await websocket.receive()
+                if message["type"] == "websocket.disconnect":
+                    break
+
+                audio = message.get("bytes")
+                if audio is not None:
+                    total_audio_bytes += len(audio)
+                    if total_audio_bytes > settings.max_upload_bytes:
+                        await _safe_ws_send_event(
+                            websocket,
+                            "error",
+                            {"message": "Recording is too large."},
+                        )
+                        break
+                    await audio_queue.put(audio)
+                    continue
+
+                text = message.get("text")
+                if text is None:
+                    continue
+                try:
+                    payload = json.loads(text)
+                except json.JSONDecodeError:
+                    continue
+                if payload.get("type") == "stop":
+                    await _safe_ws_send_event(
+                        websocket,
+                        "status",
+                        {"state": "transcribing", "session_id": session_id},
+                    )
+                    break
+        finally:
+            await audio_queue.put(None)
+
+    async def audio_chunks() -> AsyncIterator[bytes]:
+        while True:
+            chunk = await audio_queue.get()
+            if chunk is None:
+                break
+            yield chunk
+
+    receive_task = asyncio.create_task(receive_browser_audio())
+    try:
+        async for payload in voice_client.stream_realtime_stt(
+            audio_chunks(),
+            sample_rate=sample_rate,
+            api_key=voice_api_key,
+        ):
+            message_type = str(payload.get("message_type") or payload.get("type") or "")
+            if message_type == "partial_transcript":
+                partial_text = str(payload.get("text") or "").strip()
+                await _ws_send_event(
+                    websocket,
+                    "transcript_partial",
+                    {"text": partial_text, "session_id": session_id},
+                )
+            elif message_type == "committed_transcript":
+                text = str(payload.get("text") or "").strip()
+                if text:
+                    committed_parts.append(text)
+                    await _ws_send_event(
+                        websocket,
+                        "transcript",
+                        {"text": " ".join(committed_parts), "session_id": session_id},
+                    )
+            elif message_type == "session_started":
+                continue
+            elif message_type:
+                await _ws_send_event(
+                    websocket,
+                    "error",
+                    {"message": "Realtime transcription failed.", "session_id": session_id},
+                )
+                return
+    finally:
+        if not receive_task.done():
+            receive_task.cancel()
+        await asyncio.gather(receive_task, return_exceptions=True)
+
+    user_text = " ".join(committed_parts).strip() or partial_text.strip()
+    if settings.max_chat_chars > 0 and len(user_text) > settings.max_chat_chars:
+        await _ws_send_event(websocket, "error", {"message": "Transcription is too long."})
+        return
+    if not user_text:
+        await _ws_send_event(websocket, "error", {"message": "没有识别到语音。"})
+        return
+
+    await _ws_send_event(websocket, "transcript", {"text": user_text, "session_id": session_id})
+    async for event_block in _stream_chat_response(
+        user_text,
+        session_id,
+        with_audio=True,
+        brain_api_key=brain_api_key,
+        voice_api_key=voice_api_key,
+        voice_id=voice_id,
+    ):
+        decoded = _decode_sse(event_block)
+        if decoded is None:
+            continue
+        event, data = decoded
+        await _ws_send_event(websocket, event, data)
+
+
 async def _stream_chat_response(
     user_text: str,
     session_id: str,
@@ -214,6 +395,7 @@ async def _stream_chat_response(
     with_audio: bool,
     brain_api_key: str | None,
     voice_api_key: str | None,
+    voice_id: str | None,
 ) -> AsyncIterator[str]:
     history = _get_history(session_id)
     hits = knowledge_base.search(user_text) if knowledge_base.enabled else []
@@ -244,6 +426,7 @@ async def _stream_chat_response(
             session_id,
             brain_api_key=brain_api_key,
             voice_api_key=voice_api_key,
+            voice_id=voice_id,
         ):
             yield event
         return
@@ -267,6 +450,7 @@ async def _stream_chat_response_with_audio(
     *,
     brain_api_key: str | None,
     voice_api_key: str | None,
+    voice_id: str | None,
 ) -> AsyncIterator[str]:
     event_queue: asyncio.Queue[tuple[str, dict[str, object]]] = asyncio.Queue()
     text_queue: asyncio.Queue[str | None] = asyncio.Queue()
@@ -311,6 +495,7 @@ async def _stream_chat_response_with_audio(
             async for audio_chunk in voice_client.stream_tts_websocket(
                 text_chunks(),
                 api_key=voice_api_key,
+                voice_id=voice_id,
             ):
                 await event_queue.put(
                     (
@@ -402,6 +587,29 @@ def _new_session_id() -> str:
     return uuid.uuid4().hex
 
 
+def _consume_rate_limit(client_host: str) -> bool:
+    now = time.monotonic()
+    window_start = now - settings.rate_limit_window_seconds
+    timestamps = [ts for ts in request_timestamps.get(client_host, []) if ts >= window_start]
+    if len(timestamps) >= settings.rate_limit_requests:
+        request_timestamps[client_host] = timestamps
+        return False
+    timestamps.append(now)
+    request_timestamps[client_host] = timestamps
+    return True
+
+
+def _resolve_request_voice_id(voice_id: str | None, voice_gender: str | None) -> str | None:
+    if voice_id and voice_id.strip():
+        return voice_id.strip()
+    normalized_gender = (voice_gender or "").strip().lower()
+    if normalized_gender == "female":
+        return settings.elevenlabs_female_voice_id
+    if normalized_gender == "male":
+        return settings.elevenlabs_male_voice_id
+    return None
+
+
 async def _read_limited_upload(file: UploadFile) -> bytes:
     chunks: list[bytes] = []
     total = 0
@@ -462,6 +670,48 @@ def _pop_ready_speech_chunks(buffer: str) -> tuple[list[str], str]:
 
 def _sse(event: str, data: dict[str, object]) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+def _decode_sse(block: str) -> tuple[str, dict[str, object]] | None:
+    event = "message"
+    data = ""
+    for line in block.splitlines():
+        if line.startswith("event:"):
+            event = line.removeprefix("event:").strip()
+        elif line.startswith("data:"):
+            data += line.removeprefix("data:").strip()
+    if not data:
+        return None
+    try:
+        payload = json.loads(data)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    return event, payload
+
+
+async def _ws_send_event(
+    websocket: WebSocket,
+    event: str,
+    data: dict[str, object],
+) -> None:
+    await websocket.send_text(
+        json.dumps({"event": event, "data": data}, ensure_ascii=False)
+    )
+
+
+async def _safe_ws_send_event(
+    websocket: WebSocket,
+    event: str,
+    data: dict[str, object],
+) -> None:
+    try:
+        await _ws_send_event(websocket, event, data)
+    except RuntimeError:
+        pass
+    except WebSocketDisconnect:
+        pass
 
 
 def _public_error(exc: Exception) -> str:

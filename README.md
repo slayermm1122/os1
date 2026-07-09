@@ -19,40 +19,43 @@ The interface is intentionally minimal: a warm orange-red room, one button, one 
 
 ## Version
 
-Current version: `v0.01`
+Current version: `v0.02`
 
-This is the first working prototype. It is deliberately small, inspectable, and easy to change.
+This is still deliberately small, inspectable, and easy to change.
 
-## What Works In v0.01
+## What Works In v0.02
 
-- Browser voice recording with a press-to-talk button
-- ElevenLabs speech-to-text for user audio
+- Press-to-talk voice recording with browser PCM streaming
+- ElevenLabs realtime speech-to-text while the user is still recording
 - xAI Grok text generation, currently defaulting to `grok-4.5`
 - `reasoning_effort=low` for faster responses
 - Streaming LLM output from the backend
 - ElevenLabs streaming TTS through WebSocket
+- AudioContext playback for streamed PCM audio chunks
+- Male / female voice selection in the UI
 - Simple centered voice UI inspired by OS-style ambient assistants
 - API key dialog in the UI
 - Optional server-side `.env` fallback for local testing
 
 ## Current Limits
 
-`v0.01` is not a full realtime voice agent yet.
+The UI is still intentionally simple: the user presses once to talk and presses again to stop. OS1 does not interrupt, barge in, or run a fully hands-free conversation loop yet.
 
 The current flow is:
 
 ```text
-User records audio
-  -> browser uploads full recording
-  -> ElevenLabs STT transcribes it
-  -> Grok answers
-  -> answer chunks are sent to ElevenLabs TTS
-  -> browser plays the voice
+Browser PCM
+  -> backend WebSocket
+  -> ElevenLabs realtime STT
+  -> committed transcript
+  -> Grok streaming response
+  -> ElevenLabs TTS WebSocket
+  -> browser AudioContext playback
 ```
 
-This means there is still a pause after the user stops speaking. The output side is already partially streamed, but input speech is not yet realtime.
+This reduces the wait after the user stops speaking because transcription has already been running during the recording.
 
-Document grounding is not fully productized yet. There is no document upload UI in `v0.01`.
+Document grounding is not fully productized yet. There is no document upload UI in `v0.02`.
 
 ## What You Need
 
@@ -68,7 +71,7 @@ The default backend settings use:
 - Brain: `xAI` / `grok-4.5`
 - Voice: `ElevenLabs`
 - TTS model: `eleven_flash_v2_5`
-- STT model: `scribe_v2`
+- STT model: `scribe_v2_realtime`
 
 ## Quick Start
 
@@ -100,18 +103,6 @@ For local development, you can also use `.env` as a server-side fallback.
 cp .env.example .env
 ```
 
-Example:
-
-```bash
-LLM_API_KEY=...
-LLM_BASE_URL=https://api.x.ai/v1
-LLM_MODEL=grok-4.5
-LLM_REASONING_EFFORT=low
-
-ELEVENLABS_API_KEY=...
-ELEVENLABS_VOICE_ID=JBFqnCBsd6RMkjVDRZzb
-```
-
 `.env` is ignored by git. Do not commit real API keys.
 
 ## Security
@@ -119,12 +110,6 @@ ELEVENLABS_VOICE_ID=JBFqnCBsd6RMkjVDRZzb
 OS1 is local-first research software. Read [SECURITY.md](SECURITY.md) before publishing, deploying, or sharing a hosted instance.
 
 ## Roadmap
-
-### v0.02
-
-Faster response loop.
-
-The next version will move speech input toward realtime STT, so OS1 can begin understanding while the user is still speaking.
 
 ### v0.03
 

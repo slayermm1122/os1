@@ -25,6 +25,12 @@ class VoiceClient:
             raise RuntimeError("ELEVENLABS_API_KEY is not configured.")
         return resolved_api_key
 
+    def _resolve_voice_id(self, voice_id: str | None = None) -> str:
+        resolved_voice_id = (voice_id or self.settings.elevenlabs_voice_id).strip()
+        if not resolved_voice_id:
+            raise RuntimeError("ELEVENLABS_VOICE_ID is not configured.")
+        return resolved_voice_id
+
     async def transcribe_upload(
         self,
         *,
@@ -69,14 +75,14 @@ class VoiceClient:
         text: str,
         *,
         api_key: str | None = None,
+        voice_id: str | None = None,
     ) -> AsyncIterator[bytes]:
         resolved_api_key = self._require_api_key(api_key)
-        if not self.settings.elevenlabs_voice_id:
-            raise RuntimeError("ELEVENLABS_VOICE_ID is not configured.")
+        resolved_voice_id = self._resolve_voice_id(voice_id)
 
         url = (
             f"{self.base_url}/text-to-speech/"
-            f"{self.settings.elevenlabs_voice_id}/stream"
+            f"{resolved_voice_id}/stream"
         )
         params = {"output_format": self.settings.elevenlabs_output_format}
         payload = {
@@ -117,10 +123,10 @@ class VoiceClient:
         text_chunks: AsyncIterable[str],
         *,
         api_key: str | None = None,
+        voice_id: str | None = None,
     ) -> AsyncIterator[bytes]:
         resolved_api_key = self._require_api_key(api_key)
-        if not self.settings.elevenlabs_voice_id:
-            raise RuntimeError("ELEVENLABS_VOICE_ID is not configured.")
+        resolved_voice_id = self._resolve_voice_id(voice_id)
 
         query = urlencode(
             {
@@ -131,7 +137,7 @@ class VoiceClient:
         )
         uri = (
             "wss://api.elevenlabs.io/v1/text-to-speech/"
-            f"{self.settings.elevenlabs_voice_id}/stream-input?{query}"
+            f"{resolved_voice_id}/stream-input?{query}"
         )
 
         async with websockets.connect(
@@ -184,6 +190,95 @@ class VoiceClient:
                         if audio:
                             yield base64.b64decode(audio)
                         if payload.get("isFinal"):
+                            break
+            finally:
+                if not send_task.done():
+                    send_task.cancel()
+                await asyncio.gather(send_task, return_exceptions=True)
+
+    async def stream_realtime_stt(
+        self,
+        audio_chunks: AsyncIterable[bytes],
+        *,
+        sample_rate: int,
+        api_key: str | None = None,
+    ) -> AsyncIterator[dict[str, Any]]:
+        resolved_api_key = self._require_api_key(api_key)
+        audio_format = f"pcm_{sample_rate}"
+        if self.settings.elevenlabs_realtime_stt_audio_format.startswith("pcm_"):
+            audio_format = self.settings.elevenlabs_realtime_stt_audio_format
+
+        query_params: dict[str, str] = {
+            "model_id": self.settings.elevenlabs_realtime_stt_model,
+            "audio_format": audio_format,
+            "commit_strategy": "manual",
+        }
+        if self.settings.elevenlabs_stt_language_code:
+            query_params["language_code"] = self.settings.elevenlabs_stt_language_code
+        uri = f"wss://api.elevenlabs.io/v1/speech-to-text/realtime?{urlencode(query_params)}"
+
+        async with websockets.connect(
+            uri,
+            additional_headers={"xi-api-key": resolved_api_key},
+            max_size=8 * 1024 * 1024,
+            open_timeout=self.settings.upstream_connect_timeout_seconds,
+            close_timeout=5,
+        ) as websocket:
+            send_finished = asyncio.Event()
+
+            async def send_audio() -> None:
+                try:
+                    async for chunk in audio_chunks:
+                        if not chunk:
+                            continue
+                        await websocket.send(
+                            json.dumps(
+                                {
+                                    "message_type": "input_audio_chunk",
+                                    "audio_base_64": base64.b64encode(chunk).decode("ascii"),
+                                    "sample_rate": sample_rate,
+                                }
+                            )
+                        )
+                    await websocket.send(
+                        json.dumps(
+                            {
+                                "message_type": "input_audio_chunk",
+                                "audio_base_64": "",
+                                "sample_rate": sample_rate,
+                                "commit": True,
+                            }
+                        )
+                    )
+                finally:
+                    send_finished.set()
+
+            send_task = asyncio.create_task(send_audio())
+            try:
+                async with asyncio.timeout(self.settings.upstream_stream_timeout_seconds):
+                    async for message in websocket:
+                        if isinstance(message, bytes):
+                            continue
+                        payload = json.loads(message)
+                        yield payload
+
+                        message_type = payload.get("message_type") or payload.get("type")
+                        if message_type in {
+                            "auth_error",
+                            "quota_exceeded",
+                            "transcriber_error",
+                            "input_error",
+                            "error",
+                            "unaccepted_terms",
+                            "rate_limited",
+                            "queue_overflow",
+                            "resource_exhausted",
+                            "session_time_limit_exceeded",
+                            "chunk_size_exceeded",
+                            "insufficient_audio_activity",
+                        }:
+                            break
+                        if send_finished.is_set() and message_type == "committed_transcript":
                             break
             finally:
                 if not send_task.done():

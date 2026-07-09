@@ -10,6 +10,9 @@ from dotenv import load_dotenv
 ROOT_DIR = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT_DIR / ".env")
 
+DEFAULT_MALE_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"
+DEFAULT_FEMALE_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"
+
 
 def _bool_env(name: str, default: bool = False) -> bool:
     value = os.getenv(name)
@@ -44,8 +47,18 @@ class Settings:
     frontend_dir: Path = ROOT_DIR / "frontend"
 
     elevenlabs_api_key: str = os.getenv("ELEVENLABS_API_KEY", "")
-    elevenlabs_voice_id: str = os.getenv("ELEVENLABS_VOICE_ID", "JBFqnCBsd6RMkjVDRZzb")
+    elevenlabs_voice_id: str = os.getenv("ELEVENLABS_VOICE_ID", DEFAULT_MALE_VOICE_ID)
+    elevenlabs_male_voice_id: str = os.getenv("ELEVENLABS_MALE_VOICE_ID", DEFAULT_MALE_VOICE_ID)
+    elevenlabs_female_voice_id: str = os.getenv("ELEVENLABS_FEMALE_VOICE_ID", DEFAULT_FEMALE_VOICE_ID)
     elevenlabs_stt_model: str = os.getenv("ELEVENLABS_STT_MODEL", "scribe_v2")
+    elevenlabs_realtime_stt_model: str = os.getenv(
+        "ELEVENLABS_REALTIME_STT_MODEL",
+        "scribe_v2_realtime",
+    )
+    elevenlabs_realtime_stt_audio_format: str = os.getenv(
+        "ELEVENLABS_REALTIME_STT_AUDIO_FORMAT",
+        "pcm_16000",
+    )
     elevenlabs_tts_model: str = os.getenv("ELEVENLABS_TTS_MODEL", "eleven_flash_v2_5")
     elevenlabs_output_format: str = os.getenv("ELEVENLABS_OUTPUT_FORMAT", "mp3_44100_128")
     elevenlabs_stream_output_format: str = os.getenv("ELEVENLABS_STREAM_OUTPUT_FORMAT", "pcm_16000")

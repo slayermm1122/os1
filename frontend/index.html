@@ -330,7 +330,7 @@
 
       .hint-line {
         position: absolute;
-        top: calc(50% + var(--orb-size) / 2 + 12px);
+        top: calc(50% + var(--orb-size) / 2 + 26px);
         left: 50%;
         width: min(100%, 620px);
         transform: translateX(-50%);
@@ -342,7 +342,7 @@
 
       .prompt-line {
         position: absolute;
-        top: calc(50% + var(--orb-size) / 2 + 38px);
+        top: calc(50% + var(--orb-size) / 2 + 58px);
         left: 50%;
         transform: translateX(-50%);
         width: min(100%, 620px);
@@ -354,6 +354,41 @@
         color: rgba(255, 246, 236, 0.58);
         overflow-wrap: anywhere;
         white-space: pre-wrap;
+      }
+
+      .voice-switch {
+        position: absolute;
+        top: 50%;
+        left: calc(50% - var(--orb-size) / 2 - 68px);
+        transform: translateY(-50%);
+        z-index: 2;
+        display: grid;
+        gap: 8px;
+        pointer-events: auto;
+      }
+
+      .voice-choice {
+        appearance: none;
+        border: 0;
+        padding: 0;
+        background: transparent;
+        color: rgba(255, 246, 236, 0.44);
+        font: inherit;
+        font-size: 13px;
+        line-height: 1.2;
+        letter-spacing: 0;
+        text-align: left;
+        cursor: pointer;
+        transition: color 140ms ease, opacity 140ms ease;
+      }
+
+      .voice-choice.is-active {
+        color: rgba(255, 246, 236, 0.96);
+      }
+
+      .voice-choice:disabled {
+        cursor: default;
+        opacity: 0.46;
       }
 
       .answer-panel {
@@ -522,6 +557,13 @@
           --orb-size: min(78vw, 330px);
         }
 
+        .voice-switch {
+          top: calc(50% - var(--orb-size) / 2 - 46px);
+          left: 50%;
+          grid-auto-flow: column;
+          transform: translateX(-50%);
+        }
+
         .answer-panel {
           height: 120px;
           bottom: 20px;
@@ -549,6 +591,10 @@
         <button id="keyPrompt" class="key-prompt" type="button" hidden>
           Please provide your API key
         </button>
+        <div class="voice-switch" aria-label="Voice" role="group">
+          <button id="voiceMale" class="voice-choice" type="button">male</button>
+          <button id="voiceFemale" class="voice-choice" type="button">female</button>
+        </div>
         <button id="talkButton" class="orb" type="button" aria-label="开始录音">
           <div class="bars" aria-hidden="true">
             <div class="bar"></div>
@@ -610,6 +656,8 @@
       const menuApiKey = document.querySelector("#menuApiKey");
       const talkButton = document.querySelector("#talkButton");
       const keyPrompt = document.querySelector("#keyPrompt");
+      const voiceMaleButton = document.querySelector("#voiceMale");
+      const voiceFemaleButton = document.querySelector("#voiceFemale");
       const settingsModal = document.querySelector("#settingsModal");
       const brainKeyInput = document.querySelector("#brainKey");
       const voiceKeyInput = document.querySelector("#voiceKey");
@@ -625,10 +673,17 @@
 
       const RECORDING_LIMIT_SECONDS = 15;
       const RECORDING_WARNING_SECONDS = 5;
+      const TARGET_SAMPLE_RATE = 16000;
 
       let recorder = null;
       let mediaStream = null;
       let chunks = [];
+      let realtimeSocket = null;
+      let micAudioContext = null;
+      let micSource = null;
+      let micProcessor = null;
+      let micSilentGain = null;
+      let activeTurn = null;
       let sessionId = localStorage.getItem("os1.sessionId") || "";
       let state = "idle";
       let serverHasBrainKey = false;
@@ -636,9 +691,12 @@
       let recordingStartedAt = 0;
       let recordingStopTimer = 0;
       let recordingCountdownTimer = 0;
+      let selectedVoiceGender =
+        localStorage.getItem("os1.voiceGender") === "female" ? "female" : "male";
 
       refreshKeyState();
       setHint("idle");
+      setVoiceGender(selectedVoiceGender);
 
       brandButton.addEventListener("click", (event) => {
         event.stopPropagation();
@@ -650,6 +708,8 @@
       });
       document.addEventListener("click", () => setBrandMenuHidden(true));
       keyPrompt.addEventListener("click", openSettingsModal);
+      voiceMaleButton.addEventListener("click", () => setVoiceGender("male"));
+      voiceFemaleButton.addEventListener("click", () => setVoiceGender("female"));
       clearKeysButton.addEventListener("click", clearApiKeys);
       saveKeysButton.addEventListener("click", saveApiKeys);
       settingsModal.addEventListener("click", (event) => {
@@ -687,29 +747,38 @@
       async function startRecording() {
         clearConversation();
         mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        chunks = [];
-        const options = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-          ? { mimeType: "audio/webm;codecs=opus" }
-          : {};
-        recorder = new MediaRecorder(mediaStream, options);
-        recorder.addEventListener("dataavailable", (event) => {
-          if (event.data.size > 0) chunks.push(event.data);
-        });
-        recorder.addEventListener("stop", onRecordingStopped, { once: true });
-        recorder.start();
+        const socket = new WebSocket(realtimeTurnUrl());
+        realtimeSocket = socket;
+        activeTurn = createTurnState();
+        bindRealtimeSocket(socket, activeTurn);
+        await waitForSocketOpen(socket);
+        const keys = getApiKeys();
+        socket.send(
+          JSON.stringify({
+            type: "start",
+            session_id: sessionId,
+            brain_api_key: keys.brain,
+            voice_api_key: keys.voice,
+            voice_gender: selectedVoiceGender,
+            sample_rate: TARGET_SAMPLE_RATE,
+          }),
+        );
+        await startMicPcm(socket);
         setState("recording");
+        setStatus("listening");
         startRecordingLimit();
       }
 
       function stopRecording() {
         clearRecordingLimit();
-        if (recorder && recorder.state !== "inactive") {
-          recorder.stop();
-          cleanupStream();
+        stopMicPcm();
+        if (realtimeSocket && realtimeSocket.readyState === WebSocket.OPEN) {
+          realtimeSocket.send(JSON.stringify({ type: "stop" }));
           setState("processing");
+          setStatus("transcribing");
           return;
         }
-        cleanupStream();
+        closeRealtimeSocket();
         setState("idle");
       }
 
@@ -747,73 +816,162 @@
           return;
         }
 
-        let audioStream = null;
-        let finalText = "";
-        let receivedAudio = false;
-        let audioDone = false;
-        let ttsFailed = false;
-        let streamingAudioDisabled = false;
+        const turn = createTurnState();
 
         await readEventStream(response, async (event, data) => {
-          if (data.session_id) {
-            sessionId = data.session_id;
-            localStorage.setItem("os1.sessionId", sessionId);
-          }
-          if (event === "status") {
-            setStatus(data.state || "working");
-            if (data.state === "thinking") setState("thinking");
-          }
-          if (event === "transcript") {
-            transcriptEl.textContent = data.text || "";
-          }
-          if (event === "display") {
-            appendAnswerLine(data.text || "");
-          }
-          if (event === "audio") {
-            if (streamingAudioDisabled) return;
-            try {
-              if (!audioStream) {
-                audioStream = createStreamingAudioPlayer(data);
-              }
-              receivedAudio = true;
-              setState("speaking");
-              setStatus("speaking");
-              await audioStream.appendBase64(data.audio || "");
-            } catch (error) {
-              streamingAudioDisabled = true;
-              ttsFailed = true;
-              if (!receivedAudio) {
-                audioStream = null;
-              }
-              setStatus("tts fallback");
-            }
-          }
-          if (event === "audio_done") {
-            audioDone = true;
-            if (audioStream) await audioStream.end();
-          }
-          if (event === "tts_error") {
-            ttsFailed = true;
-            setStatus("tts error");
-          }
-          if (event === "done") {
-            finalText = data.text || getAnswerText();
-            if (!getAnswerText() && finalText) {
-              setAnswerText(finalText);
-            }
-          }
-          if (event === "error") {
-            setStatus("error");
-            setAnswerText(data.message || "error");
-          }
+          await handleTurnEvent(event, data, turn);
         });
 
-        if (finalText && !receivedAudio) {
-          await playVoice(finalText);
-        } else if (receivedAudio && !audioDone && audioStream) {
-          await audioStream.end();
-        } else if (!receivedAudio || ttsFailed) {
+        await finishTurn(turn);
+      }
+
+      function realtimeTurnUrl() {
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        return `${protocol}//${window.location.host}/api/realtime/turn`;
+      }
+
+      function waitForSocketOpen(socket) {
+        return new Promise((resolve, reject) => {
+          const cleanup = () => {
+            socket.removeEventListener("open", onOpen);
+            socket.removeEventListener("error", onError);
+            socket.removeEventListener("close", onClose);
+          };
+          const onOpen = () => {
+            cleanup();
+            resolve();
+          };
+          const onError = () => {
+            cleanup();
+            reject(new Error("Realtime connection failed"));
+          };
+          const onClose = () => {
+            cleanup();
+            reject(new Error("Realtime connection closed"));
+          };
+          socket.addEventListener("open", onOpen, { once: true });
+          socket.addEventListener("error", onError, { once: true });
+          socket.addEventListener("close", onClose, { once: true });
+        });
+      }
+
+      function bindRealtimeSocket(socket, turn) {
+        socket.binaryType = "arraybuffer";
+        socket.addEventListener("message", (message) => {
+          void (async () => {
+            try {
+              if (typeof message.data !== "string") return;
+              const payload = JSON.parse(message.data);
+              await handleTurnEvent(payload.event, payload.data || {}, turn);
+            } catch (error) {
+              showError(error);
+            }
+          })();
+        });
+        socket.addEventListener("close", () => {
+          void (async () => {
+            if (realtimeSocket === socket) realtimeSocket = null;
+            await finishTurn(turn);
+          })();
+        });
+        socket.addEventListener("error", () => {
+          if (realtimeSocket === socket) {
+            showError(new Error("Realtime connection failed"));
+          }
+        });
+      }
+
+      function createTurnState() {
+        return {
+          audioStream: null,
+          finalText: "",
+          receivedAudio: false,
+          audioDone: false,
+          ttsFailed: false,
+          streamingAudioDisabled: false,
+          failed: false,
+          finished: false,
+        };
+      }
+
+      async function handleTurnEvent(event, data, turn) {
+        if (!event) return;
+        if (data.session_id) {
+          sessionId = data.session_id;
+          localStorage.setItem("os1.sessionId", sessionId);
+        }
+        if (event === "status") {
+          setStatus(data.state || "working");
+          if (data.state === "thinking") setState("thinking");
+        }
+        if (event === "transcript_partial") {
+          transcriptEl.textContent = data.text || "";
+        }
+        if (event === "transcript") {
+          transcriptEl.textContent = data.text || "";
+        }
+        if (event === "display") {
+          appendAnswerLine(data.text || "");
+        }
+        if (event === "audio") {
+          if (turn.streamingAudioDisabled) return;
+          try {
+            if (!turn.audioStream) {
+              turn.audioStream = createStreamingAudioPlayer(data);
+            }
+            turn.receivedAudio = true;
+            setState("speaking");
+            setStatus("speaking");
+            await turn.audioStream.appendBase64(data.audio || "");
+          } catch (error) {
+            turn.streamingAudioDisabled = true;
+            turn.ttsFailed = true;
+            if (!turn.receivedAudio) {
+              turn.audioStream = null;
+            }
+            setStatus("tts fallback");
+          }
+        }
+        if (event === "audio_done") {
+          turn.audioDone = true;
+          if (turn.audioStream) await turn.audioStream.end();
+        }
+        if (event === "tts_error") {
+          turn.ttsFailed = true;
+          setStatus("tts error");
+        }
+        if (event === "done") {
+          turn.finalText = data.text || getAnswerText();
+          if (!getAnswerText() && turn.finalText) {
+            setAnswerText(turn.finalText);
+          }
+        }
+        if (event === "error") {
+          turn.failed = true;
+          setStatus("error");
+          setAnswerText(data.message || "error");
+        }
+      }
+
+      async function finishTurn(turn) {
+        if (!turn || turn.finished) return;
+        turn.finished = true;
+        if (turn.finalText && !turn.receivedAudio && !turn.failed) {
+          await playVoice(turn.finalText);
+        } else if (turn.receivedAudio && !turn.audioDone && turn.audioStream) {
+          await turn.audioStream.end();
+        } else if (!turn.receivedAudio || turn.ttsFailed) {
           setState("idle");
+        }
+        if (activeTurn === turn) activeTurn = null;
+      }
+
+      function closeRealtimeSocket() {
+        const socket = realtimeSocket;
+        realtimeSocket = null;
+        if (!socket) return;
+        if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+          socket.close();
         }
       }
 
@@ -1069,6 +1227,67 @@
         return bytes;
       }
 
+      async function startMicPcm(socket) {
+        const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextCtor) {
+          throw new Error("AudioContext is not supported in this browser");
+        }
+        micAudioContext = new AudioContextCtor();
+        micSource = micAudioContext.createMediaStreamSource(mediaStream);
+        micProcessor = micAudioContext.createScriptProcessor(4096, 1, 1);
+        micSilentGain = micAudioContext.createGain();
+        micSilentGain.gain.value = 0;
+
+        micProcessor.onaudioprocess = (event) => {
+          if (state !== "recording" || socket.readyState !== WebSocket.OPEN) return;
+          const input = event.inputBuffer.getChannelData(0);
+          const pcm = floatToPcm16(input, micAudioContext.sampleRate, TARGET_SAMPLE_RATE);
+          if (pcm.byteLength) socket.send(pcm);
+        };
+
+        micSource.connect(micProcessor);
+        micProcessor.connect(micSilentGain);
+        micSilentGain.connect(micAudioContext.destination);
+        if (micAudioContext.state === "suspended") {
+          await micAudioContext.resume();
+        }
+      }
+
+      function stopMicPcm() {
+        if (micProcessor) {
+          micProcessor.onaudioprocess = null;
+          micProcessor.disconnect();
+          micProcessor = null;
+        }
+        if (micSource) {
+          micSource.disconnect();
+          micSource = null;
+        }
+        if (micSilentGain) {
+          micSilentGain.disconnect();
+          micSilentGain = null;
+        }
+        if (micAudioContext) {
+          void micAudioContext.close();
+          micAudioContext = null;
+        }
+        cleanupStream();
+      }
+
+      function floatToPcm16(input, inputSampleRate, outputSampleRate) {
+        const ratio = inputSampleRate / outputSampleRate;
+        const length = Math.max(0, Math.floor(input.length / ratio));
+        const bytes = new Uint8Array(length * 2);
+        const view = new DataView(bytes.buffer);
+        for (let index = 0; index < length; index += 1) {
+          const sourceIndex = Math.min(input.length - 1, Math.floor(index * ratio));
+          const sample = Math.max(-1, Math.min(1, input[sourceIndex] || 0));
+          const value = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+          view.setInt16(index * 2, value, true);
+        }
+        return bytes;
+      }
+
       function cleanupStream() {
         if (mediaStream) {
           mediaStream.getTracks().forEach((track) => track.stop());
@@ -1110,6 +1329,8 @@
 
       function showError(error) {
         clearRecordingLimit();
+        stopMicPcm();
+        closeRealtimeSocket();
         setStatus("error");
         setAnswerText(error?.message || String(error));
         cleanupStream();
@@ -1169,6 +1390,7 @@
         document.body.classList.toggle("is-speaking", next === "speaking");
         talkButton.disabled = !hasApiKeys() || (next !== "idle" && next !== "recording");
         talkButton.setAttribute("aria-label", next === "recording" ? "停止录音" : "开始录音");
+        updateVoiceControls();
         setHint(next);
         if (next === "idle") setStatus("ready");
       }
@@ -1190,7 +1412,23 @@
         return {
           "X-OS1-Brain-API-Key": keys.brain,
           "X-OS1-Voice-API-Key": keys.voice,
+          "X-OS1-Voice-Gender": selectedVoiceGender,
         };
+      }
+
+      function setVoiceGender(gender) {
+        if (state !== "idle") return;
+        selectedVoiceGender = gender === "female" ? "female" : "male";
+        localStorage.setItem("os1.voiceGender", selectedVoiceGender);
+        updateVoiceControls();
+      }
+
+      function updateVoiceControls() {
+        const busy = state !== "idle";
+        voiceMaleButton.disabled = busy;
+        voiceFemaleButton.disabled = busy;
+        voiceMaleButton.classList.toggle("is-active", selectedVoiceGender === "male");
+        voiceFemaleButton.classList.toggle("is-active", selectedVoiceGender === "female");
       }
 
       function updateKeyState() {
