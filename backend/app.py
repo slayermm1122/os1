@@ -248,10 +248,20 @@ async def tts(
             api_key=voice_api_key,
             voice_id=_resolve_request_voice_id(voice_id, voice_gender),
         )
+        first_chunk = await anext(stream)
+    except StopAsyncIteration as exc:
+        raise HTTPException(status_code=502, detail="Voice service returned no audio.") from exc
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(status_code=502, detail=_public_error(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    return StreamingResponse(stream, media_type=settings.tts_media_type)
+    async def audio_body() -> AsyncIterator[bytes]:
+        yield first_chunk
+        async for chunk in stream:
+            yield chunk
+
+    return StreamingResponse(audio_body(), media_type=settings.tts_media_type)
 
 
 @app.post("/api/knowledge/reindex")

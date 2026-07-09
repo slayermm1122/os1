@@ -11,7 +11,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT_DIR / ".env")
 
 DEFAULT_MALE_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"
-DEFAULT_FEMALE_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"
+DEFAULT_FEMALE_VOICE_ID = "EXAVITQu4vr4xnSDxMaL"
 
 
 def _bool_env(name: str, default: bool = False) -> bool:

@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title description">
+  <title id="title">OS1</title>
+  <desc id="description">A glowing voice orb with eight audio bars.</desc>
+  <defs>
+    <linearGradient id="background" x1="32" y1="28" x2="480" y2="484" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#641811" />
+      <stop offset="0.52" stop-color="#bd3522" />
+      <stop offset="1" stop-color="#f66a3f" />
+    </linearGradient>
+    <radialGradient id="roomGlow" cx="0" cy="0" r="1" gradientTransform="translate(272 246) rotate(90) scale(240)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffdfa8" stop-opacity="0.28" />
+      <stop offset="1" stop-color="#ffdfa8" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="orbFill" cx="0" cy="0" r="1" gradientTransform="translate(256 242) rotate(90) scale(174)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff0d5" stop-opacity="0.14" />
+      <stop offset="0.7" stop-color="#8f281b" stop-opacity="0.13" />
+      <stop offset="1" stop-color="#5f1710" stop-opacity="0.2" />
+    </radialGradient>
+    <filter id="orbShadow" x="58" y="58" width="396" height="410" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="24" stdDeviation="30" flood-color="#480d08" flood-opacity="0.3" />
+      <feDropShadow dx="0" dy="0" stdDeviation="16" flood-color="#ffe49c" flood-opacity="0.12" />
+    </filter>
+  </defs>
+
+  <circle cx="256" cy="256" r="252" fill="url(#background)" />
+  <circle cx="256" cy="256" r="252" fill="url(#roomGlow)" />
+  <g filter="url(#orbShadow)">
+    <circle cx="256" cy="246" r="168" fill="url(#orbFill)" stroke="#fff6ec" stroke-opacity="0.24" stroke-width="2" />
+  </g>
+  <g fill="#fff6ec" fill-opacity="0.88">
+    <rect x="194" y="234" width="10" height="24" rx="5" />
+    <rect x="211" y="228" width="10" height="36" rx="5" />
+    <rect x="228" y="221" width="10" height="50" rx="5" />
+    <rect x="245" y="226" width="10" height="40" rx="5" />
+    <rect x="262" y="226" width="10" height="40" rx="5" />
+    <rect x="279" y="221" width="10" height="50" rx="5" />
+    <rect x="296" y="228" width="10" height="36" rx="5" />
+    <rect x="313" y="234" width="10" height="24" rx="5" />
+  </g>
+</svg>

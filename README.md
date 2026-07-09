@@ -17,6 +17,9 @@ OS1 is designed for scenes like:
 
 The interface is intentionally minimal: a warm orange-red room, one button, one voice.
 
+> [!IMPORTANT]
+> OS1 is an independent, non-commercial toy project for research and technical exchange. It is not affiliated with, endorsed by, or connected to the film *Her*, Warner Bros., Annapurna Pictures, or any related rights holder. The name "OS1" in this repository refers only to this software experiment. All film titles, characters, and related intellectual property belong to their respective owners.
+
 ## Version
 
 Current version: `v0.02`

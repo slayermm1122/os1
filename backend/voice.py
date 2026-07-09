@@ -186,6 +186,8 @@ class VoiceClient:
                             continue
 
                         payload = json.loads(message)
+                        if payload.get("error"):
+                            raise RuntimeError("ElevenLabs TTS rejected the selected voice.")
                         audio = payload.get("audio")
                         if audio:
                             yield base64.b64decode(audio)

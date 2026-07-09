@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>OS1</title>
-    <link rel="icon" href="data:," />
+    <link rel="icon" type="image/svg+xml" href="/assets/os1-logo.svg" />
     <style>
       :root {
         color-scheme: dark;
@@ -125,6 +125,7 @@
 
       .stage {
         --orb-size: min(56vw, 360px);
+        --orb-center-y: 50%;
         position: fixed;
         inset: 0;
         z-index: 1;
@@ -133,7 +134,7 @@
 
       .key-prompt {
         position: absolute;
-        top: calc(50% - var(--orb-size) / 2 - 36px);
+        top: calc(var(--orb-center-y) - var(--orb-size) / 2 - 36px);
         left: 50%;
         transform: translateX(-50%);
         appearance: none;
@@ -161,7 +162,7 @@
 
       .orb {
         position: absolute;
-        top: 50%;
+        top: var(--orb-center-y);
         left: 50%;
         transform: translate(-50%, -50%);
         appearance: none;
@@ -256,7 +257,7 @@
 
       .recording-countdown {
         position: absolute;
-        bottom: 32px;
+        bottom: 52px;
         left: 50%;
         transform: translateX(-50%);
         min-width: 42px;
@@ -330,24 +331,36 @@
 
       .hint-line {
         position: absolute;
-        top: calc(50% + var(--orb-size) / 2 + 26px);
+        bottom: 28px;
         left: 50%;
-        width: min(100%, 620px);
+        width: 100%;
         transform: translateX(-50%);
         min-height: 20px;
         color: rgba(255, 246, 236, 0.56);
         font-size: 13px;
         text-align: center;
+        pointer-events: none;
+      }
+
+      .conversation-panel {
+        position: absolute;
+        top: calc(var(--orb-center-y) + var(--orb-size) / 2 + 28px);
+        bottom: 28px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 2;
+        display: flex;
+        width: min(calc(100% - 40px), 720px);
+        min-height: 0;
+        flex-direction: column;
+        pointer-events: auto;
       }
 
       .prompt-line {
-        position: absolute;
-        top: calc(50% + var(--orb-size) / 2 + 58px);
-        left: 50%;
-        transform: translateX(-50%);
-        width: min(100%, 620px);
+        flex: 0 0 auto;
+        width: 100%;
         min-height: 24px;
-        margin: 2px auto 0;
+        margin: 0 auto 4px;
         text-align: center;
         font-size: clamp(14px, 2.2vw, 17px);
         line-height: 1.45;
@@ -358,8 +371,8 @@
 
       .voice-switch {
         position: absolute;
-        top: 50%;
-        left: calc(50% - var(--orb-size) / 2 - 68px);
+        top: var(--orb-center-y);
+        left: calc(max((100vw - 980px) / 2, 0px) + clamp(22px, 4vw, 52px));
         transform: translateY(-50%);
         z-index: 2;
         display: grid;
@@ -392,21 +405,14 @@
       }
 
       .answer-panel {
-        position: fixed;
-        right: max(20px, calc((100vw - 720px) / 2));
-        bottom: 22px;
-        left: max(20px, calc((100vw - 720px) / 2));
-        z-index: 2;
-        width: auto;
-        height: min(16vh, 112px);
-        min-height: 110px;
-        margin: 0 auto;
+        min-height: 0;
+        flex: 1 1 auto;
       }
 
       .answer-text {
         height: 100%;
         overflow-y: auto;
-        padding: 0 8px 12px;
+        padding: 0 8px 8px;
         text-align: center;
         scrollbar-color: rgba(255, 246, 236, 0.22) transparent;
       }
@@ -540,9 +546,15 @@
         font-size: 13px;
       }
 
-      @media (max-width: 640px) {
+      @media (max-width: 768px), (orientation: portrait) and (max-width: 1024px) {
+        body {
+          background:
+            radial-gradient(circle at 50% 38%, rgba(255, 218, 156, 0.26), transparent 28rem),
+            linear-gradient(145deg, var(--bg-0) 0%, var(--bg-1) 46%, var(--bg-2) 100%);
+        }
+
         main {
-          padding: 20px;
+          padding: 40px;
         }
 
         .topbar {
@@ -554,19 +566,33 @@
         }
 
         .stage {
-          --orb-size: min(78vw, 330px);
+          --orb-size: min(72vw, 320px);
+          --orb-center-y: 38%;
         }
 
         .voice-switch {
-          top: calc(50% - var(--orb-size) / 2 - 46px);
-          left: 50%;
-          grid-auto-flow: column;
-          transform: translateX(-50%);
+          top: auto;
+          bottom: 40px;
+          left: 40px;
+          grid-auto-flow: row;
+          transform: none;
         }
 
-        .answer-panel {
-          height: 120px;
-          bottom: 20px;
+        .key-prompt,
+        .conversation-panel {
+          width: calc(100% - 80px);
+        }
+
+        .conversation-panel {
+          bottom: 112px;
+        }
+
+        .answer-text {
+          padding: 0 10px 12px;
+        }
+
+        .modal-backdrop {
+          padding: 32px;
         }
 
         .provider-row {
@@ -607,13 +633,14 @@
             <div class="bar"></div>
           </div>
           <div id="recordingCountdown" class="recording-countdown" aria-hidden="true">15s</div>
+          <div id="hint" class="hint-line">Press to Talk</div>
         </button>
-        <div id="hint" class="hint-line">Press the button to talk.</div>
-        <div id="transcript" class="prompt-line" aria-live="polite"></div>
-      </section>
-
-      <section class="answer-panel" aria-label="answer">
-        <div id="reply" class="answer-text" aria-live="polite" tabindex="0"></div>
+        <section class="conversation-panel" aria-label="conversation">
+          <div id="transcript" class="prompt-line" aria-live="polite"></div>
+          <div class="answer-panel" aria-label="answer">
+            <div id="reply" class="answer-text" aria-live="polite" tabindex="0"></div>
+          </div>
+        </section>
       </section>
     </main>
     <audio id="player"></audio>
@@ -1016,7 +1043,6 @@
           });
           if (!response.ok) {
             setStatus("tts error");
-            setAnswerText(await response.text());
             setState("idle");
             return;
           }
@@ -1378,10 +1404,16 @@
 
       function setHint(next) {
         if (next === "recording") {
-          hintEl.textContent = "Press again to stop and record";
+          hintEl.textContent = "Press to Stop";
+          hintEl.hidden = false;
           return;
         }
-        hintEl.textContent = "Press the button to talk.";
+        if (next === "idle") {
+          hintEl.textContent = "Press to Talk";
+          hintEl.hidden = false;
+          return;
+        }
+        hintEl.hidden = true;
       }
 
       function setState(next) {
