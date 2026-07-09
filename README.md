@@ -2,7 +2,7 @@
 
 > A small voice agent for any handbook, manual, policy, or document set.
 
-![OS1 homepage](https://github.com/slayermm1122/os1/blob/main/docs/assets/os1-home.jpg?raw=1)
+![OS1 homepage](https://cdn.jsdelivr.net/gh/slayermm1122/os1@main/docs/assets/os1-home.jpg)
 
 OS1 is an open-source experiment in natural voice support: give an AI the material it should know, then talk to it as if it were a calm, fast, always-available teammate.
 
