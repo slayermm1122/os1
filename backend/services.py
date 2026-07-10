@@ -1,0 +1,18 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from .config import Settings
+from .core.orchestrator import TurnOrchestrator
+from .core.rate_limit import SlidingWindowRateLimiter
+from .gateways.knowledge import KnowledgeGateway
+from .telemetry import SQLiteTelemetryRecorder
+
+
+@dataclass(frozen=True)
+class ApplicationServices:
+    settings: Settings
+    orchestrator: TurnOrchestrator
+    knowledge: KnowledgeGateway
+    telemetry: SQLiteTelemetryRecorder
+    rate_limiter: SlidingWindowRateLimiter

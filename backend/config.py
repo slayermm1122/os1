@@ -46,6 +46,11 @@ class Settings:
     root_dir: Path = ROOT_DIR
     frontend_dir: Path = ROOT_DIR / "frontend"
 
+    telemetry_enabled: bool = _bool_env("TELEMETRY_ENABLED", False)
+    telemetry_db_path: Path = ROOT_DIR / os.getenv("TELEMETRY_DB_PATH", "data/telemetry.sqlite")
+    telemetry_queue_size: int = _int_env("TELEMETRY_QUEUE_SIZE", 2048)
+    enforce_local_access: bool = True
+
     elevenlabs_api_key: str = os.getenv("ELEVENLABS_API_KEY", "")
     elevenlabs_voice_id: str = os.getenv("ELEVENLABS_VOICE_ID", DEFAULT_MALE_VOICE_ID)
     elevenlabs_male_voice_id: str = os.getenv("ELEVENLABS_MALE_VOICE_ID", DEFAULT_MALE_VOICE_ID)
@@ -63,6 +68,7 @@ class Settings:
     elevenlabs_output_format: str = os.getenv("ELEVENLABS_OUTPUT_FORMAT", "mp3_44100_128")
     elevenlabs_stream_output_format: str = os.getenv("ELEVENLABS_STREAM_OUTPUT_FORMAT", "pcm_16000")
     elevenlabs_stt_language_code: str = os.getenv("ELEVENLABS_STT_LANGUAGE_CODE", "")
+    elevenlabs_enable_logging: bool = _bool_env("ELEVENLABS_ENABLE_LOGGING", True)
 
     llm_api_key: str = (
         os.getenv("LLM_API_KEY")
@@ -91,6 +97,8 @@ class Settings:
     knowledge_limit: int = _int_env("KNOWLEDGE_LIMIT", 4)
 
     max_upload_bytes: int = _int_env("MAX_UPLOAD_BYTES", 25 * 1024 * 1024)
+    max_http_body_bytes: int = _int_env("MAX_HTTP_BODY_BYTES", 30 * 1024 * 1024)
+    max_recording_seconds: float = _float_env("MAX_RECORDING_SECONDS", 15.0)
     max_chat_chars: int = _int_env("MAX_CHAT_CHARS", 8000)
     max_tts_chars: int = _int_env("MAX_TTS_CHARS", 4000)
     max_sessions: int = _int_env("MAX_SESSIONS", 200)

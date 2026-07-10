@@ -721,6 +721,7 @@
       let selectedVoiceGender =
         localStorage.getItem("os1.voiceGender") === "female" ? "female" : "male";
 
+      migrateLegacyApiKeys();
       refreshKeyState();
       setHint("idle");
       setVoiceGender(selectedVoiceGender);
@@ -790,6 +791,9 @@
             sample_rate: TARGET_SAMPLE_RATE,
           }),
         );
+        setState("connecting");
+        setStatus("connecting voice");
+        await waitForSttReady(activeTurn);
         await startMicPcm(socket);
         setState("recording");
         setStatus("listening");
@@ -884,6 +888,7 @@
 
       function bindRealtimeSocket(socket, turn) {
         socket.binaryType = "arraybuffer";
+        turn.socket = socket;
         socket.addEventListener("message", (message) => {
           void (async () => {
             try {
@@ -897,6 +902,9 @@
         });
         socket.addEventListener("close", () => {
           void (async () => {
+            if (!turn.sttReadyReceived) {
+              turn.rejectSttReady(new Error("Realtime transcription connection closed before recording started"));
+            }
             if (realtimeSocket === socket) realtimeSocket = null;
             await finishTurn(turn);
           })();
@@ -909,7 +917,18 @@
       }
 
       function createTurnState() {
+        let resolveSttReady;
+        let rejectSttReady;
+        const sttReady = new Promise((resolve, reject) => {
+          resolveSttReady = resolve;
+          rejectSttReady = reject;
+        });
         return {
+          turnId: "",
+          socket: null,
+          clientStartedAt: performance.now(),
+          playbackReported: false,
+          playbackFailureReported: false,
           audioStream: null,
           finalText: "",
           receivedAudio: false,
@@ -918,11 +937,30 @@
           streamingAudioDisabled: false,
           failed: false,
           finished: false,
+          sttReady,
+          resolveSttReady,
+          rejectSttReady,
+          sttReadyReceived: false,
         };
+      }
+
+      function waitForSttReady(turn) {
+        let timer = 0;
+        const timeout = new Promise((_, reject) => {
+          timer = window.setTimeout(() => {
+            reject(new Error("ElevenLabs transcription connection timed out before recording started."));
+          }, 12000);
+        });
+        return Promise.race([turn.sttReady, timeout]).finally(() => {
+          window.clearTimeout(timer);
+        });
       }
 
       async function handleTurnEvent(event, data, turn) {
         if (!event) return;
+        if (data.turn_id) {
+          turn.turnId = data.turn_id;
+        }
         if (data.session_id) {
           sessionId = data.session_id;
           localStorage.setItem("os1.sessionId", sessionId);
@@ -930,6 +968,16 @@
         if (event === "status") {
           setStatus(data.state || "working");
           if (data.state === "thinking") setState("thinking");
+        }
+        if (event === "stt_ready") {
+          turn.sttReadyReceived = true;
+          turn.resolveSttReady();
+        }
+        if (event === "recording_stopped") {
+          clearRecordingLimit();
+          stopMicPcm();
+          setState("processing");
+          setStatus("transcribing");
         }
         if (event === "transcript_partial") {
           transcriptEl.textContent = data.text || "";
@@ -944,13 +992,17 @@
           if (turn.streamingAudioDisabled) return;
           try {
             if (!turn.audioStream) {
-              turn.audioStream = createStreamingAudioPlayer(data);
+              turn.audioStream = createStreamingAudioPlayer(
+                data,
+                () => reportPlaybackStarted(turn),
+              );
             }
             turn.receivedAudio = true;
             setState("speaking");
             setStatus("speaking");
             await turn.audioStream.appendBase64(data.audio || "");
           } catch (error) {
+            reportPlaybackFailed(turn, error);
             turn.streamingAudioDisabled = true;
             turn.ttsFailed = true;
             if (!turn.receivedAudio) {
@@ -961,7 +1013,14 @@
         }
         if (event === "audio_done") {
           turn.audioDone = true;
-          if (turn.audioStream) await turn.audioStream.end();
+          if (turn.audioStream) {
+            try {
+              await turn.audioStream.end();
+            } catch (error) {
+              reportPlaybackFailed(turn, error);
+              turn.ttsFailed = true;
+            }
+          }
         }
         if (event === "tts_error") {
           turn.ttsFailed = true;
@@ -975,6 +1034,7 @@
         }
         if (event === "error") {
           turn.failed = true;
+          turn.rejectSttReady(new Error(data.message || "Realtime transcription failed"));
           setStatus("error");
           setAnswerText(data.message || "error");
         }
@@ -986,7 +1046,12 @@
         if (turn.finalText && !turn.receivedAudio && !turn.failed) {
           await playVoice(turn.finalText);
         } else if (turn.receivedAudio && !turn.audioDone && turn.audioStream) {
-          await turn.audioStream.end();
+          try {
+            await turn.audioStream.end();
+          } catch (error) {
+            reportPlaybackFailed(turn, error);
+            turn.ttsFailed = true;
+          }
         } else if (!turn.receivedAudio || turn.ttsFailed) {
           setState("idle");
         }
@@ -1059,18 +1124,21 @@
         }
       }
 
-      function createStreamingAudioPlayer(meta = {}) {
+      function createStreamingAudioPlayer(meta = {}, onPlaybackStarted = () => {}) {
         const format = meta.format || "";
         if (format.startsWith("pcm_")) {
           if (!("AudioContext" in window || "webkitAudioContext" in window)) {
             throw new Error("AudioContext is not supported in this browser");
           }
-          return createPcmAudioPlayer(meta.sample_rate || Number(format.slice(4)) || 16000);
+          return createPcmAudioPlayer(
+            meta.sample_rate || Number(format.slice(4)) || 16000,
+            onPlaybackStarted,
+          );
         }
-        return createEncodedAudioPlayer();
+        return createEncodedAudioPlayer(onPlaybackStarted);
       }
 
-      function createPcmAudioPlayer(sampleRate) {
+      function createPcmAudioPlayer(sampleRate, onPlaybackStarted) {
         const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
         if (!AudioContextCtor) {
           throw new Error("AudioContext is not supported in this browser");
@@ -1098,6 +1166,7 @@
 
           const startAt = Math.max(audioContext.currentTime + 0.035, nextStartTime);
           source.start(startAt);
+          if (!hasAudio) onPlaybackStarted();
           nextStartTime = startAt + audioBuffer.duration;
           hasAudio = true;
         }
@@ -1119,7 +1188,7 @@
         return { appendBase64, end };
       }
 
-      function createEncodedAudioPlayer() {
+      function createEncodedAudioPlayer(onPlaybackStarted) {
         const mimeType = "audio/mpeg";
         const fallbackChunks = [];
         const canStream =
@@ -1141,6 +1210,7 @@
                 setState("idle");
               };
               await player.play();
+              onPlaybackStarted();
             },
           };
         }
@@ -1184,6 +1254,7 @@
             if (!started) {
               started = true;
               await player.play();
+              onPlaybackStarted();
             }
           });
           return appendChain;
@@ -1205,6 +1276,36 @@
         }
 
         return { appendBase64, end };
+      }
+
+      function reportPlaybackStarted(turn) {
+        if (!turn || turn.playbackReported) return;
+        const socket = turn.socket;
+        if (!turn.turnId || !socket || socket.readyState !== WebSocket.OPEN) return;
+        turn.playbackReported = true;
+        socket.send(
+          JSON.stringify({
+            type: "client_event",
+            name: "browser.playback_started",
+            turn_id: turn.turnId,
+            client_elapsed_ms: performance.now() - turn.clientStartedAt,
+          }),
+        );
+      }
+
+      function reportPlaybackFailed(turn, error) {
+        if (!turn || turn.playbackFailureReported) return;
+        const socket = turn.socket;
+        if (!turn.turnId || !socket || socket.readyState !== WebSocket.OPEN) return;
+        turn.playbackFailureReported = true;
+        socket.send(
+          JSON.stringify({
+            type: "client_event",
+            name: "browser.playback_failed",
+            turn_id: turn.turnId,
+            message: String(error?.message || error || "Audio playback failed").slice(0, 500),
+          }),
+        );
       }
 
       function pcm16ToFloat32(bytes) {
@@ -1434,9 +1535,24 @@
 
       function getApiKeys() {
         return {
-          brain: localStorage.getItem("os1.brainApiKey") || "",
-          voice: localStorage.getItem("os1.voiceApiKey") || "",
+          brain: sessionStorage.getItem("os1.brainApiKey") || "",
+          voice: sessionStorage.getItem("os1.voiceApiKey") || "",
         };
+      }
+
+      function migrateLegacyApiKeys() {
+        for (const key of [
+          "os1.brainProvider",
+          "os1.voiceProvider",
+          "os1.brainApiKey",
+          "os1.voiceApiKey",
+        ]) {
+          const legacyValue = localStorage.getItem(key);
+          if (legacyValue && !sessionStorage.getItem(key)) {
+            sessionStorage.setItem(key, legacyValue);
+          }
+          localStorage.removeItem(key);
+        }
       }
 
       function apiKeyHeaders() {
@@ -1513,20 +1629,25 @@
           settingsError.textContent = "Both API keys are required.";
           return;
         }
-        localStorage.setItem("os1.brainProvider", "xai");
-        localStorage.setItem("os1.voiceProvider", "elevenlabs");
-        localStorage.setItem("os1.brainApiKey", brain);
-        localStorage.setItem("os1.voiceApiKey", voice);
+        sessionStorage.setItem("os1.brainProvider", "xai");
+        sessionStorage.setItem("os1.voiceProvider", "elevenlabs");
+        sessionStorage.setItem("os1.brainApiKey", brain);
+        sessionStorage.setItem("os1.voiceApiKey", voice);
         serverHasBrainKey = true;
         serverHasVoiceKey = true;
         closeSettingsModal();
       }
 
       function clearApiKeys() {
-        localStorage.removeItem("os1.brainProvider");
-        localStorage.removeItem("os1.voiceProvider");
-        localStorage.removeItem("os1.brainApiKey");
-        localStorage.removeItem("os1.voiceApiKey");
+        for (const key of [
+          "os1.brainProvider",
+          "os1.voiceProvider",
+          "os1.brainApiKey",
+          "os1.voiceApiKey",
+        ]) {
+          sessionStorage.removeItem(key);
+          localStorage.removeItem(key);
+        }
         brainKeyInput.value = "";
         voiceKeyInput.value = "";
         settingsError.textContent = "Browser-stored keys cleared.";

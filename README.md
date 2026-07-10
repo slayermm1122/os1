@@ -22,11 +22,11 @@ The interface is intentionally minimal: a warm orange-red room, one button, one 
 
 ## Version
 
-Current version: `v0.02`
+Current version: `v0.02.01`
 
 This is still deliberately small, inspectable, and easy to change.
 
-## What Works In v0.02
+## What Works In v0.02.01
 
 - Press-to-talk voice recording with browser PCM streaming
 - ElevenLabs realtime speech-to-text while the user is still recording
@@ -39,6 +39,8 @@ This is still deliberately small, inspectable, and easy to change.
 - Simple centered voice UI inspired by OS-style ambient assistants
 - API key dialog in the UI
 - Optional server-side `.env` fallback for local testing
+- Capability-specific LLM, STT, TTS, and knowledge gateways
+- Opt-in per-turn latency, usage, cost, cache, and error telemetry in local SQLite
 
 ## Current Limits
 
@@ -58,7 +60,21 @@ Browser PCM
 
 This reduces the wait after the user stops speaking because transcription has already been running during the recording.
 
-Document grounding is not fully productized yet. There is no document upload UI in `v0.02`.
+Document grounding is not fully productized yet. There is no document upload UI in `v0.02.01`.
+
+Conversation history is currently short-lived and intentionally simple. The backend keeps the most recent eight turns in memory for one hour by default, and loses them when the process restarts. Telemetry persists individual turns when explicitly enabled, but it is not a memory system and there is no persisted conversation entity above `turn_id` yet.
+
+## Versioning
+
+OS1 uses `X.Y.Z` to describe the kind of change:
+
+- `X` changes when the product identity or overall interface is substantially redesigned.
+- `Y` changes for user-visible features, experience improvements, and fixes.
+- `Z` changes for internal backend, architecture, and engineering upgrades.
+
+`v0.02.01` is a `Z` release: the voice experience remains the same while the backend becomes modular and observable.
+
+See [CHANGELOG.md](CHANGELOG.md) for the history of each release.
 
 ## What You Need
 
@@ -96,7 +112,7 @@ On first use, OS1 will ask for:
 - xAI API key
 - ElevenLabs API key
 
-These are stored in browser `localStorage` and sent only to your local backend for the request that needs them.
+These are stored in browser `sessionStorage`, survive a page refresh, and are cleared when the tab session ends. They are sent only to your local backend for the request that needs them.
 
 ## Optional `.env`
 
@@ -108,9 +124,13 @@ cp .env.example .env
 
 `.env` is ignored by git. Do not commit real API keys.
 
+Telemetry is intentionally disabled for a fresh checkout. To record full local turn diagnostics, set `TELEMETRY_ENABLED=true` in your private `.env` after reading the privacy warning below.
+
 ## Security
 
 OS1 is local-first research software. Read [SECURITY.md](SECURITY.md) before publishing, deploying, or sharing a hosted instance.
+
+OS1 v0.02.01 accepts loopback traffic only and is not a public deployment. Telemetry is disabled by default. When explicitly enabled, it stores full transcripts, AI responses, model request snapshots, and knowledge snippets in the ignored local file `data/telemetry.sqlite`. Do not publish or share this database. Delete the database and its `-wal` / `-shm` sidecars while OS1 is stopped to clear the recorded history.
 
 ## Roadmap
 
@@ -126,14 +146,21 @@ More model choices.
 
 The provider menus are already present in the UI. Future versions will add more brain and voice providers beyond xAI and ElevenLabs.
 
+### v0.05
+
+Continuous memory for a single-window AI.
+
+OS1 will remain one continuous interface rather than becoming a list of separate chat threads. This release will introduce deliberate memory maintenance instead of sending an ever-growing transcript back to the model. The current state and design boundary are recorded in the [memory plan](docs/memory-plan.md); the retrieval, consolidation, forgetting, and correction rules remain open for the dedicated design phase.
+
 ## Project Shape
 
 ```text
 backend/
-  app.py        FastAPI routes and streaming orchestration
-  voice.py      ElevenLabs STT/TTS client
-  llm.py        Grok/OpenAI-compatible streaming client
-  knowledge.py  Document context module
+  app.py        Application composition and lifecycle
+  api/          HTTP, SSE, and WebSocket transport
+  core/         Turn orchestration, sessions, chunking, and errors
+  gateways/     Replaceable LLM, STT, TTS, and knowledge providers
+  telemetry/    Async recorder and SQLite schema
 
 frontend/
   index.html    Minimal voice interface
