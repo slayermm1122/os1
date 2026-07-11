@@ -31,7 +31,7 @@ The default development command binds to `127.0.0.1`:
 uvicorn backend.app:app --reload --host 127.0.0.1 --port 8000
 ```
 
-OS1 v0.02.01 enforces loopback clients, loopback Host headers, and same-origin WebSocket requests. It is intentionally unusable as a public or LAN service. Public deployment requires a separate authenticated architecture; changing only the Uvicorn bind address is not sufficient.
+OS1 v0.02.02 enforces loopback clients, loopback Host headers, and same-origin WebSocket requests. It is intentionally unusable as a public or LAN service. Public deployment requires a separate authenticated architecture; changing only the Uvicorn bind address is not sufficient.
 
 ## Built-In Guardrails
 

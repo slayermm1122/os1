@@ -2,6 +2,16 @@
 
 This file records the user-visible and internal changes in each OS1 release. Versions follow the project's `X.Y.Z` convention described in the README.
 
+## v0.02.02 - 2026-07-11
+
+Provider readiness and response-state feedback.
+
+- Added a no-generation startup check for the configured xAI model and ElevenLabs voice path.
+- Kept the talk button disabled until both provider checks succeed.
+- Added concise connection states and retry behavior for unavailable providers or rejected keys.
+- Added a restrained thinking animation between committed transcription and streamed voice playback.
+- Preserved the existing first-token and turn-event latency measurements.
+
 ## v0.02.01 - 2026-07-10
 
 Backend modularization and observability release.

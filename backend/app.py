@@ -9,10 +9,12 @@ from fastapi.staticfiles import StaticFiles
 from .api.realtime import create_realtime_router
 from .api.routes import create_router
 from .config import settings
+from .core.connectivity import ConnectivityService
 from .core.orchestrator import TurnOrchestrator
 from .core.rate_limit import SlidingWindowRateLimiter
 from .core.security import is_allowed_websocket, is_local_http_request
 from .core.sessions import SessionStore
+from .gateways.connectivity import ElevenLabsConnectivityProbe, XAIConnectivityProbe
 from .gateways.knowledge import SQLiteFTSKnowledgeGateway
 from .gateways.llm import XAILLMGateway
 from .gateways.stt import ElevenLabsSTTGateway
@@ -54,6 +56,10 @@ services = ApplicationServices(
         requests=settings.rate_limit_requests,
         window_seconds=settings.rate_limit_window_seconds,
     ),
+    connectivity=ConnectivityService(
+        brain=XAIConnectivityProbe(settings),
+        voice=ElevenLabsConnectivityProbe(settings),
+    ),
 )
 
 
@@ -88,7 +94,10 @@ async def rate_limit_api(request: Request, call_next):
         request.headers.get("host"),
     ):
         return _secured_response(
-            JSONResponse({"detail": "OS1 v0.02.01 only accepts local requests."}, status_code=403)
+            JSONResponse(
+                {"detail": f"OS1 v{APP_VERSION} only accepts local requests."},
+                status_code=403,
+            )
         )
     origin = request.headers.get("origin")
     if origin and not is_allowed_websocket(

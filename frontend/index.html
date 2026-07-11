@@ -213,7 +213,8 @@
         cursor: default;
       }
 
-      body.keys-missing .orb {
+      body.keys-missing .orb,
+      body.providers-unavailable .orb {
         border-color: rgba(255, 246, 236, 0.12);
         background: rgba(255, 246, 236, 0.055);
         box-shadow:
@@ -221,7 +222,8 @@
           0 20px 80px rgba(72, 13, 8, 0.18);
       }
 
-      body.keys-missing .bar {
+      body.keys-missing .bar,
+      body.providers-unavailable .bar {
         background: var(--disabled);
         opacity: 0.42;
       }
@@ -244,6 +246,14 @@
           inset 0 0 100px rgba(255, 228, 156, 0.2),
           0 0 0 18px rgba(255, 228, 156, 0.075),
           0 30px 128px rgba(72, 13, 8, 0.3);
+      }
+
+      body.is-thinking .orb {
+        border-color: rgba(255, 246, 236, 0.34);
+        box-shadow:
+          inset 0 0 96px rgba(255, 246, 236, 0.13),
+          0 0 0 14px rgba(255, 246, 236, 0.035),
+          0 30px 128px rgba(72, 13, 8, 0.26);
       }
 
       .bars {
@@ -303,6 +313,12 @@
         background: var(--speaking);
       }
 
+      body.is-thinking .bar {
+        animation: thinkingPulse 1500ms ease-in-out infinite;
+        background: rgba(255, 246, 236, 0.8);
+        opacity: 0.84;
+      }
+
       .bar:nth-child(2) { animation-delay: 70ms; }
       .bar:nth-child(3) { animation-delay: 140ms; }
       .bar:nth-child(4) { animation-delay: 210ms; }
@@ -314,6 +330,11 @@
       @keyframes pulse {
         0%, 100% { height: 18px; }
         45% { height: 104px; }
+      }
+
+      @keyframes thinkingPulse {
+        0%, 100% { height: 18px; opacity: 0.58; }
+        50% { height: 34px; opacity: 0.94; }
       }
 
       @keyframes countdownWarn {
@@ -715,6 +736,11 @@
       let state = "idle";
       let serverHasBrainKey = false;
       let serverHasVoiceKey = false;
+      let providersReady = false;
+      let connectivityChecking = false;
+      let connectivityRetryable = false;
+      let connectivityRetryTimer = 0;
+      let connectivityCheckId = 0;
       let recordingStartedAt = 0;
       let recordingStopTimer = 0;
       let recordingCountdownTimer = 0;
@@ -722,9 +748,9 @@
         localStorage.getItem("os1.voiceGender") === "female" ? "female" : "male";
 
       migrateLegacyApiKeys();
-      refreshKeyState();
       setHint("idle");
       setVoiceGender(selectedVoiceGender);
+      void refreshConnectivity();
 
       brandButton.addEventListener("click", (event) => {
         event.stopPropagation();
@@ -739,7 +765,8 @@
       voiceMaleButton.addEventListener("click", () => setVoiceGender("male"));
       voiceFemaleButton.addEventListener("click", () => setVoiceGender("female"));
       clearKeysButton.addEventListener("click", clearApiKeys);
-      saveKeysButton.addEventListener("click", saveApiKeys);
+      saveKeysButton.addEventListener("click", () => void saveApiKeys());
+      window.addEventListener("online", () => void refreshConnectivity());
       settingsModal.addEventListener("click", (event) => {
         if (event.target === settingsModal) closeSettingsModal();
       });
@@ -752,10 +779,13 @@
 
       talkButton.addEventListener("click", async () => {
         try {
-          await refreshKeyState();
           if (!hasApiKeys()) {
             updateKeyState();
             openSettingsModal();
+            return;
+          }
+          if (!providersReady) {
+            await refreshConnectivity();
             return;
           }
           if (state === "recording") {
@@ -1521,11 +1551,16 @@
         state = next;
         document.body.classList.toggle("is-recording", next === "recording");
         document.body.classList.toggle("is-speaking", next === "speaking");
-        talkButton.disabled = !hasApiKeys() || (next !== "idle" && next !== "recording");
+        document.body.classList.toggle("is-thinking", next === "thinking");
+        talkButton.disabled = !canTalk() || (next !== "idle" && next !== "recording");
         talkButton.setAttribute("aria-label", next === "recording" ? "停止录音" : "开始录音");
         updateVoiceControls();
         setHint(next);
-        if (next === "idle") setStatus("ready");
+        if (next === "idle" && providersReady) setStatus("ready");
+      }
+
+      function canTalk() {
+        return hasApiKeys() && providersReady && !connectivityChecking;
       }
 
       function hasApiKeys() {
@@ -1580,13 +1615,17 @@
       }
 
       function updateKeyState() {
-        const missing = !hasApiKeys();
+        const missing = !connectivityChecking && !hasApiKeys();
         document.body.classList.toggle("keys-missing", missing);
+        document.body.classList.toggle(
+          "providers-unavailable",
+          connectivityChecking || (!missing && !providersReady),
+        );
         keyPrompt.hidden = !missing;
-        talkButton.disabled = missing || (state !== "idle" && state !== "recording");
+        talkButton.disabled = !canTalk() || (state !== "idle" && state !== "recording");
       }
 
-      async function refreshKeyState() {
+      async function refreshServerKeyState() {
         try {
           const response = await fetch("/api/health", { cache: "no-store" });
           if (response.ok) {
@@ -1598,7 +1637,76 @@
           serverHasBrainKey = false;
           serverHasVoiceKey = false;
         }
+      }
+
+      async function refreshConnectivity() {
+        window.clearTimeout(connectivityRetryTimer);
+        connectivityRetryTimer = 0;
+        const checkId = ++connectivityCheckId;
+        providersReady = false;
+        connectivityChecking = true;
+        connectivityRetryable = false;
+        setStatus("checking");
+        statusEl.removeAttribute("title");
         updateKeyState();
+
+        await refreshServerKeyState();
+        if (checkId !== connectivityCheckId) return;
+        if (!hasApiKeys()) {
+          connectivityChecking = false;
+          setStatus("keys needed");
+          updateKeyState();
+          return;
+        }
+
+        try {
+          const response = await fetch("/api/connectivity/check", {
+            method: "POST",
+            headers: apiKeyHeaders(),
+            cache: "no-store",
+          });
+          if (!response.ok) throw new Error("Connectivity check failed.");
+          const report = await response.json();
+          if (checkId !== connectivityCheckId) return;
+          providersReady = Boolean(report.ready);
+          connectivityRetryable = [report.brain, report.voice].some(
+            (provider) => provider && !provider.ok && isRetryableConnectivityCode(provider.code),
+          );
+          setStatus(connectivityStatus(report));
+          statusEl.title = [report.brain?.message, report.voice?.message]
+            .filter(Boolean)
+            .join(" ");
+        } catch (error) {
+          if (checkId !== connectivityCheckId) return;
+          providersReady = false;
+          connectivityRetryable = true;
+          setStatus("offline");
+          statusEl.title = error?.message || "Provider connectivity check failed.";
+        } finally {
+          if (checkId !== connectivityCheckId) return;
+          connectivityChecking = false;
+          updateKeyState();
+          if (!providersReady && connectivityRetryable && hasApiKeys()) {
+            connectivityRetryTimer = window.setTimeout(
+              () => void refreshConnectivity(),
+              15000,
+            );
+          }
+        }
+      }
+
+      function connectivityStatus(report) {
+        const brain = report.brain || {};
+        const voice = report.voice || {};
+        if (brain.ok && voice.ok) return "ready";
+        if (brain.code === "authentication_failed") return "brain key error";
+        if (voice.code === "authentication_failed") return "voice key error";
+        if (!brain.ok && !voice.ok) return "offline";
+        return brain.ok ? "voice offline" : "brain offline";
+      }
+
+      function isRetryableConnectivityCode(code) {
+        return ["timeout", "transport_error", "upstream_rejected", "rate_limited"].includes(code);
       }
 
       function setBrandMenuHidden(hidden) {
@@ -1622,7 +1730,7 @@
         updateKeyState();
       }
 
-      function saveApiKeys() {
+      async function saveApiKeys() {
         const brain = brainKeyInput.value.trim();
         const voice = voiceKeyInput.value.trim();
         if (!brain || !voice) {
@@ -1636,6 +1744,7 @@
         serverHasBrainKey = true;
         serverHasVoiceKey = true;
         closeSettingsModal();
+        await refreshConnectivity();
       }
 
       function clearApiKeys() {
@@ -1650,8 +1759,15 @@
         }
         brainKeyInput.value = "";
         voiceKeyInput.value = "";
+        providersReady = false;
+        connectivityChecking = false;
+        connectivityRetryable = false;
+        connectivityCheckId += 1;
+        window.clearTimeout(connectivityRetryTimer);
+        connectivityRetryTimer = 0;
         settingsError.textContent = "Browser-stored keys cleared.";
         updateKeyState();
+        void refreshConnectivity();
       }
     </script>
   </body>

@@ -12,6 +12,8 @@ from collections.abc import AsyncIterable, AsyncIterator
 from contextlib import asynccontextmanager, closing
 from pathlib import Path
 
+import httpx
+
 warnings.filterwarnings(
     "ignore",
     message="Using `httpx` with `starlette.testclient` is deprecated.*",
@@ -22,13 +24,16 @@ from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from backend.api.realtime import create_realtime_router
+from backend.api.routes import create_router
 from backend.config import Settings
 from backend.core.chunking import pop_ready_speech_chunks
+from backend.core.connectivity import ConnectivityService, ProviderStatus
 from backend.core.errors import GatewayError, error_info, redact
 from backend.core.orchestrator import TurnOrchestrator
 from backend.core.rate_limit import SlidingWindowRateLimiter
 from backend.core.security import is_allowed_websocket, is_local_http_request
 from backend.core.sessions import SessionStore
+from backend.gateways.connectivity import ElevenLabsConnectivityProbe, XAIConnectivityProbe
 from backend.gateways.knowledge import SQLiteFTSKnowledgeGateway, SearchHit
 from backend.gateways.llm import LLMRequest, LLMStreamEvent, LLMUsage
 from backend.gateways.llm.xai import _parse_usage
@@ -115,6 +120,28 @@ class FailingLLM(FakeLLM):
             technical_message="synthetic llm failure",
         )
         yield LLMStreamEvent(kind="complete")
+
+
+class FakeProbe:
+    def __init__(self, provider: str, *, ok: bool = True) -> None:
+        self.provider = provider
+        self.ok = ok
+        self.calls: list[tuple[str | None, str | None]] = []
+
+    async def check(
+        self,
+        *,
+        api_key: str | None,
+        resource_id: str | None = None,
+    ) -> ProviderStatus:
+        self.calls.append((api_key, resource_id))
+        return ProviderStatus(
+            provider=self.provider,
+            ok=self.ok,
+            latency_ms=12.5,
+            code="ok" if self.ok else "transport_error",
+            message=f"{self.provider} {'ready' if self.ok else 'unavailable'}.",
+        )
 
 
 class FakeSTT:
@@ -262,7 +289,8 @@ class OrchestratorTests(unittest.IsolatedAsyncioTestCase):
                 (trace.turn_id,),
             ).fetchone()
             llm = conn.execute(
-                "SELECT cached_tokens, reasoning_tokens, cache_status, cost_usd_ticks, request_json "
+                "SELECT cached_tokens, reasoning_tokens, cache_status, cost_usd_ticks, request_json, "
+                "first_token_ms "
                 "FROM llm_calls WHERE turn_id = ?",
                 (trace.turn_id,),
             ).fetchone()
@@ -276,9 +304,23 @@ class OrchestratorTests(unittest.IsolatedAsyncioTestCase):
                 (trace.turn_id,),
             ).fetchone()
             database_text = " ".join(str(row) for row in conn.iterdump())
+            event_offsets = dict(
+                conn.execute(
+                    "SELECT name, offset_ms FROM turn_events WHERE turn_id = ? "
+                    "AND name IN ('stt.committed', 'llm.first_token')",
+                    (trace.turn_id,),
+                ).fetchall()
+            )
 
         self.assertEqual(turn, ("success", "hello", "A concise answer.", None, None))
         self.assertEqual(llm[:4], (10, 2, "partial", 1234))
+        self.assertIsNotNone(llm[5])
+        self.assertIn("stt.committed", event_offsets)
+        self.assertIn("llm.first_token", event_offsets)
+        self.assertGreaterEqual(
+            event_offsets["llm.first_token"] - event_offsets["stt.committed"],
+            0,
+        )
         self.assertIn("A concise answer", tts and turn[2])
         self.assertGreater(stt[0], 0)
         self.assertAlmostEqual(stt[1], 100.0)
@@ -557,6 +599,117 @@ class ContractTests(unittest.TestCase):
         self.assertTrue(all(limiter.consume(f"client-{index}") for index in range(100)))
         self.assertFalse(limiter.consume("client-over-capacity"))
         self.assertLessEqual(len(limiter._timestamps), 100)
+
+
+class ConnectivityTests(unittest.IsolatedAsyncioTestCase):
+    async def test_both_provider_checks_must_succeed(self) -> None:
+        brain = FakeProbe("xai")
+        voice = FakeProbe("elevenlabs", ok=False)
+        service = ConnectivityService(brain=brain, voice=voice)
+
+        report = await service.check(
+            brain_api_key="brain-key",
+            voice_api_key="voice-key",
+            voice_id="voice-id",
+        )
+
+        self.assertFalse(report["ready"])
+        self.assertTrue(report["brain"]["ok"])
+        self.assertFalse(report["voice"]["ok"])
+        self.assertEqual(brain.calls, [("brain-key", None)])
+        self.assertEqual(voice.calls, [("voice-key", "voice-id")])
+
+    async def test_connectivity_endpoint_uses_selected_voice(self) -> None:
+        brain = FakeProbe("xai")
+        voice = FakeProbe("elevenlabs")
+        settings = Settings(enforce_local_access=False)
+        recorder = SQLiteTelemetryRecorder(Path("unused.sqlite"), enabled=False)
+        knowledge = FakeKnowledge()
+        orchestrator = TurnOrchestrator(
+            settings=settings,
+            llm=FakeLLM(),
+            stt=FakeSTT(),
+            tts=FakeTTS(),
+            knowledge=knowledge,
+            sessions=SessionStore(max_turns=4, max_sessions=10, ttl_seconds=3600),
+            telemetry=recorder,
+        )
+        services = ApplicationServices(
+            settings=settings,
+            orchestrator=orchestrator,
+            knowledge=knowledge,
+            telemetry=recorder,
+            rate_limiter=SlidingWindowRateLimiter(requests=20, window_seconds=60),
+            connectivity=ConnectivityService(brain=brain, voice=voice),
+        )
+        app = FastAPI()
+        app.include_router(create_router(services))
+
+        with TestClient(app) as client:
+            response = client.post(
+                "/api/connectivity/check",
+                headers={
+                    "X-OS1-Brain-API-Key": "browser-brain-key",
+                    "X-OS1-Voice-API-Key": "browser-voice-key",
+                    "X-OS1-Voice-Gender": "female",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["ready"])
+        self.assertEqual(brain.calls, [("browser-brain-key", None)])
+        self.assertEqual(
+            voice.calls,
+            [("browser-voice-key", settings.elevenlabs_female_voice_id)],
+        )
+
+    async def test_xai_probe_validates_model_and_authentication(self) -> None:
+        settings = Settings(
+            llm_api_key="server-key",
+            llm_base_url="https://api.x.ai/v1",
+            llm_model="grok-test",
+        )
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            self.assertEqual(request.url.path, "/v1/models/grok-test")
+            if request.headers.get("authorization") != "Bearer valid-key":
+                return httpx.Response(401, json={"error": "unauthorized"})
+            return httpx.Response(200, json={"id": "grok-test", "object": "model"})
+
+        probe = XAIConnectivityProbe(settings, transport=httpx.MockTransport(handler))
+        success = await probe.check(api_key="valid-key")
+        rejected = await probe.check(api_key="invalid-key")
+
+        self.assertTrue(success.ok)
+        self.assertEqual(success.code, "ok")
+        self.assertFalse(rejected.ok)
+        self.assertEqual(rejected.code, "authentication_failed")
+
+    async def test_elevenlabs_probe_requires_configured_model(self) -> None:
+        settings = Settings(
+            elevenlabs_api_key="server-key",
+            elevenlabs_tts_model="eleven-test",
+        )
+        visible_models = [{"model_id": "eleven-test"}]
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            self.assertEqual(request.url.path, "/v1/models")
+            if request.headers.get("xi-api-key") != "valid-key":
+                return httpx.Response(401, json={"detail": "unauthorized"})
+            return httpx.Response(200, json=visible_models)
+
+        probe = ElevenLabsConnectivityProbe(settings, transport=httpx.MockTransport(handler))
+        success = await probe.check(api_key="valid-key")
+        self.assertTrue(success.ok)
+
+        visible_models.clear()
+        missing_model = await probe.check(api_key="valid-key")
+        rejected = await probe.check(api_key="invalid-key")
+
+        self.assertFalse(missing_model.ok)
+        self.assertEqual(missing_model.code, "model_unavailable")
+        self.assertFalse(rejected.ok)
+        self.assertEqual(rejected.code, "authentication_failed")
 
 
 class TelemetryStoreTests(unittest.IsolatedAsyncioTestCase):

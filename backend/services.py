@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .config import Settings
+from .core.connectivity import ConnectivityService
 from .core.orchestrator import TurnOrchestrator
 from .core.rate_limit import SlidingWindowRateLimiter
 from .gateways.knowledge import KnowledgeGateway
@@ -16,3 +17,4 @@ class ApplicationServices:
     knowledge: KnowledgeGateway
     telemetry: SQLiteTelemetryRecorder
     rate_limiter: SlidingWindowRateLimiter
+    connectivity: ConnectivityService | None = None

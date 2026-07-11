@@ -43,6 +43,21 @@ def create_router(services: ApplicationServices) -> APIRouter:
             "has_llm_key": bool(settings.llm_api_key),
         }
 
+    @router.post("/api/connectivity/check")
+    async def connectivity_check(
+        brain_api_key: str | None = Header(None, alias="X-OS1-Brain-API-Key"),
+        voice_api_key: str | None = Header(None, alias="X-OS1-Voice-API-Key"),
+        voice_id: str | None = Header(None, alias="X-OS1-Voice-ID"),
+        voice_gender: str | None = Header(None, alias="X-OS1-Voice-Gender"),
+    ) -> dict[str, object]:
+        if services.connectivity is None:
+            raise HTTPException(status_code=503, detail="Provider checks are unavailable.")
+        return await services.connectivity.check(
+            brain_api_key=brain_api_key,
+            voice_api_key=voice_api_key,
+            voice_id=resolve_voice_id(settings, voice_id, voice_gender),
+        )
+
     @router.post("/api/stt")
     async def stt(
         file: UploadFile = File(...),

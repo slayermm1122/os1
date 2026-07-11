@@ -22,11 +22,11 @@ The interface is intentionally minimal: a warm orange-red room, one button, one 
 
 ## Version
 
-Current version: `v0.02.01`
+Current version: `v0.02.02`
 
 This is still deliberately small, inspectable, and easy to change.
 
-## What Works In v0.02.01
+## What Works In v0.02.02
 
 - Press-to-talk voice recording with browser PCM streaming
 - ElevenLabs realtime speech-to-text while the user is still recording
@@ -41,6 +41,8 @@ This is still deliberately small, inspectable, and easy to change.
 - Optional server-side `.env` fallback for local testing
 - Capability-specific LLM, STT, TTS, and knowledge gateways
 - Opt-in per-turn latency, usage, cost, cache, and error telemetry in local SQLite
+- Startup readiness checks for the configured xAI model and ElevenLabs voice path
+- Explicit `checking`, `transcribing`, `thinking`, and `speaking` interface states
 
 ## Current Limits
 
@@ -60,9 +62,11 @@ Browser PCM
 
 This reduces the wait after the user stops speaking because transcription has already been running during the recording.
 
-Document grounding is not fully productized yet. There is no document upload UI in `v0.02.01`.
+Document grounding is not fully productized yet. There is no document upload UI in `v0.02.02`.
 
 Conversation history is currently short-lived and intentionally simple. The backend keeps the most recent eight turns in memory for one hour by default, and loses them when the process restarts. Telemetry persists individual turns when explicitly enabled, but it is not a memory system and there is no persisted conversation entity above `turn_id` yet.
+
+The startup readiness gate uses authenticated provider metadata endpoints and does not generate text or audio. It verifies the current network path, key acceptance, and configured model visibility; the live streaming request can still fail later if a provider changes state.
 
 ## Versioning
 
@@ -73,6 +77,8 @@ OS1 uses `X.Y.Z` to describe the kind of change:
 - `Z` changes for internal backend, architecture, and engineering upgrades.
 
 `v0.02.01` is a `Z` release: the voice experience remains the same while the backend becomes modular and observable.
+
+`v0.02.02` adds a startup provider readiness gate and a quiet thinking-state animation while Grok is preparing its first output.
 
 See [CHANGELOG.md](CHANGELOG.md) for the history of each release.
 
@@ -130,7 +136,7 @@ Telemetry is intentionally disabled for a fresh checkout. To record full local t
 
 OS1 is local-first research software. Read [SECURITY.md](SECURITY.md) before publishing, deploying, or sharing a hosted instance.
 
-OS1 v0.02.01 accepts loopback traffic only and is not a public deployment. Telemetry is disabled by default. When explicitly enabled, it stores full transcripts, AI responses, model request snapshots, and knowledge snippets in the ignored local file `data/telemetry.sqlite`. Do not publish or share this database. Delete the database and its `-wal` / `-shm` sidecars while OS1 is stopped to clear the recorded history.
+OS1 v0.02.02 accepts loopback traffic only and is not a public deployment. Telemetry is disabled by default. When explicitly enabled, it stores full transcripts, AI responses, model request snapshots, and knowledge snippets in the ignored local file `data/telemetry.sqlite`. Do not publish or share this database. Delete the database and its `-wal` / `-shm` sidecars while OS1 is stopped to clear the recorded history.
 
 ## Roadmap
 

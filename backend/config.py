@@ -110,6 +110,7 @@ class Settings:
     upstream_write_timeout_seconds: float = _float_env("UPSTREAM_WRITE_TIMEOUT_SECONDS", 30.0)
     upstream_pool_timeout_seconds: float = _float_env("UPSTREAM_POOL_TIMEOUT_SECONDS", 10.0)
     upstream_stream_timeout_seconds: float = _float_env("UPSTREAM_STREAM_TIMEOUT_SECONDS", 120.0)
+    provider_check_timeout_seconds: float = _float_env("PROVIDER_CHECK_TIMEOUT_SECONDS", 6.0)
 
     @property
     def llm_chat_url(self) -> str:
