@@ -1,10 +1,10 @@
 # OS1 Security TDL
 
-This file tracks security work that is intentionally deferred beyond the local-only `v0.02.02` prototype. It is not a claim that OS1 is production-ready.
+This file tracks security work that is intentionally deferred beyond the local-only `v0.02.03` prototype. It is not a claim that OS1 is production-ready.
 
 ## Release Boundary
 
-- `v0.02.02` is local-only. HTTP and WebSocket traffic must come from loopback, use a loopback Host, and WebSocket browser traffic must be same-origin.
+- `v0.02.03` is local-only. HTTP and WebSocket traffic must come from loopback, use a loopback Host, and WebSocket browser traffic must be same-origin.
 - Public, LAN, reverse-proxy, and multi-user deployments are unsupported until application authentication is implemented.
 - Full-content telemetry is opt-in and disabled by default.
 

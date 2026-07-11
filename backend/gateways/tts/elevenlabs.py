@@ -10,7 +10,7 @@ import httpx
 import websockets
 
 from ...config import Settings
-from ...core.errors import GatewayError
+from ...core.errors import GatewayError, parse_provider_error
 from .base import TTSEvent
 
 
@@ -172,14 +172,20 @@ class ElevenLabsTTSGateway:
                                 continue
                             payload = json.loads(message)
                             if payload.get("error"):
+                                provider_message = str(payload.get("message") or payload.get("error"))
                                 raise GatewayError(
                                     stage="tts",
                                     provider=self.provider,
                                     code=str(payload.get("error")),
                                     public_message="ElevenLabs rejected the selected voice.",
-                                    technical_message=str(payload.get("message") or payload.get("error")),
+                                    technical_message=provider_message,
                                     retryable=False,
                                     request_id=request_id,
+                                    provider_detail={
+                                        "type": str(payload.get("error")),
+                                        "code": str(payload.get("error")),
+                                        "message": provider_message,
+                                    },
                                 )
                             audio = payload.get("audio")
                             if audio:
@@ -219,10 +225,14 @@ def _gateway_error(exc: Exception) -> GatewayError:
         return exc
     if isinstance(exc, httpx.HTTPStatusError):
         status = exc.response.status_code
-        if status in {401, 403}:
-            code = "authentication_failed"
-        elif status == 402:
+        provider_detail = parse_provider_error(exc.response)
+        provider_code = (provider_detail.get("status") or provider_detail.get("code") or "").lower()
+        if provider_code == "quota_exceeded" or status == 402:
             code = "payment_required"
+        elif status == 401:
+            code = "authentication_failed"
+        elif status == 403:
+            code = "authorization_failed"
         elif status == 429:
             code = "rate_limited"
         else:
@@ -232,10 +242,15 @@ def _gateway_error(exc: Exception) -> GatewayError:
             provider="elevenlabs",
             code=code,
             public_message="ElevenLabs rejected the speech request.",
-            technical_message=str(exc),
+            technical_message=(
+                f"{exc}; provider: {provider_detail.get('message')}"
+                if provider_detail.get("message")
+                else str(exc)
+            ),
             retryable=status >= 500 or status == 429,
             upstream_status=status,
             request_id=exc.response.headers.get("request-id") or exc.response.headers.get("x-request-id"),
+            provider_detail=provider_detail,
         )
     if isinstance(exc, (httpx.TimeoutException, TimeoutError, asyncio.TimeoutError)):
         return GatewayError(

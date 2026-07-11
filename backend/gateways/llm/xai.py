@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator
 import httpx
 
 from ...config import Settings
-from ...core.errors import GatewayError
+from ...core.errors import GatewayError, parse_provider_error
 from .base import LLMRequest, LLMStreamEvent, LLMUsage
 
 
@@ -99,15 +99,21 @@ class XAILLMGateway:
             raise
         except httpx.HTTPStatusError as exc:
             status = exc.response.status_code
+            provider_detail = parse_provider_error(exc.response)
             raise GatewayError(
                 stage="llm",
                 provider=self.provider,
                 code=_http_code(status),
                 public_message="The language model rejected the request.",
-                technical_message=str(exc),
+                technical_message=(
+                    f"{exc}; provider: {provider_detail.get('message')}"
+                    if provider_detail.get("message")
+                    else str(exc)
+                ),
                 retryable=status >= 500 or status == 429,
                 upstream_status=status,
                 request_id=exc.response.headers.get("x-request-id") or exc.response.headers.get("request-id"),
+                provider_detail=provider_detail,
             ) from exc
         except (httpx.TimeoutException, TimeoutError, asyncio.TimeoutError) as exc:
             raise GatewayError(

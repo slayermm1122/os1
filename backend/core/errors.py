@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import traceback
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import httpx
 
@@ -41,6 +41,7 @@ class GatewayError(Exception):
     retryable: bool = False
     upstream_status: int | None = None
     request_id: str | None = None
+    provider_detail: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         super().__init__(self.public_message)
@@ -57,6 +58,7 @@ class ErrorInfo:
     retryable: bool
     upstream_status: int | None
     request_id: str | None
+    provider_detail: dict[str, str]
     exception_type: str
     stack_trace: str
 
@@ -66,12 +68,17 @@ class ErrorInfo:
             "turn_id": turn_id,
             "error_id": self.error_id,
             "stage": self.stage,
+            "provider": self.provider,
             "code": self.code,
             "retryable": self.retryable,
+            "upstream_status": self.upstream_status,
+            "request_id": self.request_id,
+            "provider_detail": self.provider_detail,
         }
 
 
 def error_info(exc: Exception, *, default_stage: str = "pipeline") -> ErrorInfo:
+    provider_detail: dict[str, str] = {}
     if isinstance(exc, GatewayError):
         stage = exc.stage
         provider = exc.provider
@@ -81,6 +88,7 @@ def error_info(exc: Exception, *, default_stage: str = "pipeline") -> ErrorInfo:
         retryable = exc.retryable
         upstream_status = exc.upstream_status
         request_id = exc.request_id
+        provider_detail = exc.provider_detail
     elif isinstance(exc, (TimeoutError, httpx.TimeoutException)):
         stage = default_stage
         provider = None
@@ -99,6 +107,7 @@ def error_info(exc: Exception, *, default_stage: str = "pipeline") -> ErrorInfo:
         retryable = exc.response.status_code >= 500 or exc.response.status_code == 429
         upstream_status = exc.response.status_code
         request_id = exc.response.headers.get("request-id") or exc.response.headers.get("x-request-id")
+        provider_detail = parse_provider_error(exc.response)
     elif isinstance(exc, httpx.HTTPError):
         stage = default_stage
         provider = None
@@ -139,6 +148,27 @@ def error_info(exc: Exception, *, default_stage: str = "pipeline") -> ErrorInfo:
         retryable=retryable,
         upstream_status=upstream_status,
         request_id=redact(request_id) if request_id else None,
+        provider_detail={key: redact(value) for key, value in provider_detail.items()},
         exception_type=exc.__class__.__name__,
         stack_trace=redact("".join(traceback.format_exception(exc))),
     )
+
+
+def parse_provider_error(response: httpx.Response) -> dict[str, str]:
+    try:
+        payload = response.json()
+    except ValueError:
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    detail = payload.get("detail", payload)
+    if isinstance(detail, str):
+        return {"message": redact(detail)}
+    if not isinstance(detail, dict):
+        return {}
+    result: dict[str, str] = {}
+    for key in ("type", "code", "status", "message", "request_id"):
+        value = detail.get(key)
+        if value is not None:
+            result[key] = redact(str(value))
+    return result

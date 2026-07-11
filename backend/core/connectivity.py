@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Protocol
 
 
@@ -12,6 +12,8 @@ class ProviderStatus:
     latency_ms: float
     code: str
     message: str
+    upstream_status: int | None = None
+    provider_detail: dict[str, str] = field(default_factory=dict)
 
     def payload(self) -> dict[str, object]:
         return asdict(self)

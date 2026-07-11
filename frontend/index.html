@@ -871,9 +871,10 @@
           body: form,
         });
         if (!response.ok || !response.body) {
-          setStatus("error");
-          setAnswerText(await response.text());
+          const errorData = await responseErrorData(response);
           setState("idle");
+          setStatus(providerStatusLabel(errorData, "error"));
+          setAnswerText(providerErrorMessage(errorData));
           return;
         }
 
@@ -966,6 +967,7 @@
           ttsFailed: false,
           streamingAudioDisabled: false,
           failed: false,
+          failureStatus: "",
           finished: false,
           sttReady,
           resolveSttReady,
@@ -1054,7 +1056,9 @@
         }
         if (event === "tts_error") {
           turn.ttsFailed = true;
-          setStatus("tts error");
+          turn.failureStatus = providerStatusLabel(data, "tts error");
+          setStatus(turn.failureStatus);
+          appendAnswerLine(providerErrorMessage(data));
         }
         if (event === "done") {
           turn.finalText = data.text || getAnswerText();
@@ -1064,9 +1068,11 @@
         }
         if (event === "error") {
           turn.failed = true;
-          turn.rejectSttReady(new Error(data.message || "Realtime transcription failed"));
-          setStatus("error");
-          setAnswerText(data.message || "error");
+          const message = providerErrorMessage(data);
+          turn.failureStatus = providerStatusLabel(data, "error");
+          turn.rejectSttReady(new Error(message || "Realtime transcription failed"));
+          setStatus(turn.failureStatus);
+          setAnswerText(message || "error");
         }
       }
 
@@ -1085,6 +1091,7 @@
         } else if (!turn.receivedAudio || turn.ttsFailed) {
           setState("idle");
         }
+        if (turn.failureStatus) setStatus(turn.failureStatus);
         if (activeTurn === turn) activeTurn = null;
       }
 
@@ -1127,6 +1134,16 @@
         return { event, data: JSON.parse(data) };
       }
 
+      async function responseErrorData(response) {
+        const text = await response.text();
+        try {
+          const payload = JSON.parse(text);
+          return payload.detail || payload;
+        } catch {
+          return { message: text || `HTTP ${response.status}`, upstream_status: response.status };
+        }
+      }
+
       async function playVoice(text) {
         try {
           setState("speaking");
@@ -1137,8 +1154,10 @@
             body: JSON.stringify({ text }),
           });
           if (!response.ok) {
-            setStatus("tts error");
+            const errorData = await responseErrorData(response);
             setState("idle");
+            setStatus(providerStatusLabel(errorData, "tts error"));
+            appendAnswerLine(providerErrorMessage(errorData));
             return;
           }
           const blob = await response.blob();
@@ -1488,13 +1507,13 @@
         clearRecordingLimit();
         stopMicPcm();
         closeRealtimeSocket();
-        setStatus("error");
         setAnswerText(error?.message || String(error));
         cleanupStream();
         if (recorder && recorder.state !== "inactive") {
           recorder.stop();
         }
         setState("idle");
+        setStatus("error");
       }
 
       function clearConversation() {
@@ -1673,8 +1692,9 @@
             (provider) => provider && !provider.ok && isRetryableConnectivityCode(provider.code),
           );
           setStatus(connectivityStatus(report));
-          statusEl.title = [report.brain?.message, report.voice?.message]
-            .filter(Boolean)
+          statusEl.title = [report.brain, report.voice]
+            .filter((provider) => provider && !provider.ok)
+            .map(providerErrorMessage)
             .join(" ");
         } catch (error) {
           if (checkId !== connectivityCheckId) return;
@@ -1701,8 +1721,39 @@
         if (brain.ok && voice.ok) return "ready";
         if (brain.code === "authentication_failed") return "brain key error";
         if (voice.code === "authentication_failed") return "voice key error";
+        if (brain.code === "authorization_failed") return "brain access error";
+        if (voice.code === "authorization_failed") return "voice access error";
+        if (brain.code === "payment_required") return "brain credits";
+        if (voice.code === "payment_required") return "voice credits";
         if (!brain.ok && !voice.ok) return "offline";
         return brain.ok ? "voice offline" : "brain offline";
+      }
+
+      function providerStatusLabel(data, fallback) {
+        const stage = data?.stage || data?.provider || "";
+        if (data?.code === "payment_required") return `${stage || "provider"} credits`;
+        if (data?.code === "authentication_failed") return `${stage || "provider"} key error`;
+        if (data?.code === "authorization_failed") return `${stage || "provider"} access error`;
+        return fallback;
+      }
+
+      function providerErrorMessage(data = {}) {
+        const detail = data.provider_detail || {};
+        const context = [
+          data.provider,
+          data.stage,
+          data.code,
+          data.upstream_status ? `HTTP ${data.upstream_status}` : "",
+        ].filter(Boolean);
+        const providerCodes = [...new Set([detail.type, detail.code, detail.status].filter(Boolean))];
+        const lines = [data.message || "Provider request failed."];
+        if (context.length) lines.push(context.join(" · "));
+        if (providerCodes.length) lines.push(providerCodes.join(" · "));
+        if (detail.message && detail.message !== data.message) lines.push(detail.message);
+        if (data.request_id || detail.request_id) {
+          lines.push(`Request ID: ${data.request_id || detail.request_id}`);
+        }
+        return lines.join("\n");
       }
 
       function isRetryableConnectivityCode(code) {

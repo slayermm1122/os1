@@ -11,7 +11,7 @@ import httpx
 import websockets
 
 from ...config import Settings
-from ...core.errors import GatewayError
+from ...core.errors import GatewayError, parse_provider_error
 from .base import STTEvent, STTResult
 
 
@@ -157,14 +157,20 @@ class ElevenLabsSTTGateway:
                             message_type = str(payload.get("message_type") or payload.get("type") or "")
                             request_id = str(payload.get("session_id") or payload.get("request_id") or "") or None
                             if message_type in _ERROR_TYPES:
+                                provider_message = str(payload.get("message") or message_type)
                                 raise GatewayError(
                                     stage="stt",
                                     provider=self.provider,
                                     code=message_type,
                                     public_message="Realtime transcription failed.",
-                                    technical_message=str(payload.get("message") or message_type),
+                                    technical_message=provider_message,
                                     retryable=message_type in {"rate_limited", "queue_overflow", "resource_exhausted"},
                                     request_id=request_id,
+                                    provider_detail={
+                                        "type": message_type,
+                                        "code": message_type,
+                                        "message": provider_message,
+                                    },
                                 )
                             if message_type == "session_started":
                                 yield STTEvent(kind="session_started", request_id=request_id)
@@ -219,16 +225,32 @@ def _gateway_error(exc: Exception, *, stage: str, connecting: bool = False) -> G
         return exc
     if isinstance(exc, httpx.HTTPStatusError):
         status = exc.response.status_code
-        code = "authentication_failed" if status in {401, 403} else "rate_limited" if status == 429 else "upstream_rejected"
+        provider_detail = parse_provider_error(exc.response)
+        provider_code = (provider_detail.get("status") or provider_detail.get("code") or "").lower()
+        if provider_code == "quota_exceeded" or status == 402:
+            code = "payment_required"
+        elif status == 401:
+            code = "authentication_failed"
+        elif status == 403:
+            code = "authorization_failed"
+        elif status == 429:
+            code = "rate_limited"
+        else:
+            code = "upstream_rejected"
         return GatewayError(
             stage=stage,
             provider="elevenlabs",
             code=code,
             public_message="ElevenLabs rejected the transcription request.",
-            technical_message=str(exc),
+            technical_message=(
+                f"{exc}; provider: {provider_detail.get('message')}"
+                if provider_detail.get("message")
+                else str(exc)
+            ),
             retryable=status >= 500 or status == 429,
             upstream_status=status,
             request_id=exc.response.headers.get("request-id") or exc.response.headers.get("x-request-id"),
+            provider_detail=provider_detail,
         )
     if isinstance(exc, (httpx.TimeoutException, TimeoutError, asyncio.TimeoutError)):
         return GatewayError(

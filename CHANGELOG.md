@@ -2,6 +2,16 @@
 
 This file records the user-visible and internal changes in each OS1 release. Versions follow the project's `X.Y.Z` convention described in the README.
 
+## v0.02.03 - 2026-07-11
+
+Restricted-key readiness and provider error clarity.
+
+- Replaced ElevenLabs model metadata checks with exact `realtime_scribe` and `tts_websocket` capability checks.
+- Fixed valid restricted ElevenLabs keys being reported as invalid when `models_read` or `user_read` was disabled.
+- Added sanitized provider error type, code, status, message, HTTP status, request ID, and retryability to frontend error events.
+- Distinguished authentication, authorization, insufficient-credit, rate-limit, and transport failures in the interface.
+- Verified the local key with minimal live TTS and realtime STT smoke tests.
+
 ## v0.02.02 - 2026-07-11
 
 Provider readiness and response-state feedback.

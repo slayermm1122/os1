@@ -28,7 +28,7 @@ from backend.api.routes import create_router
 from backend.config import Settings
 from backend.core.chunking import pop_ready_speech_chunks
 from backend.core.connectivity import ConnectivityService, ProviderStatus
-from backend.core.errors import GatewayError, error_info, redact
+from backend.core.errors import GatewayError, error_info, parse_provider_error, redact
 from backend.core.orchestrator import TurnOrchestrator
 from backend.core.rate_limit import SlidingWindowRateLimiter
 from backend.core.security import is_allowed_websocket, is_local_http_request
@@ -214,6 +214,13 @@ class FailingTTS(FakeTTS):
             code="provider_failure",
             public_message="Voice failed.",
             technical_message="synthetic failure",
+            upstream_status=402,
+            request_id="provider-request-id",
+            provider_detail={
+                "type": "payment_required",
+                "status": "quota_exceeded",
+                "message": "Synthetic quota exhausted.",
+            },
         )
         yield TTSEvent(kind="complete")
 
@@ -352,6 +359,10 @@ class OrchestratorTests(unittest.IsolatedAsyncioTestCase):
         error_event = next(event for event in events if event.event == "tts_error")
         self.assertEqual(error_event.data["stage"], "tts")
         self.assertEqual(error_event.data["code"], "provider_failure")
+        self.assertEqual(error_event.data["provider"], "fake_tts")
+        self.assertEqual(error_event.data["upstream_status"], 402)
+        self.assertEqual(error_event.data["request_id"], "provider-request-id")
+        self.assertEqual(error_event.data["provider_detail"]["status"], "quota_exceeded")
         with closing(sqlite3.connect(self.db_path)) as conn:
             turn = conn.execute(
                 "SELECT status, failed_stage, error_id FROM turns WHERE turn_id = ?",
@@ -578,6 +589,21 @@ class ContractTests(unittest.TestCase):
         self.assertNotIn(secret, info.technical_message)
         self.assertNotIn(secret, info.stack_trace)
 
+        response = httpx.Response(
+            401,
+            json={
+                "detail": {
+                    "type": "authentication_error",
+                    "status": "invalid_api_key",
+                    "message": f"Rejected Authorization: Bearer {bearer}",
+                    "request_id": "provider-request",
+                }
+            },
+        )
+        provider_detail = parse_provider_error(response)
+        self.assertEqual(provider_detail["status"], "invalid_api_key")
+        self.assertNotIn(bearer, provider_detail["message"])
+
     def test_stt_opening_timeout_has_a_specific_retryable_code(self) -> None:
         error = stt_gateway_error(TimeoutError("opening handshake"), stage="stt", connecting=True)
         self.assertEqual(error.code, "connect_timeout")
@@ -685,31 +711,65 @@ class ConnectivityTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(rejected.ok)
         self.assertEqual(rejected.code, "authentication_failed")
 
-    async def test_elevenlabs_probe_requires_configured_model(self) -> None:
-        settings = Settings(
-            elevenlabs_api_key="server-key",
-            elevenlabs_tts_model="eleven-test",
-        )
-        visible_models = [{"model_id": "eleven-test"}]
+    async def test_elevenlabs_probe_validates_realtime_capabilities(self) -> None:
+        settings = Settings(elevenlabs_api_key="server-key")
+        requested_capabilities: list[str] = []
 
         def handler(request: httpx.Request) -> httpx.Response:
-            self.assertEqual(request.url.path, "/v1/models")
-            if request.headers.get("xi-api-key") != "valid-key":
+            requested_capabilities.append(request.url.path)
+            key = request.headers.get("xi-api-key")
+            if key == "exhausted-key":
+                return httpx.Response(
+                    402,
+                    json={
+                        "detail": {
+                            "type": "payment_required",
+                            "status": "quota_exceeded",
+                            "message": "Insufficient credits.",
+                            "request_id": "quota-request",
+                        }
+                    },
+                )
+            if key == "restricted-key":
+                return httpx.Response(
+                    401,
+                    json={
+                        "detail": {
+                            "type": "authentication_error",
+                            "status": "missing_permissions",
+                            "message": "Missing speech_to_text permission.",
+                        }
+                    },
+                )
+            if key != "valid-key":
                 return httpx.Response(401, json={"detail": "unauthorized"})
-            return httpx.Response(200, json=visible_models)
+            return httpx.Response(200, json={"token": "single-use-test-token"})
 
         probe = ElevenLabsConnectivityProbe(settings, transport=httpx.MockTransport(handler))
         success = await probe.check(api_key="valid-key")
         self.assertTrue(success.ok)
+        self.assertEqual(
+            requested_capabilities,
+            [
+                "/v1/single-use-token/realtime_scribe",
+                "/v1/single-use-token/tts_websocket",
+            ],
+        )
 
-        visible_models.clear()
-        missing_model = await probe.check(api_key="valid-key")
         rejected = await probe.check(api_key="invalid-key")
+        exhausted = await probe.check(api_key="exhausted-key")
+        restricted = await probe.check(api_key="restricted-key")
 
-        self.assertFalse(missing_model.ok)
-        self.assertEqual(missing_model.code, "model_unavailable")
         self.assertFalse(rejected.ok)
         self.assertEqual(rejected.code, "authentication_failed")
+        self.assertFalse(exhausted.ok)
+        self.assertEqual(exhausted.code, "payment_required")
+        self.assertEqual(exhausted.upstream_status, 402)
+        self.assertEqual(exhausted.provider_detail["status"], "quota_exceeded")
+        self.assertEqual(exhausted.provider_detail["request_id"], "quota-request")
+        self.assertFalse(restricted.ok)
+        self.assertEqual(restricted.code, "authorization_failed")
+        self.assertEqual(restricted.provider_detail["status"], "missing_permissions")
 
 
 class TelemetryStoreTests(unittest.IsolatedAsyncioTestCase):

@@ -237,16 +237,20 @@ def _http_error(exc: Exception, *, turn_id: str | None = None) -> HTTPException:
     info = exc.info if isinstance(exc, ObservedError) else error_info(exc)
     if info.code in {"api_key_missing", "voice_missing", "configuration_error"}:
         status = 400
-    elif info.upstream_status == 429:
-        status = 429
+    elif info.upstream_status in {401, 402, 403, 429}:
+        status = info.upstream_status
     else:
         status = 502
     detail: dict[str, object] = {
         "message": info.public_message,
         "error_id": info.error_id,
         "stage": info.stage,
+        "provider": info.provider,
         "code": info.code,
         "retryable": info.retryable,
+        "upstream_status": info.upstream_status,
+        "request_id": info.request_id,
+        "provider_detail": info.provider_detail,
     }
     if turn_id:
         detail["turn_id"] = turn_id
