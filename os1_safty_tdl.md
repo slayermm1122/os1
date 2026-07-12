@@ -1,19 +1,19 @@
 # OS1 Security TDL
 
-This file tracks security work that is intentionally deferred beyond the local-only `v0.02.03` prototype. It is not a claim that OS1 is production-ready.
+This file tracks security work that is intentionally deferred beyond the local-only `v0.03.01` prototype. It is not a claim that OS1 is production-ready.
 
 ## Release Boundary
 
-- `v0.02.03` is local-only. HTTP and WebSocket traffic must come from loopback, use a loopback Host, and WebSocket browser traffic must be same-origin.
+- `v0.03.01` is local-only. HTTP and WebSocket traffic must come from loopback, use a loopback Host, and WebSocket browser traffic must be same-origin.
 - Public, LAN, reverse-proxy, and multi-user deployments are unsupported until application authentication is implemented.
-- Full-content telemetry is opt-in and disabled by default.
+- Full-content telemetry is enabled for local development, remains local-only, and can be disabled with `TELEMETRY_ENABLED=false`.
 
 ## Completed In v0.02.01
 
 | Finding | Resolution |
 | --- | --- |
 | P1.1 | Reject non-local Host/client and cross-origin browser requests; reject WebSockets before `accept()`. |
-| P1.4 | Telemetry defaults to disabled; documentation requires explicit consent. |
+| P1.4 | Telemetry storage is private, ignored by git, documented as full-content, and can be explicitly disabled. |
 | P1.5 | Telemetry directory is `0700`; database, WAL, and SHM are `0600` on POSIX. |
 | P2.1 | API keys moved from `localStorage` to tab-scoped `sessionStorage`; legacy keys are migrated and removed. |
 | P2.3 | Playback events require the active `turn_id` and prior server audio. |
@@ -27,6 +27,15 @@ This file tracks security work that is intentionally deferred beyond the local-o
 | P3.1 | Telemetry dynamic updates use per-table column allowlists. |
 | P3.2 | Non-object WebSocket JSON is rejected as a protocol error. |
 | P3.4 | Security boundary regression tests added. |
+
+## Completed In v0.03.01
+
+| Finding | Resolution |
+| --- | --- |
+| K1 | PDF upload and manual reindex routes are not exposed while the ingestion architecture is under design. |
+| K2 | Reserved future raw-upload files and ingest status are ignored by git; default storage uses private permissions. |
+| K3 | Retrieved text is appended as delimited data under a stable system instruction that rejects document instructions. |
+| K4 | JSONL validation completes before an FTS database is atomically published as the active index. |
 
 ## Required Before Public Deployment
 
@@ -88,7 +97,7 @@ The local limiter now prunes and caps state. Public or multi-process deployment 
 
 ### Custom Storage Paths
 
-OS1 only manages directory permissions for its default `data/` and `knowledge_docs/` locations, or for a dedicated directory it creates itself. Users who point telemetry or knowledge settings at an existing custom directory are responsible for making that directory private. OS1 still applies `0600` to SQLite files it owns on POSIX.
+OS1 only manages directory permissions for its default `data/` and `knowledge/` locations, or for a dedicated directory it creates itself. Users who point telemetry or knowledge settings at an existing custom directory are responsible for making that directory private. OS1 still applies `0600` to SQLite files it owns on POSIX.
 
 ### P3.3 Developer Tooling
 
@@ -100,7 +109,7 @@ Re-run the security review before any of these changes:
 
 - Binding outside loopback.
 - Adding authentication or a reverse proxy.
-- Enabling knowledge upload/reindex in the UI.
+- Implementing any document upload or automatic compilation workflow.
 - Adding a telemetry dashboard or deletion API.
 - Adding a new LLM, STT, or TTS provider.
 - Deploying for multiple users or processing regulated data.

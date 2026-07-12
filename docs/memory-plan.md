@@ -12,7 +12,7 @@ Continuity therefore has to come from memory maintenance, not from exposing a co
 
 The current system has two separate forms of history:
 
-1. Runtime conversation context is held by `SessionStore` in process memory. It keeps the latest eight complete user/assistant turns by default, expires an idle session after one hour, and is cleared whenever the backend restarts.
+1. Runtime model context is held by `KVConversationStore` in process memory. It keeps the latest eight complete enriched-user/assistant turns by default, expires an idle conversation after one hour, and is cleared whenever the backend restarts. The enriched user message is the exact message sent to the model, including any references selected for that turn, so an unchanged prefix can benefit from provider caching.
 2. Optional telemetry persists operational records in `data/telemetry.sqlite`. A `turn` is the highest-level persisted entity. Each STT, knowledge, LLM, TTS, event, and error record belongs to a `turn_id`.
 
 The telemetry `turns` table contains a `session_id` label for correlation, but there is no `sessions`, `conversations`, or `memories` table and no persisted parent object above a turn. Telemetry is diagnostic evidence, not application memory or business state.
@@ -20,10 +20,9 @@ The telemetry `turns` table contains a `session_id` label for correlation, but t
 The prompt currently contains:
 
 ```text
-system instruction
-optional knowledge-search results
-recent in-memory message history
-current user message
+stable system instruction
+recent exact model-message history
+current user message with optional delimited knowledge results appended
 ```
 
 ## Invariants For v0.05

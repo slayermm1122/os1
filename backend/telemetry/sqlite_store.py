@@ -205,7 +205,14 @@ class SQLiteTelemetryRecorder:
             kind=kind,
         )
 
-    def record_error(self, trace: TurnTrace, info: ErrorInfo, *, call_id: str | None = None) -> None:
+    def record_error(
+        self,
+        trace: TurnTrace,
+        info: ErrorInfo,
+        *,
+        call_id: str | None = None,
+        affect_turn: bool = True,
+    ) -> None:
         trace.event(
             f"{info.stage}.error",
             stage=info.stage,
@@ -233,11 +240,12 @@ class SQLiteTelemetryRecorder:
                 trace.offset_ms(),
             ),
         )
-        self._enqueue(
-            "UPDATE turns SET failed_stage = COALESCE(failed_stage, ?), "
-            "error_id = COALESCE(error_id, ?) WHERE turn_id = ?",
-            (info.stage, info.error_id, trace.turn_id),
-        )
+        if affect_turn:
+            self._enqueue(
+                "UPDATE turns SET failed_stage = COALESCE(failed_stage, ?), "
+                "error_id = COALESCE(error_id, ?) WHERE turn_id = ?",
+                (info.stage, info.error_id, trace.turn_id),
+            )
 
     def start_llm_call(
         self,
@@ -248,11 +256,15 @@ class SQLiteTelemetryRecorder:
         model: str,
         reasoning_effort: str,
         request: dict[str, object],
+        purpose: str = "answer",
     ) -> None:
         self._enqueue(
-            "INSERT INTO llm_calls(call_id, turn_id, provider, model, reasoning_effort, status, "
-            "started_at, request_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (call_id, trace.turn_id, provider, model, reasoning_effort, "running", utc_now(), json_text(request)),
+            "INSERT INTO llm_calls(call_id, turn_id, provider, model, reasoning_effort, purpose, "
+            "status, started_at, request_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                call_id, trace.turn_id, provider, model, reasoning_effort, purpose,
+                "running", utc_now(), json_text(request),
+            ),
         )
 
     def finish_llm_call(self, call_id: str, **values: object) -> None:
@@ -407,6 +419,11 @@ class SQLiteTelemetryRecorder:
                 conn.execute("ALTER TABLE turns ADD COLUMN failed_stage TEXT")
             if "error_id" not in turn_columns:
                 conn.execute("ALTER TABLE turns ADD COLUMN error_id TEXT")
+            llm_columns = {
+                str(row[1]) for row in conn.execute("PRAGMA table_info(llm_calls)").fetchall()
+            }
+            if "purpose" not in llm_columns:
+                conn.execute("ALTER TABLE llm_calls ADD COLUMN purpose TEXT NOT NULL DEFAULT 'answer'")
             conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             conn.commit()
             self._secure_storage_paths()

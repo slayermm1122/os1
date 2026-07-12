@@ -32,6 +32,11 @@ def create_router(services: ApplicationServices) -> APIRouter:
     async def index() -> FileResponse:
         return FileResponse(settings.frontend_dir / "index.html")
 
+    @router.get("/knowledge")
+    @router.get("/knowledge/")
+    async def knowledge_page() -> FileResponse:
+        return FileResponse(settings.frontend_dir / "knowledge.html")
+
     @router.get("/api/health")
     async def health() -> dict[str, object]:
         return {
@@ -41,6 +46,10 @@ def create_router(services: ApplicationServices) -> APIRouter:
             "max_recording_seconds": settings.max_recording_seconds,
             "has_elevenlabs_key": bool(settings.elevenlabs_api_key),
             "has_llm_key": bool(settings.llm_api_key),
+            "brain_model": settings.llm_model,
+            "llm_search_model": settings.knowledge_selector_model,
+            "llm_search_reasoning_effort": settings.knowledge_selector_reasoning_effort,
+            "knowledge_search_timeout_seconds": settings.knowledge_search_timeout_seconds,
         }
 
     @router.post("/api/connectivity/check")
@@ -187,15 +196,29 @@ def create_router(services: ApplicationServices) -> APIRouter:
             headers={"X-OS1-Turn-ID": trace.turn_id},
         )
 
-    @router.post("/api/knowledge/reindex")
-    async def knowledge_reindex() -> dict[str, object]:
-        chunks = await _in_thread(services.knowledge.reindex)
-        return {
-            "ok": True,
-            "enabled": services.knowledge.enabled,
-            "chunks": chunks,
-            "docs_dir": str(settings.knowledge_docs_dir),
-        }
+    @router.get("/api/knowledge/overview")
+    async def knowledge_overview() -> dict[str, object]:
+        if services.knowledge_browser is None:
+            raise HTTPException(status_code=503, detail="Knowledge browsing is unavailable.")
+        return await _in_thread(services.knowledge_browser.overview)
+
+    @router.get("/api/knowledge/wiki/{wiki_id}")
+    async def knowledge_wiki_page(wiki_id: str) -> dict[str, object]:
+        if services.knowledge_browser is None:
+            raise HTTPException(status_code=503, detail="Knowledge browsing is unavailable.")
+        page = await _in_thread(lambda: services.knowledge_browser.wiki_page(wiki_id))
+        if page is None:
+            raise HTTPException(status_code=404, detail="Wiki page was not found.")
+        return page
+
+    @router.get("/api/knowledge/chunks/{chunk_id}")
+    async def knowledge_chunk(chunk_id: str) -> dict[str, object]:
+        if services.knowledge_browser is None:
+            raise HTTPException(status_code=503, detail="Knowledge browsing is unavailable.")
+        chunk = await _in_thread(lambda: services.knowledge_browser.chunk(chunk_id))
+        if chunk is None:
+            raise HTTPException(status_code=404, detail="Chunk was not found.")
+        return chunk
 
     return router
 

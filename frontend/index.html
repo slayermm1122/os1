@@ -455,6 +455,63 @@
         white-space: pre-wrap;
       }
 
+      .reference-panel {
+        position: relative;
+        flex: 0 0 auto;
+        max-height: min(28vh, 220px);
+        margin-top: 10px;
+        border-top: 1px solid rgba(255, 246, 236, 0.16);
+        color: rgba(255, 246, 236, 0.66);
+        text-align: left;
+      }
+
+      .reference-panel[hidden] { display: none; }
+
+      .reference-panel details { max-height: inherit; }
+      .reference-panel summary {
+        padding: 9px 70px 7px 4px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 650;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .reference-hide {
+        position: absolute;
+        top: 5px;
+        right: 0;
+        z-index: 1;
+        border: 0;
+        padding: 4px 6px;
+        background: transparent;
+        color: rgba(255, 246, 236, 0.46);
+        font: inherit;
+        font-size: 11px;
+        cursor: pointer;
+      }
+
+      .reference-content {
+        max-height: min(22vh, 170px);
+        overflow-y: auto;
+        padding: 0 4px 8px;
+      }
+
+      .reference-group { margin: 4px 0 10px; }
+      .reference-group-title {
+        margin-bottom: 4px;
+        color: rgba(255, 246, 236, 0.88);
+        font-size: 12px;
+        font-weight: 650;
+      }
+      .reference-item {
+        margin: 4px 0;
+        font-size: 12px;
+        line-height: 1.45;
+        overflow-wrap: anywhere;
+      }
+      .reference-id { color: rgba(255, 232, 156, 0.92); }
+
       audio {
         display: none;
       }
@@ -629,6 +686,7 @@
           <button id="brandButton" class="brand-button" type="button" aria-haspopup="menu" aria-expanded="false">OS1</button>
           <div id="brandMenu" class="brand-menu" hidden>
             <button id="menuApiKey" class="menu-item" type="button">API Key</button>
+            <button id="menuKnowledgeBase" class="menu-item" type="button">Knowledge Base</button>
           </div>
         </div>
         <div id="status">ready</div>
@@ -661,6 +719,13 @@
           <div class="answer-panel" aria-label="answer">
             <div id="reply" class="answer-text" aria-live="polite" tabindex="0"></div>
           </div>
+          <section id="referencePanel" class="reference-panel" hidden aria-label="references">
+            <button id="referenceHide" class="reference-hide" type="button">hide</button>
+            <details id="referenceDetails" open>
+              <summary id="referenceSummary">Ref</summary>
+              <div id="referenceContent" class="reference-content"></div>
+            </details>
+          </section>
         </section>
       </section>
     </main>
@@ -668,7 +733,7 @@
 
     <div id="settingsModal" class="modal-backdrop" hidden>
       <div class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
-        <h2 id="settingsTitle" class="modal-title">API Keys</h2>
+        <h2 id="settingsTitle" class="modal-title">Models & API Keys</h2>
 
         <section class="provider-section">
           <div class="provider-title">Brain</div>
@@ -677,6 +742,16 @@
               <option selected>xAI</option>
             </select>
             <input id="brainKey" type="password" autocomplete="off" spellcheck="false" placeholder="xAI API key" />
+          </div>
+        </section>
+
+        <section class="provider-section">
+          <div class="provider-title">LLM Search</div>
+          <div class="provider-row">
+            <select id="llmSearchProvider" disabled>
+              <option selected>xAI</option>
+            </select>
+            <input id="llmSearchModel" type="text" value="grok-4.5 · low reasoning" disabled />
           </div>
         </section>
 
@@ -702,11 +777,13 @@
       const brandButton = document.querySelector("#brandButton");
       const brandMenu = document.querySelector("#brandMenu");
       const menuApiKey = document.querySelector("#menuApiKey");
+      const menuKnowledgeBase = document.querySelector("#menuKnowledgeBase");
       const talkButton = document.querySelector("#talkButton");
       const keyPrompt = document.querySelector("#keyPrompt");
       const voiceMaleButton = document.querySelector("#voiceMale");
       const voiceFemaleButton = document.querySelector("#voiceFemale");
       const settingsModal = document.querySelector("#settingsModal");
+      const llmSearchModelInput = document.querySelector("#llmSearchModel");
       const brainKeyInput = document.querySelector("#brainKey");
       const voiceKeyInput = document.querySelector("#voiceKey");
       const clearKeysButton = document.querySelector("#clearKeysButton");
@@ -718,6 +795,11 @@
       const replyEl = document.querySelector("#reply");
       const recordingCountdownEl = document.querySelector("#recordingCountdown");
       const player = document.querySelector("#player");
+      const referencePanel = document.querySelector("#referencePanel");
+      const referenceDetails = document.querySelector("#referenceDetails");
+      const referenceSummary = document.querySelector("#referenceSummary");
+      const referenceContent = document.querySelector("#referenceContent");
+      const referenceHideButton = document.querySelector("#referenceHide");
 
       const RECORDING_LIMIT_SECONDS = 15;
       const RECORDING_WARNING_SECONDS = 5;
@@ -760,12 +842,19 @@
         setBrandMenuHidden(true);
         openSettingsModal();
       });
+      menuKnowledgeBase.addEventListener("click", () => {
+        setBrandMenuHidden(true);
+        window.location.assign("/knowledge");
+      });
       document.addEventListener("click", () => setBrandMenuHidden(true));
       keyPrompt.addEventListener("click", openSettingsModal);
       voiceMaleButton.addEventListener("click", () => setVoiceGender("male"));
       voiceFemaleButton.addEventListener("click", () => setVoiceGender("female"));
       clearKeysButton.addEventListener("click", clearApiKeys);
       saveKeysButton.addEventListener("click", () => void saveApiKeys());
+      referenceHideButton.addEventListener("click", () => {
+        referencePanel.hidden = true;
+      });
       window.addEventListener("online", () => void refreshConnectivity());
       settingsModal.addEventListener("click", (event) => {
         if (event.target === settingsModal) closeSettingsModal();
@@ -978,6 +1067,7 @@
           resolveSttReady,
           rejectSttReady,
           sttReadyReceived: false,
+          knowledgeHits: [],
         };
       }
 
@@ -1024,6 +1114,9 @@
         }
         if (event === "transcript_timing") {
           turn.transcriptTiming = Array.isArray(data.words) ? data.words : [];
+        }
+        if (event === "knowledge") {
+          turn.knowledgeHits = Array.isArray(data.hits) ? data.hits : [];
         }
         if (event === "display") {
           const text = String(data.text || "").trim();
@@ -1099,6 +1192,7 @@
           if (!turn.receivedAudio && turn.ttsFailed && !getAnswerText() && turn.finalText) {
             setAnswerText(turn.finalText);
           }
+          renderReferences(turn.knowledgeHits);
         }
         if (event === "error") {
           turn.failed = true;
@@ -1697,6 +1791,9 @@
         transcriptEl.textContent = "";
         replyEl.replaceChildren();
         replyEl.scrollTop = 0;
+        referencePanel.hidden = true;
+        referenceDetails.open = true;
+        referenceContent.replaceChildren();
       }
 
       function appendAnswerLine(text) {
@@ -1842,6 +1939,9 @@
             const health = await response.json();
             serverHasBrainKey = Boolean(health.has_llm_key);
             serverHasVoiceKey = Boolean(health.has_elevenlabs_key);
+            const selectorModel = health.llm_search_model || "grok-4.5";
+            const selectorEffort = health.llm_search_reasoning_effort || "low";
+            llmSearchModelInput.value = `${selectorModel} · ${selectorEffort} reasoning`;
           }
         } catch {
           serverHasBrainKey = false;
@@ -1954,6 +2054,58 @@
       function setBrandMenuHidden(hidden) {
         brandMenu.hidden = hidden;
         brandButton.setAttribute("aria-expanded", String(!hidden));
+      }
+
+      function renderReferences(hits) {
+        if (!Array.isArray(hits) || !hits.length) {
+          referencePanel.hidden = true;
+          return;
+        }
+        const wiki = hits.filter((hit) => String(hit.provider || "").startsWith("llm_search"));
+        const lexical = hits.filter((hit) => String(hit.provider || "").startsWith("lex_search"));
+        referenceContent.replaceChildren();
+        appendReferenceGroup("llm_search · Wiki", wiki);
+        appendReferenceGroup("lex_search · Chunks", lexical);
+        referenceSummary.textContent = `Ref · ${wiki.length} wiki · ${lexical.length} chunks`;
+        referenceDetails.open = true;
+        referencePanel.hidden = false;
+      }
+
+      function appendReferenceGroup(title, hits) {
+        const group = document.createElement("section");
+        group.className = "reference-group";
+        const heading = document.createElement("div");
+        heading.className = "reference-group-title";
+        heading.textContent = title;
+        group.appendChild(heading);
+        if (!hits.length) {
+          const empty = document.createElement("div");
+          empty.className = "reference-item";
+          empty.textContent = "No result returned.";
+          group.appendChild(empty);
+        }
+        for (const hit of hits) {
+          const item = document.createElement("div");
+          item.className = "reference-item";
+          const id = document.createElement("span");
+          id.className = "reference-id";
+          id.textContent = hit.chunk || hit.evidence_id || "unknown";
+          item.appendChild(id);
+          item.append(` · ${hit.title || hit.path || "Reference"}`);
+          if (hit.snippet) item.append(` — ${hit.snippet}`);
+          group.appendChild(item);
+        }
+        referenceContent.appendChild(group);
+      }
+
+      async function apiErrorMessage(response) {
+        try {
+          const body = await response.json();
+          if (typeof body.detail === "string") return body.detail;
+          return body.detail?.message || `Request failed (${response.status}).`;
+        } catch (_) {
+          return `Request failed (${response.status}).`;
+        }
       }
 
       function openSettingsModal() {

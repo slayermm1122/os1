@@ -884,7 +884,7 @@ class TelemetryStoreTests(unittest.IsolatedAsyncioTestCase):
             await second_recorder.close()
 
             with closing(sqlite3.connect(db_path)) as conn:
-                self.assertEqual(conn.execute("PRAGMA user_version").fetchone()[0], 2)
+                self.assertEqual(conn.execute("PRAGMA user_version").fetchone()[0], 3)
                 self.assertEqual(
                     conn.execute("SELECT status FROM turns WHERE turn_id = ?", (trace.turn_id,)).fetchone()[0],
                     "success",
@@ -923,9 +923,11 @@ class TelemetryStoreTests(unittest.IsolatedAsyncioTestCase):
             await recorder.close()
             with closing(sqlite3.connect(db_path)) as conn:
                 columns = {row[1] for row in conn.execute("PRAGMA table_info(turns)")}
-                self.assertEqual(conn.execute("PRAGMA user_version").fetchone()[0], 2)
+                llm_columns = {row[1] for row in conn.execute("PRAGMA table_info(llm_calls)")}
+                self.assertEqual(conn.execute("PRAGMA user_version").fetchone()[0], 3)
                 self.assertIn("failed_stage", columns)
                 self.assertIn("error_id", columns)
+                self.assertIn("purpose", llm_columns)
                 self.assertEqual(
                     conn.execute("SELECT status FROM turns WHERE turn_id='old-turn'").fetchone()[0],
                     "success",

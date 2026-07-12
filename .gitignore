@@ -7,3 +7,6 @@ __pycache__/
 .DS_Store
 data/*.sqlite
 data/*.sqlite-*
+knowledge/.status/
+knowledge/raw/*
+!knowledge/raw/attention_is_all_you_need.pdf

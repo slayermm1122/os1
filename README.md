@@ -22,11 +22,11 @@ The interface is intentionally minimal: a warm orange-red room, one button, one 
 
 ## Version
 
-Current version: `v0.02.03`
+Current version: `v0.03.01`
 
 This is still deliberately small, inspectable, and easy to change.
 
-## What Works In v0.02.03
+## What Works In v0.03.01
 
 - Press-to-talk voice recording with browser PCM streaming
 - ElevenLabs realtime speech-to-text while the user is still recording
@@ -40,10 +40,16 @@ This is still deliberately small, inspectable, and easy to change.
 - API key dialog in the UI
 - Optional server-side `.env` fallback for local testing
 - Capability-specific LLM, STT, TTS, and knowledge gateways
-- Opt-in per-turn latency, usage, cost, cache, and error telemetry in local SQLite
+- Per-turn latency, usage, cost, cache, and error telemetry in local SQLite
 - Startup readiness checks for the configured xAI model and ElevenLabs voice path
 - Explicit `checking`, `transcribing`, `thinking`, and `speaking` interface states
 - Structured provider errors with upstream status, official error detail, and request ID
+- A dedicated read-only Knowledge Base page at `/knowledge` for inspecting compiled wiki pages and chunks
+- A bundled Attention Is All You Need English knowledge corpus
+- Parallel SQLite FTS5 chunk search and Grok wiki-page selection
+- Cache-aware KV Conversation history with references appended to the latest user message
+- Provider-neutral AI gateway operations for streaming text and structured objects
+- An expandable Ref panel that exposes both `llm_search` wiki hits and `lex_search` chunk hits
 
 ## Current Limits
 
@@ -56,6 +62,8 @@ Browser PCM
   -> backend WebSocket
   -> ElevenLabs realtime STT
   -> committed transcript
+  -> parallel lexical and LLM wiki search
+  -> references appended to the latest user message
   -> Grok streaming response
   -> ElevenLabs TTS WebSocket
   -> browser AudioContext playback
@@ -63,9 +71,11 @@ Browser PCM
 
 This reduces the wait after the user stops speaking because transcription has already been running during the recording.
 
-Document grounding is not fully productized yet. There is no document upload UI in `v0.02.03`.
+Document upload, manual rebuild controls, and automatic compilation are intentionally disabled in the v0.03.01 UI and API. The bundled Attention Is All You Need PDF has hand-maintained JSONL and wiki artifacts so retrieval can be evaluated independently before the ingestion architecture is designed.
 
-Conversation history is currently short-lived and intentionally simple. The backend keeps the most recent eight turns in memory for one hour by default, and loses them when the process restarts. Telemetry persists individual turns when explicitly enabled, but it is not a memory system and there is no persisted conversation entity above `turn_id` yet.
+Knowledge search in v0.03.01 supports English documents and English questions only. Chinese tokenization and cross-language lexical retrieval are deferred to a later v0.03.x release.
+
+Conversation history is currently short-lived and intentionally simple. The backend keeps the most recent eight turns in memory for one hour by default, and loses them when the process restarts. Telemetry persists individual turns by default unless explicitly disabled, but it is not a memory system and there is no persisted conversation entity above `turn_id` yet.
 
 The startup readiness gate uses authenticated provider capability endpoints and does not generate text or audio. It verifies the current network path, key acceptance, and required realtime STT/TTS permissions; the live streaming request can still fail later if a provider changes state or the account runs out of credits.
 
@@ -83,6 +93,8 @@ OS1 uses `X.Y.Z` to describe the kind of change:
 
 `v0.02.03` makes that readiness gate compatible with restricted ElevenLabs keys and surfaces sanitized provider error details in the interface.
 
+`v0.03.01` adds document knowledge, dual retrieval, and a cache-aware model conversation without adding a conversation-list product concept.
+
 See [CHANGELOG.md](CHANGELOG.md) for the history of each release.
 
 ## What You Need
@@ -97,6 +109,7 @@ You need:
 The default backend settings use:
 
 - Brain: `xAI` / `grok-4.5`
+- LLM search: `xAI` / `grok-4.5` with `reasoning_effort=low`
 - Voice: `ElevenLabs`
 - TTS model: `eleven_flash_v2_5`
 - STT model: `scribe_v2_realtime`
@@ -133,21 +146,21 @@ cp .env.example .env
 
 `.env` is ignored by git. Do not commit real API keys.
 
-Telemetry is intentionally disabled for a fresh checkout. To record full local turn diagnostics, set `TELEMETRY_ENABLED=true` in your private `.env` after reading the privacy warning below.
+Telemetry is enabled for local development so every turn and provider stage can be inspected. Set `TELEMETRY_ENABLED=false` in your private `.env` only when full-content local recording is not acceptable.
+
+The telemetry schema is OS1's own versioned layout for `data/telemetry.sqlite`, not an xAI or ElevenLabs schema. Schema v3 adds a `purpose` label so diagnostics can distinguish the answer-model call from the knowledge-selector call. Each turn records STT, answer LLM, TTS, the hybrid knowledge result, individual `lex_search` and `llm_search` outcomes, and the selector LLM call. Normal hits, misses, timeouts, cancellations, and failures are all retained. It has no effect while telemetry is disabled.
 
 ## Security
 
 OS1 is local-first research software. Read [SECURITY.md](SECURITY.md) before publishing, deploying, or sharing a hosted instance.
 
-OS1 v0.02.03 accepts loopback traffic only and is not a public deployment. Telemetry is disabled by default. When explicitly enabled, it stores full transcripts, AI responses, model request snapshots, and knowledge snippets in the ignored local file `data/telemetry.sqlite`. Do not publish or share this database. Delete the database and its `-wal` / `-shm` sidecars while OS1 is stopped to clear the recorded history.
+OS1 v0.03.01 accepts loopback traffic only and is not a public deployment. Telemetry is enabled by default and stores full transcripts, AI responses, model request snapshots, and knowledge snippets in the ignored local file `data/telemetry.sqlite`. Set `TELEMETRY_ENABLED=false` when this local full-content record is not acceptable. Future uploaded PDFs and ingest status are already excluded from git, but upload is not exposed in this release.
 
 ## Roadmap
 
-### v0.03
+### v0.03.02
 
-Document upload.
-
-Users will be able to upload text documents directly in the UI and let OS1 answer from those materials.
+Start lexical search from committed realtime STT paragraphs, merge and deduplicate prefetched evidence, and avoid reinjecting evidence already present in KV Conversation.
 
 ### v0.04
 
@@ -167,12 +180,17 @@ OS1 will remain one continuous interface rather than becoming a list of separate
 backend/
   app.py        Application composition and lifecycle
   api/          HTTP, SSE, and WebSocket transport
-  core/         Turn orchestration, sessions, chunking, and errors
-  gateways/     Replaceable LLM, STT, TTS, and knowledge providers
+  core/         Turn orchestration, KV Conversation, chunking, and errors
+  gateways/     Replaceable AI, STT, TTS, and knowledge providers
   telemetry/    Async recorder and SQLite schema
 
 frontend/
   index.html    Minimal voice interface
+
+knowledge/
+  raw/          Immutable source documents
+  chunks/       Canonical JSONL retrieval corpus
+  wiki/         LLM-maintained index and sourced pages
 ```
 
 ## License

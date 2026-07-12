@@ -1,4 +1,7 @@
-from .base import LLMGateway, LLMRequest, LLMStreamEvent, LLMUsage
+from .base import AIGateway, AIObjectResult, LLMGateway, LLMRequest, LLMStreamEvent, LLMUsage
 from .xai import XAILLMGateway
 
-__all__ = ["LLMGateway", "LLMRequest", "LLMStreamEvent", "LLMUsage", "XAILLMGateway"]
+__all__ = [
+    "AIGateway", "AIObjectResult", "LLMGateway", "LLMRequest", "LLMStreamEvent",
+    "LLMUsage", "XAILLMGateway",
+]

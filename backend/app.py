@@ -13,10 +13,17 @@ from .core.connectivity import ConnectivityService
 from .core.orchestrator import TurnOrchestrator
 from .core.rate_limit import SlidingWindowRateLimiter
 from .core.security import is_allowed_websocket, is_local_http_request
-from .core.sessions import SessionStore
+from .core.sessions import KVConversationStore
 from .gateways.connectivity import ElevenLabsConnectivityProbe, XAIConnectivityProbe
-from .gateways.knowledge import SQLiteFTSKnowledgeGateway
-from .gateways.llm import XAILLMGateway
+from .gateways.knowledge import (
+    KnowledgeBrowser,
+    KnowledgeSearchCoordinator,
+    LLMSearch,
+    LexSearch,
+    SQLiteFTSKnowledgeGateway,
+    WikiCatalog,
+)
+from .gateways.ai import XAIGateway
 from .gateways.stt import ElevenLabsSTTGateway
 from .gateways.tts import ElevenLabsTTSGateway
 from .services import ApplicationServices
@@ -33,14 +40,34 @@ telemetry = SQLiteTelemetryRecorder(
         == (settings.root_dir / "data").resolve()
     ),
 )
-knowledge = SQLiteFTSKnowledgeGateway(settings)
+knowledge_index = SQLiteFTSKnowledgeGateway(settings)
+answer_ai = XAIGateway(settings)
+selector_ai = XAIGateway(
+    settings,
+    model=settings.knowledge_selector_model,
+    reasoning_effort=settings.knowledge_selector_reasoning_effort,
+)
+knowledge = KnowledgeSearchCoordinator(
+    settings,
+    knowledge_index,
+    [
+        LexSearch(knowledge_index),
+        LLMSearch(
+            selector_ai,
+            WikiCatalog(settings.knowledge_root_dir / "wiki"),
+            telemetry,
+            limit=settings.knowledge_wiki_limit,
+        ),
+    ],
+    telemetry=telemetry,
+)
 orchestrator = TurnOrchestrator(
     settings=settings,
-    llm=XAILLMGateway(settings),
+    llm=answer_ai,
     stt=ElevenLabsSTTGateway(settings),
     tts=ElevenLabsTTSGateway(settings),
     knowledge=knowledge,
-    sessions=SessionStore(
+    sessions=KVConversationStore(
         max_turns=settings.max_history_turns,
         max_sessions=settings.max_sessions,
         ttl_seconds=settings.session_ttl_seconds,
@@ -60,6 +87,7 @@ services = ApplicationServices(
         brain=XAIConnectivityProbe(settings),
         voice=ElevenLabsConnectivityProbe(settings),
     ),
+    knowledge_browser=KnowledgeBrowser(settings.knowledge_root_dir),
 )
 
 
@@ -147,5 +175,3 @@ async def _initialize_knowledge() -> None:
     import asyncio
 
     await asyncio.to_thread(knowledge.ensure_index)
-    if knowledge.enabled:
-        await asyncio.to_thread(knowledge.reindex)

@@ -2,6 +2,20 @@
 
 This file records the user-visible and internal changes in each OS1 release. Versions follow the project's `X.Y.Z` convention described in the README.
 
+## v0.03.01 - 2026-07-13
+
+Document knowledge and cache-aware conversation context.
+
+- Added a dedicated read-only Knowledge Base page for inspecting wiki pages and canonical chunks; upload and rebuild controls remain disabled while ingestion is designed separately.
+- Added a hand-compiled Attention Is All You Need corpus with immutable raw PDF, canonical JSONL chunks, SQLite FTS5, and five sourced wiki pages.
+- Added parallel local lexical search and Grok 4.5 low-reasoning wiki selection with a configurable, fail-open deadline, currently 5 seconds.
+- Added provider-neutral streaming-text and structured-object AI gateway operations with xAI cache routing.
+- Added KV Conversation storage for the exact enriched user messages sent to the answer model.
+- Moved dynamic knowledge context from the system message to the latest user message.
+- Added deterministic corpus hashing, JSONL validation, atomic index replacement, weighted BM25, and per-purpose AI telemetry.
+- Enabled local telemetry by default and added per-provider knowledge outcomes for normal hits, misses, timeouts, cancellations, and failures.
+- Added an expandable, collapsible, and hideable Ref panel showing the exact wiki pages and chunks selected for each answer.
+
 ## v0.02.03 - 2026-07-11
 
 Restricted-key readiness and provider error clarity.

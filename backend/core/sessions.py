@@ -5,7 +5,9 @@ import time
 from .messages import Message
 
 
-class SessionStore:
+class KVConversationStore:
+    """Bounded, in-memory storage for the exact messages sent to the answer model."""
+
     def __init__(self, *, max_turns: int, max_sessions: int, ttl_seconds: int) -> None:
         self.max_turns = max(max_turns, 1)
         self.max_sessions = max_sessions
@@ -20,12 +22,12 @@ class SessionStore:
             self._touched_at[session_id] = time.monotonic()
         return [message.copy() for message in history]
 
-    def append_turn(self, session_id: str, user_text: str, assistant_text: str) -> None:
+    def append_turn(self, session_id: str, model_user_text: str, assistant_text: str) -> None:
         self._purge()
         history = self._sessions.setdefault(session_id, [])
         history.extend(
             [
-                {"role": "user", "content": user_text},
+                {"role": "user", "content": model_user_text},
                 {"role": "assistant", "content": assistant_text},
             ]
         )
@@ -44,7 +46,6 @@ class SessionStore:
         ]:
             self._sessions.pop(session_id, None)
             self._touched_at.pop(session_id, None)
-
     def _trim(self) -> None:
         if self.max_sessions <= 0:
             self._sessions.clear()
@@ -57,3 +58,8 @@ class SessionStore:
         for session_id, _ in oldest:
             self._sessions.pop(session_id, None)
             self._touched_at.pop(session_id, None)
+
+
+# Backwards-compatible import while the rest of the application migrates to the
+# product name used for its single, cache-aware model history.
+SessionStore = KVConversationStore

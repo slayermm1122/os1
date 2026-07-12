@@ -1,4 +1,4 @@
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS turns (
@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS llm_calls (
     provider TEXT NOT NULL,
     model TEXT NOT NULL,
     reasoning_effort TEXT,
+    purpose TEXT NOT NULL DEFAULT 'answer',
     status TEXT NOT NULL,
     started_at TEXT NOT NULL,
     completed_at TEXT,

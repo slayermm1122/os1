@@ -8,15 +8,15 @@ from collections.abc import AsyncIterable, AsyncIterator
 from dataclasses import dataclass
 
 from ..config import Settings
-from ..gateways.knowledge import KnowledgeGateway, SearchHit
-from ..gateways.llm import LLMGateway, LLMRequest, LLMStreamEvent
+from ..gateways.knowledge import KnowledgeEvidence, KnowledgeGateway, SearchHit
+from ..gateways.ai import AIGateway, AIRequest, AIStreamEvent
 from ..gateways.stt import STTEvent, STTGateway, STTResult
 from ..gateways.tts import TTSEvent, TTSGateway
 from ..telemetry.sqlite_store import SQLiteTelemetryRecorder, TurnTrace, utc_now
 from .chunking import pop_ready_speech_chunks
 from .errors import ErrorInfo, GatewayError, error_info
 from .messages import build_messages
-from .sessions import SessionStore
+from .sessions import KVConversationStore
 
 
 @dataclass(frozen=True)
@@ -36,11 +36,11 @@ class TurnOrchestrator:
         self,
         *,
         settings: Settings,
-        llm: LLMGateway,
+        llm: AIGateway,
         stt: STTGateway,
         tts: TTSGateway,
         knowledge: KnowledgeGateway,
-        sessions: SessionStore,
+        sessions: KVConversationStore,
         telemetry: SQLiteTelemetryRecorder,
     ) -> None:
         self.settings = settings
@@ -222,11 +222,17 @@ class TurnOrchestrator:
     ) -> AsyncIterator[PipelineEvent]:
         trace.update_text(user_text=user_text)
         try:
-            hits = await self._search_knowledge(trace, user_text)
+            history = self.sessions.get_history(trace.session_id)
+            hits = await self._search_knowledge(
+                trace,
+                user_text,
+                history=history,
+                api_key=brain_api_key,
+            )
             messages = build_messages(
                 system_prompt=self.settings.system_prompt,
                 user_text=user_text,
-                history=self.sessions.get_history(trace.session_id),
+                history=history,
                 knowledge_context=self.knowledge.format_hits(hits) if hits else "",
             )
         except asyncio.CancelledError:
@@ -240,13 +246,22 @@ class TurnOrchestrator:
             yield self.event(trace, "error", info.payload(trace.turn_id))
             return
 
+        model_user_text = messages[-1]["content"]
         if hits:
             yield self.event(
                 trace,
                 "knowledge",
                 {
                     "hits": [
-                        {"path": hit.path, "chunk": hit.chunk, "snippet": hit.snippet}
+                        {
+                            "path": hit.path,
+                            "chunk": hit.chunk,
+                            "snippet": hit.snippet,
+                            "evidence_id": getattr(hit, "evidence_id", hit.chunk),
+                            "provider": getattr(hit, "provider", self.knowledge.provider),
+                            "kind": getattr(hit, "kind", "chunk"),
+                            "title": getattr(hit, "title", hit.path),
+                        }
                         for hit in hits
                     ]
                 },
@@ -257,6 +272,7 @@ class TurnOrchestrator:
             async for event in self._stream_chat_with_audio(
                 trace,
                 user_text=user_text,
+                model_user_text=model_user_text,
                 messages=messages,
                 brain_api_key=brain_api_key,
                 voice_api_key=voice_api_key,
@@ -281,7 +297,7 @@ class TurnOrchestrator:
             yield self.event(trace, "error", info.payload(trace.turn_id))
             return
 
-        self.sessions.append_turn(trace.session_id, user_text, assistant_text)
+        self.sessions.append_turn(trace.session_id, model_user_text, assistant_text)
         trace.finish("success", assistant_text=assistant_text, response_complete=True)
         yield self.event(trace, "done", {"text": assistant_text})
 
@@ -407,6 +423,7 @@ class TurnOrchestrator:
         trace: TurnTrace,
         *,
         user_text: str,
+        model_user_text: str,
         messages: list[dict[str, str]],
         brain_api_key: str | None,
         voice_api_key: str | None,
@@ -444,7 +461,7 @@ class TurnOrchestrator:
                 if final_chunk:
                     await text_queue.put(final_chunk)
                     await event_queue.put(("event", self.event(trace, "display", {"text": final_chunk})))
-                self.sessions.append_turn(trace.session_id, user_text, assistant_text)
+                self.sessions.append_turn(trace.session_id, model_user_text, assistant_text)
                 await event_queue.put(("event", self.event(trace, "done", {"text": assistant_text})))
             except Exception as exc:
                 llm_failed = True
@@ -526,24 +543,35 @@ class TurnOrchestrator:
         messages: list[dict[str, str]],
         *,
         api_key: str | None,
-    ) -> AsyncIterator[LLMStreamEvent]:
+    ) -> AsyncIterator[AIStreamEvent]:
         call_id = uuid.uuid4().hex
         call_start = trace.offset_ms()
         first_token_ms: float | None = None
         response_text = ""
-        completion = LLMStreamEvent(kind="complete")
-        request = LLMRequest(messages=messages, api_key=api_key)
+        completion = AIStreamEvent(kind="complete")
+        request = AIRequest(
+            messages=messages,
+            api_key=api_key,
+            cache_key=trace.session_id,
+            purpose="answer",
+        )
         self.telemetry.start_llm_call(
             trace,
             call_id=call_id,
             provider=self.llm.provider,
             model=self.llm.model,
             reasoning_effort=self.llm.reasoning_effort,
+            purpose=request.purpose,
             request=self.llm.request_snapshot(request),
         )
         trace.event("llm.requested", stage="llm", metadata={"call_id": call_id})
         try:
-            async for event in self.llm.stream(request):
+            stream = (
+                self.llm.stream_text(request)
+                if hasattr(self.llm, "stream_text")
+                else self.llm.stream(request)
+            )
+            async for event in stream:
                 if event.kind == "delta":
                     if first_token_ms is None:
                         first_token_ms = trace.offset_ms() - call_start
@@ -934,7 +962,14 @@ class TurnOrchestrator:
             provider_request_id=request_id,
         )
 
-    async def _search_knowledge(self, trace: TurnTrace, query: str) -> list[SearchHit]:
+    async def _search_knowledge(
+        self,
+        trace: TurnTrace,
+        query: str,
+        *,
+        history: list[dict[str, str]],
+        api_key: str | None,
+    ) -> list[SearchHit] | list[KnowledgeEvidence]:
         call_id = uuid.uuid4().hex
         call_start = trace.offset_ms()
         self.telemetry.start_knowledge_call(
@@ -945,11 +980,18 @@ class TurnOrchestrator:
             query_text=query,
         )
         try:
-            hits = (
-                await asyncio.to_thread(self.knowledge.search, query)
-                if self.knowledge.enabled
-                else []
-            )
+            if not self.knowledge.enabled:
+                hits = []
+            elif hasattr(self.knowledge, "search_evidence"):
+                hits = await self.knowledge.search_evidence(
+                    query,
+                    history=history,
+                    api_key=api_key,
+                    cache_key=trace.session_id,
+                    trace=trace,
+                )
+            else:
+                hits = await asyncio.to_thread(self.knowledge.search, query)
         except asyncio.CancelledError:
             self.telemetry.finish_knowledge_call(
                 call_id,
@@ -961,7 +1003,6 @@ class TurnOrchestrator:
             raise
         except Exception as exc:
             info = error_info(exc, default_stage="knowledge")
-            self.telemetry.record_error(trace, info, call_id=call_id)
             self.telemetry.finish_knowledge_call(
                 call_id,
                 status="failed",
@@ -970,7 +1011,12 @@ class TurnOrchestrator:
                 outcome="error",
                 error_id=info.error_id,
             )
-            raise ObservedError(info) from exc
+            trace.event(
+                "knowledge.degraded",
+                stage="knowledge",
+                metadata={"call_id": call_id, "code": info.code},
+            )
+            return []
         outcome = "skipped" if not self.knowledge.enabled else "hit" if hits else "miss"
         results = [{"path": hit.path, "chunk": hit.chunk, "snippet": hit.snippet} for hit in hits]
         self.telemetry.finish_knowledge_call(

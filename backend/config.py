@@ -41,12 +41,17 @@ def _float_env(name: str, default: float) -> float:
         return default
 
 
+def _string_env(name: str, default: str) -> str:
+    value = os.getenv(name)
+    return value.strip() if value and value.strip() else default
+
+
 @dataclass(frozen=True)
 class Settings:
     root_dir: Path = ROOT_DIR
     frontend_dir: Path = ROOT_DIR / "frontend"
 
-    telemetry_enabled: bool = _bool_env("TELEMETRY_ENABLED", False)
+    telemetry_enabled: bool = _bool_env("TELEMETRY_ENABLED", True)
     telemetry_db_path: Path = ROOT_DIR / os.getenv("TELEMETRY_DB_PATH", "data/telemetry.sqlite")
     telemetry_queue_size: int = _int_env("TELEMETRY_QUEUE_SIZE", 2048)
     enforce_local_access: bool = True
@@ -87,14 +92,28 @@ class Settings:
 
     system_prompt: str = os.getenv(
         "SYSTEM_PROMPT",
-        "你是一个语音客服 agent。回答要简短、自然、准确；如果参考资料不足，直接说明不确定。",
+        "You are a concise, natural, and accurate voice assistant.",
     )
-    max_history_turns: int = _int_env("MAX_HISTORY_TURNS", 8)
+    max_history_turns: int = _int_env(
+        "KV_CONVERSATION_MAX_TURNS",
+        _int_env("MAX_HISTORY_TURNS", 8),
+    )
 
-    knowledge_enabled: bool = _bool_env("KNOWLEDGE_ENABLED", False)
-    knowledge_docs_dir: Path = ROOT_DIR / os.getenv("KNOWLEDGE_DOCS_DIR", "knowledge_docs")
+    knowledge_enabled: bool = _bool_env("KNOWLEDGE_ENABLED", True)
+    knowledge_root_dir: Path = ROOT_DIR / os.getenv("KNOWLEDGE_ROOT_DIR", "knowledge")
+    knowledge_docs_dir: Path = ROOT_DIR / os.getenv("KNOWLEDGE_DOCS_DIR", "knowledge/raw")
     knowledge_db_path: Path = ROOT_DIR / os.getenv("KNOWLEDGE_DB_PATH", "data/knowledge.sqlite")
     knowledge_limit: int = _int_env("KNOWLEDGE_LIMIT", 4)
+    knowledge_wiki_limit: int = _int_env("KNOWLEDGE_WIKI_LIMIT", 2)
+    knowledge_context_max_chars: int = _int_env("KNOWLEDGE_CONTEXT_MAX_CHARS", 12000)
+    knowledge_search_timeout_seconds: float = min(
+        max(_float_env("KNOWLEDGE_SEARCH_TIMEOUT_SECONDS", 5.0), 0.05),
+        5.0,
+    )
+    knowledge_selector_model: str = _string_env("KNOWLEDGE_SELECTOR_MODEL", "grok-4.5")
+    knowledge_selector_reasoning_effort: str = _string_env(
+        "KNOWLEDGE_SELECTOR_REASONING_EFFORT", "low"
+    )
 
     max_upload_bytes: int = _int_env("MAX_UPLOAD_BYTES", 25 * 1024 * 1024)
     max_http_body_bytes: int = _int_env("MAX_HTTP_BODY_BYTES", 30 * 1024 * 1024)
