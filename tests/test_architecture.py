@@ -37,9 +37,13 @@ from backend.gateways.connectivity import ElevenLabsConnectivityProbe, XAIConnec
 from backend.gateways.knowledge import SQLiteFTSKnowledgeGateway, SearchHit
 from backend.gateways.llm import LLMRequest, LLMStreamEvent, LLMUsage
 from backend.gateways.llm.xai import _parse_usage
-from backend.gateways.stt import STTEvent, STTResult
-from backend.gateways.stt.elevenlabs import _gateway_error as stt_gateway_error
-from backend.gateways.tts import TTSEvent
+from backend.gateways.stt import STTEvent, STTResult, STTWordTiming
+from backend.gateways.stt.elevenlabs import (
+    _gateway_error as stt_gateway_error,
+    _parse_word_timings,
+)
+from backend.gateways.tts import TTSAlignment, TTSEvent
+from backend.gateways.tts.elevenlabs import _parse_alignment
 from backend.telemetry import SQLiteTelemetryRecorder
 from backend.services import ApplicationServices
 
@@ -164,6 +168,13 @@ class FakeSTT:
             pass
         yield STTEvent(kind="partial", text="hel", request_id="stt-session")
         yield STTEvent(kind="committed", text="hello", language_code="en", request_id="stt-session")
+        yield STTEvent(
+            kind="timing",
+            text="hello",
+            language_code="en",
+            request_id="stt-session",
+            words=(STTWordTiming(text="hello", start_ms=0, end_ms=480),),
+        )
 
 
 class SlowSTT(FakeSTT):
@@ -202,7 +213,16 @@ class FakeTTS:
     ) -> AsyncIterator[TTSEvent]:
         async for _ in text_chunks:
             pass
-        yield TTSEvent(kind="audio", audio=b"\x00\x00" * 1600)
+        text = "A concise answer."
+        yield TTSEvent(
+            kind="audio",
+            audio=b"\x00\x00" * 1600,
+            alignment=TTSAlignment(
+                chars=tuple(text),
+                char_start_times_ms=tuple(index * 5 for index in range(len(text))),
+                char_durations_ms=tuple(5 for _ in text),
+            ),
+        )
         yield TTSEvent(kind="complete", request_id="tts-ws")
 
 
@@ -238,6 +258,35 @@ class EmptyTTS(FakeTTS):
 
 async def audio() -> AsyncIterator[bytes]:
     yield b"\x00\x00" * 1600
+
+
+class ElevenLabsTimingParsingTests(unittest.TestCase):
+    def test_stt_word_timings_are_normalized_to_milliseconds(self) -> None:
+        words = _parse_word_timings(
+            [
+                {"text": "Hello", "start": 0, "end": 0.42, "type": "word"},
+                {"text": " ", "start": 0.42, "end": 0.44, "type": "spacing"},
+                {"text": "ignored", "start": "bad", "end": 1},
+            ]
+        )
+
+        self.assertEqual(len(words), 2)
+        self.assertEqual(words[0], STTWordTiming("Hello", 0, 420, "word"))
+        self.assertEqual(words[1], STTWordTiming(" ", 420, 440, "spacing"))
+
+    def test_tts_alignment_rejects_bad_entries_without_losing_valid_cues(self) -> None:
+        alignment = _parse_alignment(
+            {
+                "chars": ["你", "好", "x"],
+                "charStartTimesMs": [0, 80, "bad"],
+                "charDurationsMs": [80, 120, 40],
+            }
+        )
+
+        self.assertIsNotNone(alignment)
+        self.assertEqual(alignment.chars, ("你", "好"))
+        self.assertEqual(alignment.char_start_times_ms, (0.0, 80.0))
+        self.assertEqual(alignment.char_durations_ms, (80.0, 120.0))
 
 
 class OrchestratorTests(unittest.IsolatedAsyncioTestCase):
@@ -289,6 +338,10 @@ class OrchestratorTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("done", [event.event for event in events])
         self.assertTrue(all(event.data.get("turn_id") == trace.turn_id for event in events))
+        timing_event = next(event for event in events if event.event == "transcript_timing")
+        self.assertEqual(timing_event.data["words"][0]["start_ms"], 0)
+        audio_event = next(event for event in events if event.event == "audio")
+        self.assertEqual("".join(audio_event.data["alignment"]["chars"]), "A concise answer.")
         with closing(sqlite3.connect(self.db_path)) as conn:
             turn = conn.execute(
                 "SELECT status, user_text, assistant_text, failed_stage, error_id "

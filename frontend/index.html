@@ -960,8 +960,13 @@
           clientStartedAt: performance.now(),
           playbackReported: false,
           playbackFailureReported: false,
+          playbackStarted: false,
           audioStream: null,
           finalText: "",
+          displayChunks: [],
+          captionText: "",
+          hasAlignment: false,
+          transcriptTiming: [],
           receivedAudio: false,
           audioDone: false,
           ttsFailed: false,
@@ -1017,8 +1022,17 @@
         if (event === "transcript") {
           transcriptEl.textContent = data.text || "";
         }
+        if (event === "transcript_timing") {
+          turn.transcriptTiming = Array.isArray(data.words) ? data.words : [];
+        }
         if (event === "display") {
-          appendAnswerLine(data.text || "");
+          const text = String(data.text || "").trim();
+          if (text) {
+            turn.displayChunks.push(text);
+            if (turn.playbackStarted && !turn.hasAlignment) {
+              setAnswerText(turn.displayChunks.join("\n"));
+            }
+          }
         }
         if (event === "audio") {
           if (turn.streamingAudioDisabled) return;
@@ -1026,13 +1040,31 @@
             if (!turn.audioStream) {
               turn.audioStream = createStreamingAudioPlayer(
                 data,
-                () => reportPlaybackStarted(turn),
+                {
+                  onPlaybackStarted: () => {
+                    turn.playbackStarted = true;
+                    reportPlaybackStarted(turn);
+                    if (!turn.hasAlignment) {
+                      setAnswerText(turn.displayChunks.join("\n"));
+                    }
+                  },
+                  onCaptionProgress: (text) => {
+                    turn.hasAlignment = true;
+                    turn.captionText = text;
+                    setSyncedAnswerText(text);
+                  },
+                  onPlaybackEnded: () => {
+                    const finalText = turn.finalText || turn.displayChunks.join("\n");
+                    if (finalText) setAnswerText(finalText);
+                  },
+                },
               );
             }
+            if (data.alignment) turn.hasAlignment = true;
             turn.receivedAudio = true;
             setState("speaking");
             setStatus("speaking");
-            await turn.audioStream.appendBase64(data.audio || "");
+            await turn.audioStream.appendBase64(data.audio || "", data.alignment || null);
           } catch (error) {
             reportPlaybackFailed(turn, error);
             turn.streamingAudioDisabled = true;
@@ -1058,11 +1090,13 @@
           turn.ttsFailed = true;
           turn.failureStatus = providerStatusLabel(data, "tts error");
           setStatus(turn.failureStatus);
+          const fallbackText = turn.finalText || turn.displayChunks.join("\n");
+          if (fallbackText && !getAnswerText()) setAnswerText(fallbackText);
           appendAnswerLine(providerErrorMessage(data));
         }
         if (event === "done") {
           turn.finalText = data.text || getAnswerText();
-          if (!getAnswerText() && turn.finalText) {
+          if (!turn.receivedAudio && turn.ttsFailed && !getAnswerText() && turn.finalText) {
             setAnswerText(turn.finalText);
           }
         }
@@ -1080,6 +1114,7 @@
         if (!turn || turn.finished) return;
         turn.finished = true;
         if (turn.finalText && !turn.receivedAudio && !turn.failed) {
+          if (!getAnswerText()) setAnswerText(turn.finalText);
           await playVoice(turn.finalText);
         } else if (turn.receivedAudio && !turn.audioDone && turn.audioStream) {
           try {
@@ -1173,8 +1208,11 @@
         }
       }
 
-      function createStreamingAudioPlayer(meta = {}, onPlaybackStarted = () => {}) {
+      function createStreamingAudioPlayer(meta = {}, callbacks = {}) {
         const format = meta.format || "";
+        const onPlaybackStarted = callbacks.onPlaybackStarted || (() => {});
+        const onCaptionProgress = callbacks.onCaptionProgress || (() => {});
+        const onPlaybackEnded = callbacks.onPlaybackEnded || (() => {});
         if (format.startsWith("pcm_")) {
           if (!("AudioContext" in window || "webkitAudioContext" in window)) {
             throw new Error("AudioContext is not supported in this browser");
@@ -1182,12 +1220,23 @@
           return createPcmAudioPlayer(
             meta.sample_rate || Number(format.slice(4)) || 16000,
             onPlaybackStarted,
+            onCaptionProgress,
+            onPlaybackEnded,
           );
         }
-        return createEncodedAudioPlayer(onPlaybackStarted);
+        return createEncodedAudioPlayer(
+          onPlaybackStarted,
+          onCaptionProgress,
+          onPlaybackEnded,
+        );
       }
 
-      function createPcmAudioPlayer(sampleRate, onPlaybackStarted) {
+      function createPcmAudioPlayer(
+        sampleRate,
+        onPlaybackStarted,
+        onCaptionProgress,
+        onPlaybackEnded,
+      ) {
         const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
         if (!AudioContextCtor) {
           throw new Error("AudioContext is not supported in this browser");
@@ -1195,10 +1244,17 @@
 
         const audioContext = new AudioContextCtor();
         let nextStartTime = 0;
+        let captionStartTime = 0;
         let hasAudio = false;
         let endTimer = 0;
+        let startTimer = 0;
+        let playbackEnded = false;
+        const captionTimeline = createCaptionTimeline(
+          () => audibleAudioTime(audioContext),
+          onCaptionProgress,
+        );
 
-        async function appendBase64(base64) {
+        async function appendBase64(base64, alignment) {
           const bytes = base64ToUint8Array(base64);
           if (!bytes.length) return;
           if (audioContext.state === "suspended") {
@@ -1214,22 +1270,36 @@
           source.connect(audioContext.destination);
 
           const startAt = Math.max(audioContext.currentTime + 0.035, nextStartTime);
+          if (!hasAudio) captionStartTime = startAt;
+          captionTimeline.add(alignment, captionStartTime);
           source.start(startAt);
-          if (!hasAudio) onPlaybackStarted();
+          if (!hasAudio) {
+            const startDelay = Math.max(0, (startAt - audioContext.currentTime) * 1000);
+            startTimer = window.setTimeout(onPlaybackStarted, startDelay);
+          }
           nextStartTime = startAt + audioBuffer.duration;
           hasAudio = true;
+        }
+
+        function finishPlayback() {
+          if (playbackEnded) return;
+          playbackEnded = true;
+          captionTimeline.stop();
+          onPlaybackEnded();
+          setState("idle");
         }
 
         async function end() {
           window.clearTimeout(endTimer);
           if (!hasAudio) {
-            setState("idle");
+            window.clearTimeout(startTimer);
+            finishPlayback();
             await audioContext.close();
             return;
           }
           const waitMs = Math.max(0, (nextStartTime - audioContext.currentTime) * 1000) + 160;
           endTimer = window.setTimeout(async () => {
-            setState("idle");
+            finishPlayback();
             await audioContext.close();
           }, waitMs);
         }
@@ -1237,17 +1307,29 @@
         return { appendBase64, end };
       }
 
-      function createEncodedAudioPlayer(onPlaybackStarted) {
+      function createEncodedAudioPlayer(
+        onPlaybackStarted,
+        onCaptionProgress,
+        onPlaybackEnded,
+      ) {
         const mimeType = "audio/mpeg";
         const fallbackChunks = [];
+        const captionTimeline = createCaptionTimeline(
+          () => player.currentTime,
+          onCaptionProgress,
+        );
+        const addAlignment = (alignment) => {
+          captionTimeline.add(alignment, 0, false);
+        };
         const canStream =
           "MediaSource" in window && window.MediaSource.isTypeSupported(mimeType);
 
         if (!canStream) {
           return {
-            async appendBase64(base64) {
+            async appendBase64(base64, alignment) {
               const bytes = base64ToUint8Array(base64);
               if (bytes.length) fallbackChunks.push(bytes);
+              addAlignment(alignment);
             },
             async end() {
               if (!fallbackChunks.length) return;
@@ -1255,10 +1337,13 @@
               const url = URL.createObjectURL(blob);
               player.src = url;
               player.onended = () => {
+                captionTimeline.stop();
                 URL.revokeObjectURL(url);
+                onPlaybackEnded();
                 setState("idle");
               };
               await player.play();
+              captionTimeline.start();
               onPlaybackStarted();
             },
           };
@@ -1290,19 +1375,23 @@
         objectUrl = URL.createObjectURL(mediaSource);
         player.src = objectUrl;
         player.onended = () => {
+          captionTimeline.stop();
           URL.revokeObjectURL(objectUrl);
+          onPlaybackEnded();
           setState("idle");
         };
 
-        async function appendBase64(base64) {
+        async function appendBase64(base64, alignment) {
           const bytes = base64ToUint8Array(base64);
           if (!bytes.length || closed) return;
+          addAlignment(alignment);
           appendChain = appendChain.then(async () => {
             const buffer = await sourceReady;
             await appendBuffer(buffer, bytes);
             if (!started) {
               started = true;
               await player.play();
+              captionTimeline.start();
               onPlaybackStarted();
             }
           });
@@ -1319,12 +1408,100 @@
             mediaSource.endOfStream();
           }
           if (!started) {
+            captionTimeline.stop();
             URL.revokeObjectURL(objectUrl);
+            onPlaybackEnded();
             setState("idle");
           }
         }
 
         return { appendBase64, end };
+      }
+
+      function createCaptionTimeline(currentTime, onProgress) {
+        const cues = [];
+        let nextCue = 0;
+        let text = "";
+        let animationFrame = 0;
+
+        function add(alignment, baseTime, autoStart = true) {
+          const normalized = normalizeAlignment(alignment);
+          if (!normalized) return 0;
+          let duration = 0;
+          normalized.chars.forEach((char, index) => {
+            const start = normalized.starts[index] / 1000;
+            const charDuration = normalized.durations[index] / 1000;
+            cues.push({ char, at: baseTime + start });
+            duration = Math.max(duration, start + charDuration);
+          });
+          if (autoStart) start();
+          return duration;
+        }
+
+        function start() {
+          if (animationFrame || nextCue >= cues.length) return;
+          animationFrame = window.requestAnimationFrame(tick);
+        }
+
+        function tick() {
+          animationFrame = 0;
+          const now = currentTime();
+          let changed = false;
+          while (nextCue < cues.length && cues[nextCue].at <= now + 0.012) {
+            text += cues[nextCue].char;
+            nextCue += 1;
+            changed = true;
+          }
+          if (changed) onProgress(text);
+          if (nextCue < cues.length) start();
+        }
+
+        function stop() {
+          if (animationFrame) window.cancelAnimationFrame(animationFrame);
+          animationFrame = 0;
+        }
+
+        return { add, start, stop };
+      }
+
+      function normalizeAlignment(alignment) {
+        if (!alignment || !Array.isArray(alignment.chars)) return null;
+        const starts = alignment.char_start_times_ms;
+        const durations = alignment.char_durations_ms;
+        if (!Array.isArray(starts) || !Array.isArray(durations)) return null;
+        const length = Math.min(alignment.chars.length, starts.length, durations.length);
+        if (!length) return null;
+        const chars = [];
+        const validStarts = [];
+        const validDurations = [];
+        for (let index = 0; index < length; index += 1) {
+          const start = Number(starts[index]);
+          const duration = Number(durations[index]);
+          const char = String(alignment.chars[index] || "");
+          if (!char || !Number.isFinite(start) || !Number.isFinite(duration)) continue;
+          if (start < 0 || duration < 0) continue;
+          chars.push(char);
+          validStarts.push(start);
+          validDurations.push(duration);
+        }
+        return chars.length
+          ? { chars, starts: validStarts, durations: validDurations }
+          : null;
+      }
+
+      function audibleAudioTime(audioContext) {
+        if (typeof audioContext.getOutputTimestamp === "function") {
+          const timestamp = audioContext.getOutputTimestamp();
+          if (
+            Number.isFinite(timestamp?.contextTime) &&
+            Number.isFinite(timestamp?.performanceTime) &&
+            timestamp.performanceTime > 0
+          ) {
+            return timestamp.contextTime + (performance.now() - timestamp.performanceTime) / 1000;
+          }
+        }
+        const latency = Number(audioContext.outputLatency || audioContext.baseLatency || 0);
+        return audioContext.currentTime - (Number.isFinite(latency) ? latency : 0);
       }
 
       function reportPlaybackStarted(turn) {
@@ -1528,6 +1705,20 @@
         line.className = "answer-line";
         line.textContent = text;
         replyEl.appendChild(line);
+      }
+
+      function setSyncedAnswerText(text) {
+        const visibleText = String(text || "").trimStart();
+        if (!visibleText) return;
+        let line = replyEl.querySelector(".answer-line.is-synced");
+        if (!line) {
+          replyEl.replaceChildren();
+          line = document.createElement("div");
+          line.className = "answer-line is-synced";
+          replyEl.appendChild(line);
+        }
+        line.textContent = visibleText;
+        replyEl.scrollTop = replyEl.scrollHeight;
       }
 
       function setAnswerText(text) {

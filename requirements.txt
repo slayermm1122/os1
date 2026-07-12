@@ -5,3 +5,4 @@ python-dotenv>=1.1,<2
 python-multipart>=0.0.20,<1
 pydantic>=2.12,<3
 websockets>=16,<17
+python-socks[asyncio]>=2.7,<3
