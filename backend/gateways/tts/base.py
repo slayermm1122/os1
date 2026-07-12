@@ -6,12 +6,20 @@ from typing import Literal, Protocol
 
 
 @dataclass(frozen=True)
+class TTSAlignment:
+    chars: tuple[str, ...]
+    char_start_times_ms: tuple[float, ...]
+    char_durations_ms: tuple[float, ...]
+
+
+@dataclass(frozen=True)
 class TTSEvent:
     kind: Literal["audio", "complete"]
     audio: bytes = b""
     request_id: str | None = None
     trace_id: str | None = None
     character_cost: int | None = None
+    alignment: TTSAlignment | None = None
 
 
 class TTSGateway(Protocol):

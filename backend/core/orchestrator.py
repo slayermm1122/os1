@@ -168,6 +168,23 @@ class TurnOrchestrator:
                         yield self.event(trace, "stt_ready", {"state": "listening"})
                     user_text = f"{user_text} {event.text.strip()}".strip()
                     yield self.event(trace, "transcript", {"text": user_text})
+                elif event.kind == "timing" and event.words:
+                    yield self.event(
+                        trace,
+                        "transcript_timing",
+                        {
+                            "text": event.text,
+                            "words": [
+                                {
+                                    "text": word.text,
+                                    "start_ms": word.start_ms,
+                                    "end_ms": word.end_ms,
+                                    "kind": word.kind,
+                                }
+                                for word in event.words
+                            ],
+                        },
+                    )
             user_text = user_text or partial_text
             self._validate_user_text(user_text)
         except asyncio.CancelledError:
@@ -446,18 +463,27 @@ class TurnOrchestrator:
                     api_key=voice_api_key,
                     voice_id=voice_id,
                 ):
+                    if output.kind != "audio":
+                        continue
+                    data = {
+                        "audio": base64.b64encode(output.audio).decode("ascii"),
+                        "mime_type": self.settings.tts_stream_media_type,
+                        "format": self.tts.stream_output_format,
+                        "sample_rate": self.tts.stream_sample_rate,
+                    }
+                    if output.alignment is not None:
+                        data["alignment"] = {
+                            "chars": list(output.alignment.chars),
+                            "char_start_times_ms": list(output.alignment.char_start_times_ms),
+                            "char_durations_ms": list(output.alignment.char_durations_ms),
+                        }
                     await event_queue.put(
                         (
                             "event",
                             self.event(
                                 trace,
                                 "audio",
-                                {
-                                    "audio": base64.b64encode(output).decode("ascii"),
-                                    "mime_type": self.settings.tts_stream_media_type,
-                                    "format": self.tts.stream_output_format,
-                                    "sample_rate": self.tts.stream_sample_rate,
-                                },
+                                data,
                             ),
                         )
                     )
@@ -615,7 +641,7 @@ class TurnOrchestrator:
         *,
         api_key: str | None,
         voice_id: str | None,
-    ) -> AsyncIterator[bytes]:
+    ) -> AsyncIterator[TTSEvent]:
         call_id = uuid.uuid4().hex
         call_start = trace.offset_ms()
         first_text_ms: float | None = None
@@ -656,7 +682,7 @@ class TurnOrchestrator:
                         first_audio_ms = trace.offset_ms() - call_start
                         trace.event("tts.first_audio", stage="tts", metadata={"call_id": call_id})
                     audio_bytes += len(event.audio)
-                    yield event.audio
+                    yield event
                 else:
                     completion = event
         except asyncio.CancelledError:

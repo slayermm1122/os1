@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import math
 from collections.abc import AsyncIterable, AsyncIterator
 from typing import Any
 from urllib.parse import urlencode
@@ -12,7 +13,7 @@ import websockets
 
 from ...config import Settings
 from ...core.errors import GatewayError, parse_provider_error
-from .base import STTEvent, STTResult
+from .base import STTEvent, STTResult, STTWordTiming
 
 
 _ERROR_TYPES = {
@@ -100,6 +101,8 @@ class ElevenLabsSTTGateway:
             "model_id": self.realtime_model,
             "audio_format": audio_format,
             "commit_strategy": "manual",
+            "include_timestamps": "true",
+            "timestamps_granularity": "word",
             "enable_logging": str(self.settings.elevenlabs_enable_logging).lower(),
         }
         if self.settings.elevenlabs_stt_language_code:
@@ -116,35 +119,32 @@ class ElevenLabsSTTGateway:
                 close_timeout=5,
             ) as websocket:
                 connected = True
-                send_finished = asyncio.Event()
                 received_commit = False
+                last_committed_text = ""
 
                 async def send_audio() -> None:
-                    try:
-                        async for chunk in audio_chunks:
-                            if not chunk:
-                                continue
-                            await websocket.send(
-                                json.dumps(
-                                    {
-                                        "message_type": "input_audio_chunk",
-                                        "audio_base_64": base64.b64encode(chunk).decode("ascii"),
-                                        "sample_rate": sample_rate,
-                                    }
-                                )
-                            )
+                    async for chunk in audio_chunks:
+                        if not chunk:
+                            continue
                         await websocket.send(
                             json.dumps(
                                 {
                                     "message_type": "input_audio_chunk",
-                                    "audio_base_64": "",
+                                    "audio_base_64": base64.b64encode(chunk).decode("ascii"),
                                     "sample_rate": sample_rate,
-                                    "commit": True,
                                 }
                             )
                         )
-                    finally:
-                        send_finished.set()
+                    await websocket.send(
+                        json.dumps(
+                            {
+                                "message_type": "input_audio_chunk",
+                                "audio_base_64": "",
+                                "sample_rate": sample_rate,
+                                "commit": True,
+                            }
+                        )
+                    )
 
                 send_task = asyncio.create_task(send_audio())
                 send_results: list[object] = []
@@ -176,16 +176,36 @@ class ElevenLabsSTTGateway:
                                 yield STTEvent(kind="session_started", request_id=request_id)
                             elif message_type == "partial_transcript":
                                 yield STTEvent(kind="partial", text=str(payload.get("text") or ""), request_id=request_id)
-                            elif message_type in {"committed_transcript", "committed_transcript_with_timestamps"}:
+                            elif message_type == "committed_transcript":
                                 received_commit = True
+                                last_committed_text = str(payload.get("text") or "").strip()
                                 yield STTEvent(
                                     kind="committed",
-                                    text=str(payload.get("text") or "").strip(),
+                                    text=last_committed_text,
                                     language_code=str(payload.get("language_code") or "") or None,
                                     request_id=request_id,
                                 )
-                                if send_finished.is_set():
-                                    break
+                            elif message_type == "committed_transcript_with_timestamps":
+                                received_commit = True
+                                committed_text = str(payload.get("text") or "").strip()
+                                if committed_text and committed_text != last_committed_text:
+                                    last_committed_text = committed_text
+                                    yield STTEvent(
+                                        kind="committed",
+                                        text=committed_text,
+                                        language_code=str(payload.get("language_code") or "") or None,
+                                        request_id=request_id,
+                                    )
+                                words = _parse_word_timings(payload.get("words"))
+                                if words:
+                                    yield STTEvent(
+                                        kind="timing",
+                                        text=committed_text or last_committed_text,
+                                        language_code=str(payload.get("language_code") or "") or None,
+                                        request_id=request_id,
+                                        words=words,
+                                    )
+                                break
                 finally:
                     if not send_task.done():
                         send_task.cancel()
@@ -273,3 +293,36 @@ def _gateway_error(exc: Exception, *, stage: str, connecting: bool = False) -> G
         technical_message=str(exc),
         retryable=True,
     )
+
+
+def _parse_word_timings(value: object) -> tuple[STTWordTiming, ...]:
+    if not isinstance(value, list):
+        return ()
+    words: list[STTWordTiming] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        start = _finite_number(item.get("start"))
+        end = _finite_number(item.get("end"))
+        text = str(item.get("text") or "")
+        if start is None or end is None or end < start or not text:
+            continue
+        words.append(
+            STTWordTiming(
+                text=text,
+                start_ms=start * 1000,
+                end_ms=end * 1000,
+                kind=str(item.get("type") or "word"),
+            )
+        )
+    return tuple(words)
+
+
+def _finite_number(value: object) -> float | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) and number >= 0 else None

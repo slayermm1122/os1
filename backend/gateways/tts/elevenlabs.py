@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import math
 from collections.abc import AsyncIterable, AsyncIterator
 from urllib.parse import urlencode
 
@@ -11,7 +12,7 @@ import websockets
 
 from ...config import Settings
 from ...core.errors import GatewayError, parse_provider_error
-from .base import TTSEvent
+from .base import TTSAlignment, TTSEvent
 
 
 class ElevenLabsTTSGateway:
@@ -115,6 +116,7 @@ class ElevenLabsTTSGateway:
                 "model_id": self.model,
                 "output_format": self.stream_output_format,
                 "auto_mode": "true",
+                "sync_alignment": "true",
                 "enable_logging": str(self.settings.elevenlabs_enable_logging).lower(),
             }
         )
@@ -189,7 +191,14 @@ class ElevenLabsTTSGateway:
                                 )
                             audio = payload.get("audio")
                             if audio:
-                                yield TTSEvent(kind="audio", audio=base64.b64decode(audio))
+                                alignment = _parse_alignment(payload.get("alignment"))
+                                if alignment is None:
+                                    alignment = _parse_alignment(payload.get("normalizedAlignment"))
+                                yield TTSEvent(
+                                    kind="audio",
+                                    audio=base64.b64decode(audio),
+                                    alignment=alignment,
+                                )
                             if payload.get("isFinal"):
                                 received_final = True
                                 break
@@ -276,3 +285,45 @@ def _integer(value: object) -> int | None:
         return int(value) if value is not None else None
     except (TypeError, ValueError):
         return None
+
+
+def _parse_alignment(value: object) -> TTSAlignment | None:
+    if not isinstance(value, dict):
+        return None
+    chars = value.get("chars")
+    starts = value.get("charStartTimesMs")
+    durations = value.get("charDurationsMs")
+    if not isinstance(chars, list) or not isinstance(starts, list) or not isinstance(durations, list):
+        return None
+    length = min(len(chars), len(starts), len(durations))
+    if length == 0:
+        return None
+    parsed_chars: list[str] = []
+    parsed_starts: list[float] = []
+    parsed_durations: list[float] = []
+    for index in range(length):
+        start = _finite_number(starts[index])
+        duration = _finite_number(durations[index])
+        char = str(chars[index])
+        if start is None or duration is None or not char:
+            continue
+        parsed_chars.append(char)
+        parsed_starts.append(start)
+        parsed_durations.append(duration)
+    if not parsed_chars:
+        return None
+    return TTSAlignment(
+        chars=tuple(parsed_chars),
+        char_start_times_ms=tuple(parsed_starts),
+        char_durations_ms=tuple(parsed_durations),
+    )
+
+
+def _finite_number(value: object) -> float | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) and number >= 0 else None
