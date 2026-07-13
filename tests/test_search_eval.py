@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from backend.config import ROOT_DIR, Settings
+from backend.config import Settings
 from backend.evals.knowledge_search import (
     SearchOnlyRunner,
     load_golden_dataset,
@@ -37,13 +37,64 @@ class StaticProvider:
 
 
 class SearchEvaluationTests(unittest.IsolatedAsyncioTestCase):
-    def test_attention_golden_set_has_five_cases_and_fifteen_valid_queries(self) -> None:
-        path = ROOT_DIR / "knowledge" / "evals" / "attention_is_all_you_need.golden.json"
-        dataset = load_golden_dataset(path)
-        self.assertEqual(dataset.document_id, "attention_is_all_you_need")
-        self.assertEqual(len(dataset.queries), 15)
-        self.assertEqual(len({query.case_id for query in dataset.queries}), 5)
-        validate_source_ids(dataset, Settings())
+    def test_local_golden_set_has_five_cases_and_fifteen_valid_queries(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            chunks = root / "knowledge" / "chunks"
+            pages = root / "knowledge" / "wiki" / "pages"
+            evals = root / "knowledge" / "evals"
+            chunks.mkdir(parents=True)
+            pages.mkdir(parents=True)
+            evals.mkdir(parents=True)
+            chunk = {
+                "chunk_id": "paper:000001",
+                "doc_id": "paper",
+                "document_title": "Paper",
+                "section_title": "Attention",
+                "title_path": "Paper > Attention",
+                "text": "Attention uses learned projections.",
+                "source_file": "paper.pdf",
+                "page_start": 1,
+                "page_end": 1,
+                "chunk_order": 1,
+                "language": "en",
+            }
+            (chunks / "paper.jsonl").write_text(json.dumps(chunk) + "\n", encoding="utf-8")
+            (root / "knowledge" / "wiki" / "index.md").write_text(
+                "- `paper.attention` — Attention.\n", encoding="utf-8"
+            )
+            (pages / "attention.md").write_text(
+                "---\nid: paper.attention\ntitle: Attention\nsummary: Attention.\n---\nBody\n",
+                encoding="utf-8",
+            )
+            cases = [
+                {
+                    "case_id": f"case_{index}",
+                    "queries": [f"Question {index} variant {variant}" for variant in range(1, 4)],
+                    "relevant": {
+                        "llm_search": ["paper.attention"],
+                        "lex_search": ["paper:000001"],
+                    },
+                }
+                for index in range(1, 6)
+            ]
+            path = evals / "paper.golden.json"
+            path.write_text(
+                json.dumps({"schema_version": 1, "document_id": "paper", "cases": cases}),
+                encoding="utf-8",
+            )
+            settings = Settings(
+                root_dir=root,
+                frontend_dir=root / "frontend",
+                knowledge_root_dir=root / "knowledge",
+                knowledge_docs_dir=root / "knowledge" / "raw",
+                knowledge_db_path=root / "data" / "knowledge.sqlite",
+            )
+            dataset = load_golden_dataset(path)
+            self.assertEqual(dataset.document_id, "paper")
+            self.assertEqual(len(dataset.queries), 15)
+            self.assertEqual(len({query.case_id for query in dataset.queries}), 5)
+            validate_source_ids(dataset, settings)
 
     def test_metrics_use_binary_relevance_and_rank_order(self) -> None:
         result = retrieval_metrics(["a", "b"], ["x", "b", "a"], k=5)

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
 import sqlite3
 import tempfile
@@ -26,7 +25,7 @@ from backend.gateways.knowledge import (
     SQLiteFTSKnowledgeGateway,
     WikiCatalog,
 )
-from backend.gateways.knowledge.sqlite_fts import JSONLValidationError, load_jsonl_chunks
+from backend.gateways.knowledge.sqlite_fts import JSONLValidationError
 from backend.gateways.llm import AIObjectResult, LLMUsage
 from backend.gateways.llm import LLMStreamEvent
 from backend.gateways.ai import XAIGateway
@@ -209,35 +208,6 @@ class JSONLAndFTSTests(unittest.TestCase):
             gateway = SQLiteFTSKnowledgeGateway(settings_for(root))
             gateway.reindex()
             self.assertEqual(gateway.search_evidence("positional encoding")[0].chunk_id, "paper:title")
-
-
-class BundledFixtureTests(unittest.TestCase):
-    def test_attention_fixture_is_complete_and_searchable(self) -> None:
-        root = Path(__file__).resolve().parents[1]
-        raw = root / "knowledge" / "raw" / "attention_is_all_you_need.pdf"
-        self.assertEqual(
-            hashlib.sha256(raw.read_bytes()).hexdigest(),
-            "bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697",
-        )
-        settings = Settings(
-            root_dir=root,
-            frontend_dir=root / "frontend",
-            knowledge_enabled=True,
-            knowledge_root_dir=root / "knowledge",
-            knowledge_docs_dir=root / "knowledge" / "raw",
-            knowledge_db_path=root / "data" / "knowledge.sqlite",
-        )
-        gateway = SQLiteFTSKnowledgeGateway(settings)
-        self.assertEqual(len(list(load_jsonl_chunks(root / "knowledge" / "chunks"))), 9)
-        self.assertEqual(
-            gateway.search_evidence("How many parallel attention heads are used?")[0].chunk_id,
-            "attention_is_all_you_need:000004",
-        )
-        self.assertEqual(
-            gateway.search_evidence("What BLEU score did the big Transformer achieve?")[0].chunk_id,
-            "attention_is_all_you_need:000009",
-        )
-        self.assertEqual(len(WikiCatalog(root / "knowledge" / "wiki").pages()), 5)
 
 
 class KVConversationTests(unittest.TestCase):

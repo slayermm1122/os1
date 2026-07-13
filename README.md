@@ -46,7 +46,7 @@ This is still deliberately small, inspectable, and easy to change.
 - Explicit `checking`, `transcribing`, `thinking`, and `speaking` interface states
 - Structured provider errors with upstream status, official error detail, and request ID
 - A dedicated read-only Knowledge Base page at `/knowledge` for inspecting compiled wiki pages and chunks
-- A bundled Attention Is All You Need English knowledge corpus
+- A local knowledge workspace for user-owned English documents
 - Parallel SQLite FTS5 chunk search and Grok wiki-page selection
 - Cache-aware KV Conversation history with references appended to the latest user message
 - Provider-neutral AI gateway operations for streaming text and structured objects
@@ -72,7 +72,7 @@ Browser PCM
 
 This reduces the wait after the user stops speaking because transcription has already been running during the recording.
 
-Document upload, manual rebuild controls, and automatic compilation are intentionally disabled in the v0.03.02 UI and API. The bundled Attention Is All You Need PDF has hand-maintained JSONL and wiki artifacts so retrieval can be evaluated independently before the ingestion architecture is designed.
+Document upload, manual rebuild controls, and automatic compilation are intentionally disabled in the v0.03.02 UI and API. Raw documents, canonical JSONL chunks, wiki pages, golden sets, and generated knowledge databases are local user data and are excluded from git.
 
 Knowledge search in v0.03.02 supports English documents and English questions only. Chinese tokenization and cross-language lexical retrieval are deferred to a later v0.03.x release.
 
@@ -159,13 +159,13 @@ See the mandatory
 [Knowledge Search Self-Verification SOP](docs/knowledge-search-self-verification.md)
 for the complete human-labeling and review workflow.
 
-The bundled Attention paper has five human-curated source golden cases and three
-English paraphrases per case. Evaluate retrieval alone, without STT, answer
-generation, or TTS:
+After preparing a local document, create at least five human-curated source
+golden cases with three English paraphrases per case. Evaluate retrieval alone,
+without STT, answer generation, or TTS:
 
 ```bash
-.venv/bin/python -m backend.evals.knowledge_search --provider lex
-.venv/bin/python -m backend.evals.knowledge_search --provider llm
+.venv/bin/python -m backend.evals.knowledge_search --provider lex --dataset knowledge/evals/my_document.golden.json
+.venv/bin/python -m backend.evals.knowledge_search --provider llm --dataset knowledge/evals/my_document.golden.json
 ```
 
 Each provider is scored separately with Recall@5, precision, MRR, and nDCG@5.

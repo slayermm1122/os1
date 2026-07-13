@@ -17,7 +17,7 @@ Timestamp-synchronized live captions.
 Document knowledge and cache-aware conversation context.
 
 - Added a dedicated read-only Knowledge Base page for inspecting wiki pages and canonical chunks; upload and rebuild controls remain disabled while ingestion is designed separately.
-- Added a hand-compiled Attention Is All You Need corpus with immutable raw PDF, canonical JSONL chunks, SQLite FTS5, and five sourced wiki pages.
+- Validated the knowledge pipeline with a hand-compiled local Attention Is All You Need corpus; all raw documents and derived knowledge remain git-ignored user data.
 - Added parallel local lexical search and Grok 4.5 low-reasoning wiki selection with a configurable, fail-open deadline, currently 5 seconds.
 - Added provider-neutral streaming-text and structured-object AI gateway operations with xAI cache routing.
 - Added KV Conversation storage for the exact enriched user messages sent to the answer model.

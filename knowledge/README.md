@@ -11,18 +11,12 @@ This directory separates four kinds of knowledge state:
 `data/knowledge.sqlite` is disposable. OS1 validates the JSONL files and rebuilds
 the weighted FTS5 index whenever the corpus hash or index schema changes.
 
-## Bundled v0.03 Fixture
+## Local Data Boundary
 
-The initial source is [Attention Is All You Need](https://arxiv.org/abs/1706.03762)
-by Vaswani et al. The bundled PDF was downloaded from arXiv and has SHA-256:
-
-```text
-bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697
-```
-
-The nine English chunks and five wiki pages are hand-compiled test artifacts.
-They provide a deterministic golden corpus for a future ingestion architecture;
-upload and compilation are intentionally outside the current implementation.
+Everything under `raw/`, `chunks/`, `wiki/`, `evals/`, and `.status/` belongs to
+the local user and is ignored by git. Generated SQLite indexes live under
+`data/` and are also ignored. A repository clone intentionally starts with an
+empty knowledge base; users supply and compile their own documents.
 
 ## JSONL Contract
 
@@ -50,9 +44,9 @@ three paraphrases and separate relevant source IDs for `llm_search` and
 Run either provider without invoking voice, answer generation, or TTS:
 
 ```bash
-.venv/bin/python -m backend.evals.knowledge_search --provider lex
-.venv/bin/python -m backend.evals.knowledge_search --provider llm
-.venv/bin/python -m backend.evals.knowledge_search --provider all
+.venv/bin/python -m backend.evals.knowledge_search --provider lex --dataset knowledge/evals/my_document.golden.json
+.venv/bin/python -m backend.evals.knowledge_search --provider llm --dataset knowledge/evals/my_document.golden.json
+.venv/bin/python -m backend.evals.knowledge_search --provider all --dataset knowledge/evals/my_document.golden.json
 ```
 
 The report includes macro Recall@5, precision over the returned top-five list,

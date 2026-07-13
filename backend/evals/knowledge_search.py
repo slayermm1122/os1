@@ -20,7 +20,6 @@ from ..gateways.knowledge.sqlite_fts import load_jsonl_chunks
 from ..telemetry import SQLiteTelemetryRecorder
 
 
-DEFAULT_DATASET = ROOT_DIR / "knowledge" / "evals" / "attention_is_all_you_need.golden.json"
 DEFAULT_DB = ROOT_DIR / "data" / "search_eval.sqlite"
 EVAL_SCHEMA_VERSION = 1
 
@@ -419,7 +418,12 @@ def _utc_now() -> str:
 def _arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Evaluate OS1 knowledge search without answer generation")
     parser.add_argument("--provider", choices=("lex", "llm", "all"), default="all")
-    parser.add_argument("--dataset", type=Path, default=DEFAULT_DATASET)
+    parser.add_argument(
+        "--dataset",
+        type=Path,
+        required=True,
+        help="Path to a local human-curated golden dataset",
+    )
     parser.add_argument("--db", type=Path, default=DEFAULT_DB)
     parser.add_argument("--timeout", type=float, default=Settings().knowledge_search_timeout_seconds)
     parser.add_argument("--no-db", action="store_true", help="Do not persist this evaluation run")

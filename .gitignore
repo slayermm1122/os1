@@ -5,8 +5,13 @@
 __pycache__/
 *.py[cod]
 .DS_Store
+# Local runtime and evaluation databases.
 data/*.sqlite
 data/*.sqlite-*
+
+# User-owned knowledge content. Only knowledge/README.md is repository source.
 knowledge/.status/
-knowledge/raw/*
-!knowledge/raw/attention_is_all_you_need.pdf
+knowledge/raw/
+knowledge/chunks/
+knowledge/wiki/
+knowledge/evals/

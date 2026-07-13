@@ -21,7 +21,7 @@ The database is ignored by git, but it still contains private conversation conte
 
 On POSIX systems, OS1 enforces mode `0700` on the telemetry directory and `0600` on the database and SQLite sidecars. This protects against other local accounts but is not encryption at rest.
 
-Document upload and compilation are not implemented in v0.03. The reserved future paths `knowledge/raw/` and `knowledge/.status/` are ignored by git except for the bundled Attention Is All You Need fixture. Their deletion lifecycle must be finalized before upload is enabled.
+Document upload and compilation are not implemented in v0.03. Local raw documents, chunks, wiki pages, golden evaluation sets, ingest status, and generated SQLite indexes are ignored by git. Their deletion lifecycle must be finalized before upload is enabled.
 
 Provider retention is separate from OS1 telemetry. ElevenLabs logging remains enabled for compatibility with ordinary accounts unless an Enterprise Zero Retention account sets `ELEVENLABS_ENABLE_LOGGING=false`. xAI ZDR is enabled at the team level for eligible Enterprise accounts.
 

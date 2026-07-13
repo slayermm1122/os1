@@ -58,7 +58,8 @@ The three phrasings should vary naturally rather than swapping a single word:
 - a structural or explanatory rephrasing;
 - a realistic conversational or task-oriented rephrasing.
 
-Store committed datasets under `knowledge/evals/` using a stable scope name:
+Store local datasets under the git-ignored `knowledge/evals/` directory using a
+stable scope name:
 
 ```json
 {
@@ -85,7 +86,9 @@ Store committed datasets under `knowledge/evals/` using a stable scope name:
 For a topic spanning multiple documents, `document_id` is the stable evaluation
 scope identifier and the relevant lists may contain sources from every document
 in that scope. Temporary datasets may live outside the repository and be passed
-with `--dataset`; preserve them when the result needs to be reproduced.
+with `--dataset`; preserve them locally when the result needs to be reproduced.
+Raw documents, chunks, wiki pages, and golden datasets are user-owned knowledge
+and must not be committed.
 
 The evaluator validates every labeled wiki and chunk ID against the active
 corpus before making provider calls. Missing or renamed sources fail the run.
@@ -97,14 +100,14 @@ Run providers independently. The search-only runner calls the
 Conversation enrichment, answer generation, TTS, or the normal turn workflow.
 
 ```bash
-.venv/bin/python -m backend.evals.knowledge_search --provider lex
-.venv/bin/python -m backend.evals.knowledge_search --provider llm
+.venv/bin/python -m backend.evals.knowledge_search --provider lex --dataset knowledge/evals/my_document.golden.json
+.venv/bin/python -m backend.evals.knowledge_search --provider llm --dataset knowledge/evals/my_document.golden.json
 ```
 
 Run both in one command when convenient:
 
 ```bash
-.venv/bin/python -m backend.evals.knowledge_search --provider all
+.venv/bin/python -m backend.evals.knowledge_search --provider all --dataset knowledge/evals/my_document.golden.json
 ```
 
 Useful options:
