@@ -2,6 +2,16 @@
 
 This file records the user-visible and internal changes in each OS1 release. Versions follow the project's `X.Y.Z` convention described in the README.
 
+## v0.03.02 - 2026-07-13
+
+Timestamp-synchronized live captions.
+
+- Enabled ElevenLabs realtime STT word timing and prevented committed transcripts from being emitted twice.
+- Requested ElevenLabs TTS character alignment and forwarded it alongside streamed PCM audio.
+- Drove spoken-response captions from the browser audio output clock so highlighted text follows what the user actually hears.
+- Preserved a graceful timing fallback when alignment metadata is unavailable.
+- Added SOCKS proxy support and timing parser, protocol, and multi-chunk alignment coverage.
+
 ## v0.03.01 - 2026-07-13
 
 Document knowledge and cache-aware conversation context.

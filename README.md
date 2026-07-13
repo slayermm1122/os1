@@ -22,11 +22,11 @@ The interface is intentionally minimal: a warm orange-red room, one button, one 
 
 ## Version
 
-Current version: `v0.03.01`
+Current version: `v0.03.02`
 
 This is still deliberately small, inspectable, and easy to change.
 
-## What Works In v0.03.01
+## What Works In v0.03.02
 
 - Press-to-talk voice recording with browser PCM streaming
 - ElevenLabs realtime speech-to-text while the user is still recording
@@ -35,6 +35,7 @@ This is still deliberately small, inspectable, and easy to change.
 - Streaming LLM output from the backend
 - ElevenLabs streaming TTS through WebSocket
 - AudioContext playback for streamed PCM audio chunks
+- Timestamp-synchronized captions driven by ElevenLabs alignment and the browser audio output clock
 - Male / female voice selection in the UI
 - Simple centered voice UI inspired by OS-style ambient assistants
 - API key dialog in the UI
@@ -71,9 +72,9 @@ Browser PCM
 
 This reduces the wait after the user stops speaking because transcription has already been running during the recording.
 
-Document upload, manual rebuild controls, and automatic compilation are intentionally disabled in the v0.03.01 UI and API. The bundled Attention Is All You Need PDF has hand-maintained JSONL and wiki artifacts so retrieval can be evaluated independently before the ingestion architecture is designed.
+Document upload, manual rebuild controls, and automatic compilation are intentionally disabled in the v0.03.02 UI and API. The bundled Attention Is All You Need PDF has hand-maintained JSONL and wiki artifacts so retrieval can be evaluated independently before the ingestion architecture is designed.
 
-Knowledge search in v0.03.01 supports English documents and English questions only. Chinese tokenization and cross-language lexical retrieval are deferred to a later v0.03.x release.
+Knowledge search in v0.03.02 supports English documents and English questions only. Chinese tokenization and cross-language lexical retrieval are deferred to a later v0.03.x release.
 
 Conversation history is currently short-lived and intentionally simple. The backend keeps the most recent eight turns in memory for one hour by default, and loses them when the process restarts. Telemetry persists individual turns by default unless explicitly disabled, but it is not a memory system and there is no persisted conversation entity above `turn_id` yet.
 
@@ -94,6 +95,8 @@ OS1 uses `X.Y.Z` to describe the kind of change:
 `v0.02.03` makes that readiness gate compatible with restricted ElevenLabs keys and surfaces sanitized provider error details in the interface.
 
 `v0.03.01` adds document knowledge, dual retrieval, and a cache-aware model conversation without adding a conversation-list product concept.
+
+`v0.03.02` synchronizes live captions to ElevenLabs STT/TTS timestamps and the browser audio output clock.
 
 See [CHANGELOG.md](CHANGELOG.md) for the history of each release.
 
@@ -172,11 +175,11 @@ Detailed runs are stored locally in the ignored `data/search_eval.sqlite`.
 
 OS1 is local-first research software. Read [SECURITY.md](SECURITY.md) before publishing, deploying, or sharing a hosted instance.
 
-OS1 v0.03.01 accepts loopback traffic only and is not a public deployment. Telemetry is enabled by default and stores full transcripts, AI responses, model request snapshots, and knowledge snippets in the ignored local file `data/telemetry.sqlite`. Set `TELEMETRY_ENABLED=false` when this local full-content record is not acceptable. Future uploaded PDFs and ingest status are already excluded from git, but upload is not exposed in this release.
+OS1 v0.03.02 accepts loopback traffic only and is not a public deployment. Telemetry is enabled by default and stores full transcripts, AI responses, model request snapshots, and knowledge snippets in the ignored local file `data/telemetry.sqlite`. Set `TELEMETRY_ENABLED=false` when this local full-content record is not acceptable. Future uploaded PDFs and ingest status are already excluded from git, but upload is not exposed in this release.
 
 ## Roadmap
 
-### v0.03.02
+### v0.03.03
 
 Start lexical search from committed realtime STT paragraphs, merge and deduplicate prefetched evidence, and avoid reinjecting evidence already present in KV Conversation.
 
