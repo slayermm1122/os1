@@ -38,7 +38,12 @@ pages cite chunk IDs and PDF pages so derived claims remain traceable.
 
 ## Search Self-Verification
 
-Each raw document may provide one golden file under `evals/`. A case contains
+The normative workflow is documented in
+[`docs/knowledge-search-self-verification.md`](../docs/knowledge-search-self-verification.md).
+It is mandatory after preparing or changing knowledge artifacts and for ad-hoc
+article or topic retrieval checks.
+
+Each raw document must provide one golden file under `evals/`. A case contains
 three paraphrases and separate relevant source IDs for `llm_search` and
 `lex_search`; it deliberately does not contain an answer string.
 

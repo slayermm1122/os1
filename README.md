@@ -152,6 +152,10 @@ The telemetry schema is OS1's own versioned layout for `data/telemetry.sqlite`, 
 
 ## Search Self-Verification
 
+See the mandatory
+[Knowledge Search Self-Verification SOP](docs/knowledge-search-self-verification.md)
+for the complete human-labeling and review workflow.
+
 The bundled Attention paper has five human-curated source golden cases and three
 English paraphrases per case. Evaluate retrieval alone, without STT, answer
 generation, or TTS:
