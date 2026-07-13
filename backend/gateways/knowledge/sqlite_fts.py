@@ -14,7 +14,7 @@ from ...core.storage import prepare_private_directory, secure_private_files, sql
 from .base import KnowledgeEvidence, SearchHit
 
 
-INDEX_SCHEMA_VERSION = 1
+INDEX_SCHEMA_VERSION = 2
 STOP_WORDS = {
     "a", "an", "and", "are", "as", "at", "be", "by", "did", "do", "does", "for",
     "from", "get", "how", "in", "is", "it", "model", "of", "on", "or", "that", "the",
@@ -57,8 +57,7 @@ class SQLiteFTSKnowledgeGateway:
 
     def reindex(self) -> int:
         self._prepare_paths()
-        rows = list(load_jsonl_chunks(self.chunks_dir))
-        corpus_hash = self.corpus_hash()
+        rows, corpus_hash = load_jsonl_corpus(self.chunks_dir)
         fd, temporary_name = tempfile.mkstemp(
             prefix="knowledge-", suffix=".sqlite", dir=self.db_path.parent
         )
@@ -89,7 +88,11 @@ class SQLiteFTSKnowledgeGateway:
                     )
                 conn.executemany(
                     "INSERT INTO index_metadata(key, value) VALUES (?, ?)",
-                    (("schema_version", str(INDEX_SCHEMA_VERSION)), ("corpus_hash", corpus_hash)),
+                    (
+                        ("schema_version", str(INDEX_SCHEMA_VERSION)),
+                        ("corpus_hash", corpus_hash),
+                        ("chunk_count", str(len(rows))),
+                    ),
                 )
                 conn.commit()
             os.chmod(temporary_path, 0o600)
@@ -136,11 +139,7 @@ class SQLiteFTSKnowledgeGateway:
         return format_evidence(hits, self.settings.knowledge_context_max_chars)
 
     def corpus_hash(self) -> str:
-        digest = hashlib.sha256()
-        for path in sorted(self.chunks_dir.glob("*.jsonl")):
-            digest.update(path.name.encode())
-            digest.update(path.read_bytes())
-        return digest.hexdigest()
+        return load_jsonl_corpus(self.chunks_dir)[1]
 
     def _prepare_paths(self) -> None:
         prepare_private_directory(self.db_path.parent, manage_existing=self.manage_db_parent)
@@ -158,18 +157,37 @@ class SQLiteFTSKnowledgeGateway:
         try:
             with closing(sqlite3.connect(f"file:{self.db_path}?mode=ro", uri=True)) as conn:
                 values = dict(conn.execute("SELECT key, value FROM index_metadata").fetchall())
+                indexed_count = int(conn.execute("SELECT COUNT(*) FROM docs_fts").fetchone()[0])
+            expected_count = int(values.get("chunk_count", "-1"))
             return values == {
                 "schema_version": str(INDEX_SCHEMA_VERSION),
                 "corpus_hash": corpus_hash,
-            }
+                "chunk_count": str(expected_count),
+            } and indexed_count == expected_count
         except (sqlite3.Error, ValueError):
             return False
 
 
 def load_jsonl_chunks(chunks_dir: Path):
+    rows, _ = load_jsonl_corpus(chunks_dir)
+    yield from rows
+
+
+def load_jsonl_corpus(chunks_dir: Path) -> tuple[list[dict[str, object]], str]:
+    """Read and validate rows from the exact bytes used to compute the corpus hash."""
+
     seen: set[str] = set()
+    rows: list[dict[str, object]] = []
+    digest = hashlib.sha256()
     for path in sorted(chunks_dir.glob("*.jsonl")):
-        for line_number, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        raw_bytes = path.read_bytes()
+        digest.update(path.name.encode())
+        digest.update(raw_bytes)
+        try:
+            text = raw_bytes.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise JSONLValidationError(f"{path.name}: invalid UTF-8") from exc
+        for line_number, raw_line in enumerate(text.splitlines(), 1):
             if not raw_line.strip():
                 continue
             try:
@@ -208,7 +226,8 @@ def load_jsonl_chunks(chunks_dir: Path):
             if chunk_order is None or chunk_order < 0:
                 raise JSONLValidationError(f"{path.name}:{line_number}: invalid chunk_order")
             seen.add(chunk_id)
-            yield row
+            rows.append(row)
+    return rows, digest.hexdigest()
 
 
 def format_evidence(

@@ -15,6 +15,7 @@ Document knowledge and cache-aware conversation context.
 - Added deterministic corpus hashing, JSONL validation, atomic index replacement, weighted BM25, and per-purpose AI telemetry.
 - Enabled local telemetry by default and added per-provider knowledge outcomes for normal hits, misses, timeouts, cancellations, and failures.
 - Added an expandable, collapsible, and hideable Ref panel showing the exact wiki pages and chunks selected for each answer.
+- Added a per-document retrieval golden set and search-only self-verification loop with Recall@5, precision, MRR, nDCG@5, and SQLite run history.
 
 ## v0.02.03 - 2026-07-11
 

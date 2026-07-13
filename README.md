@@ -150,6 +150,20 @@ Telemetry is enabled for local development so every turn and provider stage can 
 
 The telemetry schema is OS1's own versioned layout for `data/telemetry.sqlite`, not an xAI or ElevenLabs schema. Schema v3 adds a `purpose` label so diagnostics can distinguish the answer-model call from the knowledge-selector call. Each turn records STT, answer LLM, TTS, the hybrid knowledge result, individual `lex_search` and `llm_search` outcomes, and the selector LLM call. Normal hits, misses, timeouts, cancellations, and failures are all retained. It has no effect while telemetry is disabled.
 
+## Search Self-Verification
+
+The bundled Attention paper has five human-curated source golden cases and three
+English paraphrases per case. Evaluate retrieval alone, without STT, answer
+generation, or TTS:
+
+```bash
+.venv/bin/python -m backend.evals.knowledge_search --provider lex
+.venv/bin/python -m backend.evals.knowledge_search --provider llm
+```
+
+Each provider is scored separately with Recall@5, precision, MRR, and nDCG@5.
+Detailed runs are stored locally in the ignored `data/search_eval.sqlite`.
+
 ## Security
 
 OS1 is local-first research software. Read [SECURITY.md](SECURITY.md) before publishing, deploying, or sharing a hosted instance.
