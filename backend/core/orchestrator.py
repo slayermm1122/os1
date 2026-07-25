@@ -11,7 +11,7 @@ from ..config import Settings
 from ..gateways.knowledge import KnowledgeEvidence, KnowledgeGateway, SearchHit
 from ..gateways.ai import AIGateway, AIRequest, AIStreamEvent
 from ..gateways.stt import STTEvent, STTGateway, STTResult
-from ..gateways.tts import TTSEvent, TTSGateway
+from ..gateways.tts import TTSAdapter, TTSEvent, TTSGateway
 from ..telemetry.sqlite_store import SQLiteTelemetryRecorder, TurnTrace, utc_now
 from .chunking import pop_ready_speech_chunks
 from .errors import ErrorInfo, GatewayError, error_info
@@ -38,7 +38,7 @@ class TurnOrchestrator:
         settings: Settings,
         llm: AIGateway,
         stt: STTGateway,
-        tts: TTSGateway,
+        tts: TTSAdapter,
         knowledge: KnowledgeGateway,
         sessions: KVConversationStore,
         telemetry: SQLiteTelemetryRecorder,
@@ -97,7 +97,12 @@ class TurnOrchestrator:
         brain_api_key: str | None,
         voice_api_key: str | None,
         voice_id: str | None,
+        tts_provider: str | None = None,
+        stt_api_key: str | None = None,
+        tts_api_key: str | None = None,
     ) -> AsyncIterator[PipelineEvent]:
+        selected_stt_key = stt_api_key if stt_api_key is not None else voice_api_key
+        selected_tts_key = tts_api_key if tts_api_key is not None else voice_api_key
         yield self.event(trace, "status", {"state": "transcribing"})
         try:
             result = await self._transcribe_upload(
@@ -105,7 +110,7 @@ class TurnOrchestrator:
                 filename=filename,
                 content_type=content_type,
                 data=data,
-                api_key=voice_api_key,
+                api_key=selected_stt_key,
             )
             user_text = result.text
             self._validate_user_text(user_text)
@@ -127,8 +132,9 @@ class TurnOrchestrator:
             user_text=user_text,
             with_audio=True,
             brain_api_key=brain_api_key,
-            voice_api_key=voice_api_key,
+            voice_api_key=selected_tts_key,
             voice_id=voice_id,
+            tts_provider=tts_provider,
         ):
             yield event
 
@@ -141,7 +147,16 @@ class TurnOrchestrator:
         brain_api_key: str | None,
         voice_api_key: str | None,
         voice_id: str | None,
+        tts_provider: str | None = None,
+        stt_api_key: str | None = None,
+        tts_api_key: str | None = None,
+        vad_threshold: float | None = None,
+        vad_silence_threshold_secs: float | None = None,
+        knowledge_enabled: bool | None = None,
+        assistant_name: str | None = None,
     ) -> AsyncIterator[PipelineEvent]:
+        selected_stt_key = stt_api_key if stt_api_key is not None else voice_api_key
+        selected_tts_key = tts_api_key if tts_api_key is not None else voice_api_key
         yield self.event(trace, "status", {"state": "connecting_stt"})
         try:
             user_text = ""
@@ -151,7 +166,9 @@ class TurnOrchestrator:
                 trace,
                 audio_chunks,
                 sample_rate=sample_rate,
-                api_key=voice_api_key,
+                api_key=selected_stt_key,
+                vad_threshold=vad_threshold,
+                vad_silence_threshold_secs=vad_silence_threshold_secs,
             ):
                 if event.kind == "session_started":
                     stt_ready = True
@@ -198,6 +215,13 @@ class TurnOrchestrator:
             yield self.event(trace, "error", info.payload(trace.turn_id))
             return
 
+        # Tell the client to stop the mic after VAD (or manual) commit completes.
+        yield self.event(
+            trace,
+            "recording_stopped",
+            {"reason": "stt_complete"},
+        )
+        yield self.event(trace, "status", {"state": "transcribing"})
         trace.update_text(user_text=user_text)
         yield self.event(trace, "transcript", {"text": user_text})
         async for event in self.stream_chat(
@@ -205,8 +229,11 @@ class TurnOrchestrator:
             user_text=user_text,
             with_audio=True,
             brain_api_key=brain_api_key,
-            voice_api_key=voice_api_key,
+            voice_api_key=selected_tts_key,
             voice_id=voice_id,
+            tts_provider=tts_provider,
+            knowledge_enabled=knowledge_enabled,
+            assistant_name=assistant_name,
         ):
             yield event
 
@@ -219,7 +246,21 @@ class TurnOrchestrator:
         brain_api_key: str | None,
         voice_api_key: str | None,
         voice_id: str | None,
+        tts_provider: str | None = None,
+        knowledge_enabled: bool | None = None,
+        assistant_name: str | None = None,
     ) -> AsyncIterator[PipelineEvent]:
+        use_knowledge = (
+            self.settings.knowledge_enabled
+            if knowledge_enabled is None
+            else bool(knowledge_enabled)
+        )
+        # Client cannot force knowledge on when the server has it disabled.
+        if not self.settings.knowledge_enabled:
+            use_knowledge = False
+        # Lean product mode: Knowledge UI off also means no retrieval on turns.
+        if not self.settings.knowledge_ui_enabled:
+            use_knowledge = False
         trace.update_text(user_text=user_text)
         try:
             history = self.sessions.get_history(trace.session_id)
@@ -228,12 +269,15 @@ class TurnOrchestrator:
                 user_text,
                 history=history,
                 api_key=brain_api_key,
+                enabled=use_knowledge,
             )
             messages = build_messages(
                 system_prompt=self.settings.system_prompt,
                 user_text=user_text,
                 history=history,
                 knowledge_context=self.knowledge.format_hits(hits) if hits else "",
+                knowledge_enabled=use_knowledge,
+                assistant_name=assistant_name or "",
             )
         except asyncio.CancelledError:
             trace.finish("cancelled")
@@ -247,7 +291,7 @@ class TurnOrchestrator:
             return
 
         model_user_text = messages[-1]["content"]
-        if hits:
+        if use_knowledge and hits:
             yield self.event(
                 trace,
                 "knowledge",
@@ -277,6 +321,7 @@ class TurnOrchestrator:
                 brain_api_key=brain_api_key,
                 voice_api_key=voice_api_key,
                 voice_id=voice_id,
+                tts_provider=tts_provider,
             ):
                 yield event
             return
@@ -308,7 +353,9 @@ class TurnOrchestrator:
         text: str,
         api_key: str | None,
         voice_id: str | None,
+        tts_provider: str | None = None,
     ) -> AsyncIterator[bytes]:
+        tts = self.tts.resolve(tts_provider)
         call_id = uuid.uuid4().hex
         call_start = trace.offset_ms()
         audio_bytes = 0
@@ -317,15 +364,20 @@ class TurnOrchestrator:
         self.telemetry.start_tts_call(
             trace,
             call_id=call_id,
-            provider=self.tts.provider,
-            model=self.tts.model,
+            provider=tts.provider,
+            model=tts.model,
             voice_id=voice_id,
-            output_format=self.tts.http_output_format,
-            sample_rate=_sample_rate(self.tts.http_output_format),
+            output_format=tts.http_output_format,
+            sample_rate=_sample_rate(tts.http_output_format),
         )
         trace.event("tts.first_text", stage="tts", metadata={"call_id": call_id})
         try:
-            async for event in self.tts.stream_http(text, api_key=api_key, voice_id=voice_id):
+            async for event in self.tts.stream_http(
+                text,
+                provider=tts.provider,
+                api_key=api_key,
+                voice_id=voice_id,
+            ):
                 if event.kind == "audio":
                     if first_audio_ms is None:
                         first_audio_ms = trace.offset_ms() - call_start
@@ -368,12 +420,12 @@ class TurnOrchestrator:
             trace.finish("failed")
             raise ObservedError(info) from exc
 
-        sample_rate = _sample_rate(self.tts.http_output_format)
+        sample_rate = _sample_rate(tts.http_output_format)
         if audio_bytes == 0:
             info = error_info(
                 GatewayError(
                     stage="tts",
-                    provider=self.tts.provider,
+                    provider=tts.provider,
                     code="empty_audio",
                     public_message="Voice service returned no audio.",
                     technical_message="HTTP TTS stream completed without audio bytes.",
@@ -428,6 +480,7 @@ class TurnOrchestrator:
         brain_api_key: str | None,
         voice_api_key: str | None,
         voice_id: str | None,
+        tts_provider: str | None,
     ) -> AsyncIterator[PipelineEvent]:
         event_queue: asyncio.Queue[tuple[str, object]] = asyncio.Queue()
         text_queue: asyncio.Queue[str | None] = asyncio.Queue()
@@ -474,9 +527,11 @@ class TurnOrchestrator:
         async def produce_tts() -> None:
             nonlocal tts_failed
             try:
+                tts = self.tts.resolve(tts_provider)
                 async for output in self._stream_tts_websocket(
                     trace,
                     text_chunks(),
+                    tts=tts,
                     api_key=voice_api_key,
                     voice_id=voice_id,
                 ):
@@ -484,9 +539,9 @@ class TurnOrchestrator:
                         continue
                     data = {
                         "audio": base64.b64encode(output.audio).decode("ascii"),
-                        "mime_type": self.settings.tts_stream_media_type,
-                        "format": self.tts.stream_output_format,
-                        "sample_rate": self.tts.stream_sample_rate,
+                        "mime_type": tts.stream_media_type,
+                        "format": tts.stream_output_format,
+                        "sample_rate": tts.stream_sample_rate,
                     }
                     if output.alignment is not None:
                         data["alignment"] = {
@@ -667,6 +722,7 @@ class TurnOrchestrator:
         trace: TurnTrace,
         chunks: AsyncIterable[str],
         *,
+        tts: TTSGateway,
         api_key: str | None,
         voice_id: str | None,
     ) -> AsyncIterator[TTSEvent]:
@@ -680,11 +736,11 @@ class TurnOrchestrator:
         self.telemetry.start_tts_call(
             trace,
             call_id=call_id,
-            provider=self.tts.provider,
-            model=self.tts.model,
+            provider=tts.provider,
+            model=tts.model,
             voice_id=voice_id,
-            output_format=self.tts.stream_output_format,
-            sample_rate=self.tts.stream_sample_rate,
+            output_format=tts.stream_output_format,
+            sample_rate=tts.stream_sample_rate,
         )
 
         async def observed_chunks() -> AsyncIterator[str]:
@@ -702,6 +758,7 @@ class TurnOrchestrator:
         try:
             async for event in self.tts.stream_websocket(
                 observed_chunks(),
+                provider=tts.provider,
                 api_key=api_key,
                 voice_id=voice_id,
             ):
@@ -726,7 +783,7 @@ class TurnOrchestrator:
                 first_text_ms=first_text_ms,
                 first_audio_ms=first_audio_ms,
                 audio_bytes=audio_bytes,
-                audio_duration_ms=_pcm_duration_ms(audio_bytes, self.tts.stream_sample_rate),
+                audio_duration_ms=_pcm_duration_ms(audio_bytes, tts.stream_sample_rate),
             )
             raise
         except Exception as exc:
@@ -744,7 +801,7 @@ class TurnOrchestrator:
                 first_text_ms=first_text_ms,
                 first_audio_ms=first_audio_ms,
                 audio_bytes=audio_bytes,
-                audio_duration_ms=_pcm_duration_ms(audio_bytes, self.tts.stream_sample_rate),
+                audio_duration_ms=_pcm_duration_ms(audio_bytes, tts.stream_sample_rate),
                 error_id=info.error_id,
             )
             raise ObservedError(info) from exc
@@ -754,7 +811,7 @@ class TurnOrchestrator:
             info = error_info(
                 GatewayError(
                     stage="tts",
-                    provider=self.tts.provider,
+                    provider=tts.provider,
                     code="empty_audio",
                     public_message="Voice service returned no audio.",
                     technical_message="WebSocket TTS stream completed without audio bytes.",
@@ -791,7 +848,7 @@ class TurnOrchestrator:
             first_text_ms=first_text_ms,
             first_audio_ms=first_audio_ms,
             audio_bytes=audio_bytes,
-            audio_duration_ms=_pcm_duration_ms(audio_bytes, self.tts.stream_sample_rate),
+            audio_duration_ms=_pcm_duration_ms(audio_bytes, tts.stream_sample_rate),
             character_cost=completion.character_cost,
             provider_request_id=completion.request_id,
             trace_id=completion.trace_id,
@@ -866,6 +923,8 @@ class TurnOrchestrator:
         *,
         sample_rate: int,
         api_key: str | None,
+        vad_threshold: float | None = None,
+        vad_silence_threshold_secs: float | None = None,
     ) -> AsyncIterator[STTEvent]:
         call_id = uuid.uuid4().hex
         call_start = trace.offset_ms()
@@ -895,6 +954,8 @@ class TurnOrchestrator:
                 observed_audio(),
                 sample_rate=sample_rate,
                 api_key=api_key,
+                vad_threshold=vad_threshold,
+                vad_silence_threshold_secs=vad_silence_threshold_secs,
             ):
                 request_id = event.request_id or request_id
                 language_code = event.language_code or language_code
@@ -969,18 +1030,24 @@ class TurnOrchestrator:
         *,
         history: list[dict[str, str]],
         api_key: str | None,
+        enabled: bool | None = None,
     ) -> list[SearchHit] | list[KnowledgeEvidence]:
         call_id = uuid.uuid4().hex
         call_start = trace.offset_ms()
+        use_knowledge = self.knowledge.enabled if enabled is None else bool(enabled)
+        if not self.knowledge.enabled:
+            use_knowledge = False
+        if not self.settings.knowledge_ui_enabled:
+            use_knowledge = False
         self.telemetry.start_knowledge_call(
             trace,
             call_id=call_id,
             provider=self.knowledge.provider,
-            enabled=self.knowledge.enabled,
+            enabled=use_knowledge,
             query_text=query,
         )
         try:
-            if not self.knowledge.enabled:
+            if not use_knowledge:
                 hits = []
             elif hasattr(self.knowledge, "search_evidence"):
                 hits = await self.knowledge.search_evidence(

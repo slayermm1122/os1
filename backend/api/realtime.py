@@ -73,7 +73,6 @@ def create_realtime_router(services: ApplicationServices) -> APIRouter:
         send_lock = asyncio.Lock()
         playback_received = asyncio.Event()
         playback_failure_received = asyncio.Event()
-        stt_ready = asyncio.Event()
         stop_lock = asyncio.Lock()
         stopped = False
         total_audio_bytes = 0
@@ -91,10 +90,11 @@ def create_realtime_router(services: ApplicationServices) -> APIRouter:
             nonlocal sent_audio
             if event.event == "audio":
                 sent_audio = True
+            if event.event == "recording_stopped":
+                # VAD or STT finished — end the mic stream so the audio queue cannot block.
+                await stop_input("stt_complete")
             async with send_lock:
                 await _send(websocket, event)
-            if event.event == "stt_ready":
-                stt_ready.set()
 
         async def stop_input(reason: str) -> bool:
             nonlocal stopped
@@ -102,31 +102,22 @@ def create_realtime_router(services: ApplicationServices) -> APIRouter:
                 if stopped:
                     return False
                 stopped = True
-                if reason == "server_limit":
-                    trace.event("recording.limit_reached", stage="stt")
                 trace.event(
                     "recording.stop_received",
                     stage="stt",
                     metadata={"reason": reason},
                 )
-                await audio_queue.put(None)
-                if reason == "server_limit":
-                    await send_event(
-                        services.orchestrator.event(
-                            trace,
-                            "recording_stopped",
-                            {"reason": "limit"},
-                        )
-                    )
-                await send_event(
-                    services.orchestrator.event(trace, "status", {"state": "transcribing"})
-                )
+                # Never block the pipeline on a full audio queue after VAD ends.
+                while True:
+                    try:
+                        audio_queue.put_nowait(None)
+                        break
+                    except asyncio.QueueFull:
+                        try:
+                            audio_queue.get_nowait()
+                        except asyncio.QueueEmpty:
+                            break
                 return True
-
-        async def enforce_recording_limit() -> None:
-            await stt_ready.wait()
-            await asyncio.sleep(max(services.settings.max_recording_seconds, 0.1))
-            await stop_input("server_limit")
 
         async def run_pipeline() -> None:
             async for event in services.orchestrator.stream_realtime_turn(
@@ -136,10 +127,24 @@ def create_realtime_router(services: ApplicationServices) -> APIRouter:
                 brain_api_key=str(init.get("brain_api_key") or ""),
                 voice_api_key=str(init.get("voice_api_key") or ""),
                 voice_id=resolve_voice_id(
-                    services.settings,
+                    services.orchestrator.tts,
+                    str(init.get("voice_provider") or ""),
                     str(init.get("voice_id") or ""),
                     str(init.get("voice_gender") or ""),
                 ),
+                tts_provider=str(init.get("voice_provider") or ""),
+                stt_api_key=(
+                    str(init.get("stt_api_key")) if init.get("stt_api_key") is not None else None
+                ),
+                tts_api_key=(
+                    str(init.get("tts_api_key")) if init.get("tts_api_key") is not None else None
+                ),
+                vad_threshold=_optional_float(init.get("vad_threshold")),
+                vad_silence_threshold_secs=_optional_float(
+                    init.get("vad_silence_threshold_secs")
+                ),
+                knowledge_enabled=_optional_bool(init.get("knowledge_enabled")),
+                assistant_name=str(init.get("assistant_name") or "")[:64],
             ):
                 await send_event(event)
 
@@ -168,18 +173,6 @@ def create_realtime_router(services: ApplicationServices) -> APIRouter:
                         await audio_queue.put(None)
                         await send_event(PipelineEvent("error", info.payload(trace.turn_id)))
                         return
-                    recording_byte_limit = int(
-                        sample_rate * 2 * services.settings.max_recording_seconds
-                    )
-                    if recording_byte_limit > 0 and next_total > recording_byte_limit:
-                        remaining = max(0, recording_byte_limit - total_audio_bytes)
-                        if remaining:
-                            remaining -= remaining % 2
-                            if remaining:
-                                await audio_queue.put(audio[:remaining])
-                                total_audio_bytes += remaining
-                        await stop_input("server_limit")
-                        continue
                     total_audio_bytes = next_total
                     await audio_queue.put(audio)
                     continue
@@ -211,10 +204,6 @@ def create_realtime_router(services: ApplicationServices) -> APIRouter:
 
         pipeline_task = asyncio.create_task(run_pipeline(), name=f"turn-{trace.turn_id}")
         receive_task = asyncio.create_task(receive_client(), name=f"client-{trace.turn_id}")
-        limit_task = asyncio.create_task(
-            enforce_recording_limit(),
-            name=f"recording-limit-{trace.turn_id}",
-        )
         disconnected = False
         try:
             done, _ = await asyncio.wait(
@@ -229,6 +218,7 @@ def create_realtime_router(services: ApplicationServices) -> APIRouter:
                 exc = pipeline_task.exception()
                 if exc:
                     raise exc
+                await stop_input("pipeline_complete")
                 if sent_audio:
                     if not playback_received.is_set():
                         try:
@@ -259,13 +249,12 @@ def create_realtime_router(services: ApplicationServices) -> APIRouter:
                     audio_queue.put_nowait(None)
                 except asyncio.QueueFull:
                     pass
-            for task in (pipeline_task, receive_task, limit_task):
+            for task in (pipeline_task, receive_task):
                 if not task.done():
                     task.cancel()
             await asyncio.gather(
                 pipeline_task,
                 receive_task,
-                limit_task,
                 return_exceptions=True,
             )
             if disconnected and not trace.finished:
@@ -317,6 +306,34 @@ def _record_browser_error(services: ApplicationServices, trace, payload: dict[st
     services.telemetry.record_error(trace, info)
     trace.mark_partial_failure()
     return True
+
+
+def _optional_float(value: object) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(number):
+        return None
+    return number
+
+
+def _optional_bool(value: object) -> bool | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)) and value in (0, 1):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    return None
 
 
 async def _send(websocket: WebSocket, event: PipelineEvent) -> None:

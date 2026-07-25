@@ -92,19 +92,48 @@ class ElevenLabsSTTGateway:
         *,
         sample_rate: int,
         api_key: str | None = None,
+        vad_threshold: float | None = None,
+        vad_silence_threshold_secs: float | None = None,
     ) -> AsyncIterator[STTEvent]:
         resolved_key = self._require_api_key(api_key)
         audio_format = self.settings.elevenlabs_realtime_stt_audio_format
         if not audio_format.startswith("pcm_"):
             audio_format = f"pcm_{sample_rate}"
+        commit_strategy = self.settings.elevenlabs_stt_commit_strategy
+        if commit_strategy not in {"manual", "vad"}:
+            commit_strategy = "vad"
+        use_vad = commit_strategy == "vad"
+        resolved_vad_threshold = _clamp_float(
+            vad_threshold if vad_threshold is not None else self.settings.elevenlabs_stt_vad_threshold,
+            0.1,
+            0.9,
+            0.4,
+        )
+        resolved_silence_secs = _clamp_float(
+            vad_silence_threshold_secs
+            if vad_silence_threshold_secs is not None
+            else self.settings.elevenlabs_stt_vad_silence_threshold_secs,
+            0.3,
+            3.0,
+            1.2,
+        )
         query: dict[str, str] = {
             "model_id": self.realtime_model,
             "audio_format": audio_format,
-            "commit_strategy": "manual",
+            "commit_strategy": commit_strategy,
             "include_timestamps": "true",
             "timestamps_granularity": "word",
             "enable_logging": str(self.settings.elevenlabs_enable_logging).lower(),
         }
+        if use_vad:
+            query["vad_threshold"] = str(resolved_vad_threshold)
+            query["vad_silence_threshold_secs"] = str(resolved_silence_secs)
+            query["min_speech_duration_ms"] = str(
+                self.settings.elevenlabs_stt_vad_min_speech_duration_ms
+            )
+            query["min_silence_duration_ms"] = str(
+                self.settings.elevenlabs_stt_vad_min_silence_duration_ms
+            )
         if self.settings.elevenlabs_stt_language_code:
             query["language_code"] = self.settings.elevenlabs_stt_language_code
         uri = f"wss://api.elevenlabs.io/v1/speech-to-text/realtime?{urlencode(query)}"
@@ -132,9 +161,12 @@ class ElevenLabsSTTGateway:
                                     "message_type": "input_audio_chunk",
                                     "audio_base_64": base64.b64encode(chunk).decode("ascii"),
                                     "sample_rate": sample_rate,
+                                    "commit": False,
                                 }
                             )
                         )
+                    # Fallback final commit when the client ends the stream (optional cancel
+                    # or mic close) so manual and incomplete VAD sessions still finalize.
                     await websocket.send(
                         json.dumps(
                             {
@@ -177,17 +209,26 @@ class ElevenLabsSTTGateway:
                             elif message_type == "partial_transcript":
                                 yield STTEvent(kind="partial", text=str(payload.get("text") or ""), request_id=request_id)
                             elif message_type == "committed_transcript":
+                                committed_text = str(payload.get("text") or "").strip()
+                                if not committed_text:
+                                    # Empty VAD commits (silence before speech) — keep listening.
+                                    continue
                                 received_commit = True
-                                last_committed_text = str(payload.get("text") or "").strip()
+                                last_committed_text = committed_text
                                 yield STTEvent(
                                     kind="committed",
                                     text=last_committed_text,
                                     language_code=str(payload.get("language_code") or "") or None,
                                     request_id=request_id,
                                 )
+                                # VAD may emit plain commit first; stop the turn after speech.
+                                if use_vad:
+                                    break
                             elif message_type == "committed_transcript_with_timestamps":
-                                received_commit = True
                                 committed_text = str(payload.get("text") or "").strip()
+                                if not committed_text and not last_committed_text:
+                                    continue
+                                received_commit = True
                                 if committed_text and committed_text != last_committed_text:
                                     last_committed_text = committed_text
                                     yield STTEvent(
@@ -326,3 +367,15 @@ def _finite_number(value: object) -> float | None:
     except (TypeError, ValueError):
         return None
     return number if math.isfinite(number) and number >= 0 else None
+
+
+def _clamp_float(
+    value: object,
+    minimum: float,
+    maximum: float,
+    default: float,
+) -> float:
+    number = _finite_number(value)
+    if number is None:
+        return default
+    return min(max(number, minimum), maximum)

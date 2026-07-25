@@ -1,4 +1,4 @@
-from .base import TTSAlignment, TTSEvent, TTSGateway
+from .base import TTSAdapter, TTSAlignment, TTSEvent, TTSGateway
 from .elevenlabs import ElevenLabsTTSGateway
 
-__all__ = ["TTSAlignment", "TTSEvent", "TTSGateway", "ElevenLabsTTSGateway"]
+__all__ = ["TTSAdapter", "TTSAlignment", "TTSEvent", "TTSGateway", "ElevenLabsTTSGateway"]

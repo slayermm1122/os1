@@ -83,9 +83,11 @@ class ElevenLabsConnectivityProbe:
         self,
         settings: Settings,
         *,
+        capabilities: tuple[str, ...] = ("realtime_scribe", "tts_websocket"),
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self.settings = settings
+        self.capabilities = capabilities
         self.transport = transport
 
     async def check(
@@ -107,14 +109,13 @@ class ElevenLabsConnectivityProbe:
                 transport=self.transport,
             ) as client:
                 responses = await asyncio.gather(
-                    client.post(
-                        f"{self.base_url}/single-use-token/realtime_scribe",
-                        headers=headers,
-                    ),
-                    client.post(
-                        f"{self.base_url}/single-use-token/tts_websocket",
-                        headers=headers,
-                    ),
+                    *(
+                        client.post(
+                            f"{self.base_url}/single-use-token/{capability}",
+                            headers=headers,
+                        )
+                        for capability in self.capabilities
+                    )
                 )
             for response in responses:
                 if response.status_code >= 400:

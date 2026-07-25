@@ -69,11 +69,33 @@ class Settings:
         "ELEVENLABS_REALTIME_STT_AUDIO_FORMAT",
         "pcm_16000",
     )
+    # VAD = Voice Activity Detection. "vad" auto-commits after silence; "manual" waits for client stop.
+    elevenlabs_stt_commit_strategy: str = _string_env(
+        "ELEVENLABS_STT_COMMIT_STRATEGY",
+        "vad",
+    ).lower()
+    elevenlabs_stt_vad_threshold: float = min(
+        max(_float_env("ELEVENLABS_STT_VAD_THRESHOLD", 0.4), 0.0),
+        1.0,
+    )
+    elevenlabs_stt_vad_silence_threshold_secs: float = min(
+        max(_float_env("ELEVENLABS_STT_VAD_SILENCE_THRESHOLD_SECS", 1.2), 0.1),
+        10.0,
+    )
+    elevenlabs_stt_vad_min_speech_duration_ms: int = max(
+        _int_env("ELEVENLABS_STT_VAD_MIN_SPEECH_DURATION_MS", 100),
+        0,
+    )
+    elevenlabs_stt_vad_min_silence_duration_ms: int = max(
+        _int_env("ELEVENLABS_STT_VAD_MIN_SILENCE_DURATION_MS", 100),
+        0,
+    )
     elevenlabs_tts_model: str = os.getenv("ELEVENLABS_TTS_MODEL", "eleven_flash_v2_5")
     elevenlabs_output_format: str = os.getenv("ELEVENLABS_OUTPUT_FORMAT", "mp3_44100_128")
     elevenlabs_stream_output_format: str = os.getenv("ELEVENLABS_STREAM_OUTPUT_FORMAT", "pcm_16000")
     elevenlabs_stt_language_code: str = os.getenv("ELEVENLABS_STT_LANGUAGE_CODE", "")
     elevenlabs_enable_logging: bool = _bool_env("ELEVENLABS_ENABLE_LOGGING", True)
+    default_tts_provider: str = os.getenv("TTS_PROVIDER", "elevenlabs")
 
     llm_api_key: str = (
         os.getenv("LLM_API_KEY")
@@ -92,7 +114,12 @@ class Settings:
 
     system_prompt: str = os.getenv(
         "SYSTEM_PROMPT",
-        "You are a concise, natural, and accurate voice assistant.",
+        (
+            "You are a concise, natural, and accurate voice assistant in a live chat. "
+            "Keep replies short and clear—this is conversation, not a presentation or monologue. "
+            "Your words are spoken aloud by text-to-speech, so use plain spoken language only: "
+            "no emojis, markdown, bullets, special symbols, or decorative punctuation."
+        ),
     )
     max_history_turns: int = _int_env(
         "KV_CONVERSATION_MAX_TURNS",
@@ -100,6 +127,8 @@ class Settings:
     )
 
     knowledge_enabled: bool = _bool_env("KNOWLEDGE_ENABLED", True)
+    # When false, hide Knowledge from the product menu / knowledge-page controls.
+    knowledge_ui_enabled: bool = _bool_env("KNOWLEDGE_UI_ENABLED", False)
     knowledge_root_dir: Path = ROOT_DIR / os.getenv("KNOWLEDGE_ROOT_DIR", "knowledge")
     knowledge_docs_dir: Path = ROOT_DIR / os.getenv("KNOWLEDGE_DOCS_DIR", "knowledge/raw")
     knowledge_db_path: Path = ROOT_DIR / os.getenv("KNOWLEDGE_DB_PATH", "data/knowledge.sqlite")
@@ -117,7 +146,6 @@ class Settings:
 
     max_upload_bytes: int = _int_env("MAX_UPLOAD_BYTES", 25 * 1024 * 1024)
     max_http_body_bytes: int = _int_env("MAX_HTTP_BODY_BYTES", 30 * 1024 * 1024)
-    max_recording_seconds: float = _float_env("MAX_RECORDING_SECONDS", 15.0)
     max_chat_chars: int = _int_env("MAX_CHAT_CHARS", 8000)
     max_tts_chars: int = _int_env("MAX_TTS_CHARS", 4000)
     max_sessions: int = _int_env("MAX_SESSIONS", 200)
@@ -134,35 +162,5 @@ class Settings:
     @property
     def llm_chat_url(self) -> str:
         return f"{self.llm_base_url.rstrip('/')}/chat/completions"
-
-    @property
-    def tts_media_type(self) -> str:
-        if self.elevenlabs_output_format.startswith("mp3"):
-            return "audio/mpeg"
-        if self.elevenlabs_output_format.startswith("wav"):
-            return "audio/wav"
-        if self.elevenlabs_output_format.startswith("pcm"):
-            return "audio/L16"
-        return "application/octet-stream"
-
-    @property
-    def tts_stream_media_type(self) -> str:
-        if self.elevenlabs_stream_output_format.startswith("pcm"):
-            return "audio/L16"
-        if self.elevenlabs_stream_output_format.startswith("mp3"):
-            return "audio/mpeg"
-        if self.elevenlabs_stream_output_format.startswith("wav"):
-            return "audio/wav"
-        return "application/octet-stream"
-
-    @property
-    def tts_stream_sample_rate(self) -> int | None:
-        if not self.elevenlabs_stream_output_format.startswith("pcm_"):
-            return None
-        try:
-            return int(self.elevenlabs_stream_output_format.split("_", 1)[1])
-        except (IndexError, ValueError):
-            return None
-
 
 settings = Settings()

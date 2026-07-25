@@ -50,4 +50,6 @@ class STTGateway(Protocol):
         *,
         sample_rate: int,
         api_key: str | None = None,
+        vad_threshold: float | None = None,
+        vad_silence_threshold_secs: float | None = None,
     ) -> AsyncIterator[STTEvent]: ...

@@ -42,7 +42,7 @@ from backend.gateways.stt.elevenlabs import (
     _gateway_error as stt_gateway_error,
     _parse_word_timings,
 )
-from backend.gateways.tts import TTSAlignment, TTSEvent
+from backend.gateways.tts import TTSAdapter, TTSAlignment, TTSEvent
 from backend.gateways.tts.elevenlabs import _parse_alignment
 from backend.telemetry import SQLiteTelemetryRecorder
 from backend.services import ApplicationServices
@@ -153,7 +153,11 @@ class FakeSTT:
     upload_model = "fake-upload"
     realtime_model = "fake-realtime"
 
+    def __init__(self) -> None:
+        self.api_keys: list[str | None] = []
+
     async def transcribe_upload(self, **kwargs) -> STTResult:
+        self.api_keys.append(kwargs.get("api_key"))
         return STTResult(text="hello", raw={"text": "hello"}, request_id="stt-upload")
 
     async def stream_realtime(
@@ -162,7 +166,10 @@ class FakeSTT:
         *,
         sample_rate: int,
         api_key: str | None = None,
+        vad_threshold: float | None = None,
+        vad_silence_threshold_secs: float | None = None,
     ) -> AsyncIterator[STTEvent]:
+        self.api_keys.append(api_key)
         yield STTEvent(kind="session_started", request_id="stt-session")
         async for _ in audio_chunks:
             pass
@@ -201,8 +208,19 @@ class FakeTTS:
     http_output_format = "pcm_16000"
     stream_output_format = "pcm_16000"
     stream_sample_rate = 16000
+    http_media_type = "audio/L16"
+    stream_media_type = "audio/L16"
+    api_key_configured = True
+
+    def __init__(self) -> None:
+        self.http_texts: list[str] = []
+        self.websocket_api_keys: list[str | None] = []
+
+    def resolve_voice_id(self, voice_id: str | None, voice_gender: str | None) -> str | None:
+        return voice_id or (f"fake-{voice_gender}" if voice_gender else None)
 
     async def stream_http(self, text: str, **kwargs) -> AsyncIterator[TTSEvent]:
+        self.http_texts.append(text)
         yield TTSEvent(kind="audio", audio=b"\x00\x00" * 160)
         yield TTSEvent(kind="complete", request_id="tts-http", character_cost=len(text))
 
@@ -211,6 +229,7 @@ class FakeTTS:
         text_chunks: AsyncIterable[str],
         **kwargs,
     ) -> AsyncIterator[TTSEvent]:
+        self.websocket_api_keys.append(kwargs.get("api_key"))
         async for _ in text_chunks:
             pass
         text = "A concise answer."
@@ -289,6 +308,35 @@ class ElevenLabsTimingParsingTests(unittest.TestCase):
         self.assertEqual(alignment.char_durations_ms, (80.0, 120.0))
 
 
+class TTSAdapterTests(unittest.IsolatedAsyncioTestCase):
+    async def test_routes_to_the_requested_provider_and_rejects_unknown_providers(self) -> None:
+        primary = FakeTTS()
+        alternate = FakeTTS()
+        alternate.provider = "alternate_tts"
+        alternate.model = "alternate-voice"
+        adapter = TTSAdapter(
+            [primary, alternate],
+            default_provider=primary.provider,
+        )
+
+        self.assertIs(adapter.resolve(), primary)
+        self.assertIs(adapter.resolve("ALTERNATE_TTS"), alternate)
+        self.assertEqual(adapter.providers, ("fake_tts", "alternate_tts"))
+        events = [
+            event
+            async for event in adapter.stream_http(
+                "speak through alternate",
+                provider="alternate_tts",
+            )
+        ]
+        self.assertEqual(alternate.http_texts, ["speak through alternate"])
+        self.assertEqual([event.kind for event in events], ["audio", "complete"])
+        self.assertEqual(primary.http_texts, [])
+        with self.assertRaises(GatewayError) as raised:
+            adapter.resolve("missing")
+        self.assertEqual(raised.exception.code, "unsupported_provider")
+
+
 class OrchestratorTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -309,11 +357,12 @@ class OrchestratorTests(unittest.IsolatedAsyncioTestCase):
 
     def orchestrator(self, *, llm=None, stt=None, tts=None, settings=None) -> TurnOrchestrator:
         settings = settings or Settings()
+        tts_gateway = tts or FakeTTS()
         return TurnOrchestrator(
             settings=settings,
             llm=llm or FakeLLM(),
             stt=stt or FakeSTT(),
-            tts=tts or FakeTTS(),
+            tts=TTSAdapter([tts_gateway], default_provider=tts_gateway.provider),
             knowledge=FakeKnowledge(),
             sessions=SessionStore(max_turns=4, max_sessions=10, ttl_seconds=3600),
             telemetry=self.recorder,
@@ -391,6 +440,29 @@ class OrchestratorTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("system", llm[4])
         self.assertNotIn("xai-test-secret", database_text)
         self.assertNotIn("voice-test-secret", database_text)
+
+    async def test_stt_and_tts_can_use_independent_api_keys(self) -> None:
+        stt = FakeSTT()
+        tts = FakeTTS()
+        orchestrator = self.orchestrator(stt=stt, tts=tts)
+        trace = orchestrator.new_trace(session_id="separate-voice-keys", kind="voice_realtime")
+
+        _ = [
+            event
+            async for event in orchestrator.stream_realtime_turn(
+                trace,
+                audio(),
+                sample_rate=16000,
+                brain_api_key="brain-key",
+                voice_api_key="legacy-shared-key",
+                voice_id="voice-id",
+                stt_api_key="stt-only-key",
+                tts_api_key="tts-only-key",
+            )
+        ]
+
+        self.assertEqual(stt.api_keys, ["stt-only-key"])
+        self.assertEqual(tts.websocket_api_keys, ["tts-only-key"])
 
     async def test_tts_failure_marks_partial_failure_and_structured_error(self) -> None:
         orchestrator = self.orchestrator(tts=FailingTTS())
@@ -683,24 +755,29 @@ class ContractTests(unittest.TestCase):
 class ConnectivityTests(unittest.IsolatedAsyncioTestCase):
     async def test_both_provider_checks_must_succeed(self) -> None:
         brain = FakeProbe("xai")
-        voice = FakeProbe("elevenlabs", ok=False)
-        service = ConnectivityService(brain=brain, voice=voice)
+        stt = FakeProbe("elevenlabs")
+        tts = FakeProbe("alternate_tts", ok=False)
+        service = ConnectivityService(brain=brain, stt=stt, tts=tts)
 
         report = await service.check(
             brain_api_key="brain-key",
-            voice_api_key="voice-key",
-            voice_id="voice-id",
+            stt_api_key="stt-key",
+            tts_api_key="tts-key",
+            tts_voice_id="voice-id",
         )
 
         self.assertFalse(report["ready"])
         self.assertTrue(report["brain"]["ok"])
-        self.assertFalse(report["voice"]["ok"])
+        self.assertTrue(report["stt"]["ok"])
+        self.assertFalse(report["tts"]["ok"])
         self.assertEqual(brain.calls, [("brain-key", None)])
-        self.assertEqual(voice.calls, [("voice-key", "voice-id")])
+        self.assertEqual(stt.calls, [("stt-key", None)])
+        self.assertEqual(tts.calls, [("tts-key", "voice-id")])
 
     async def test_connectivity_endpoint_uses_selected_voice(self) -> None:
         brain = FakeProbe("xai")
-        voice = FakeProbe("elevenlabs")
+        stt_probe = FakeProbe("elevenlabs")
+        tts_probe = FakeProbe("fake_tts")
         settings = Settings(enforce_local_access=False)
         recorder = SQLiteTelemetryRecorder(Path("unused.sqlite"), enabled=False)
         knowledge = FakeKnowledge()
@@ -708,7 +785,7 @@ class ConnectivityTests(unittest.IsolatedAsyncioTestCase):
             settings=settings,
             llm=FakeLLM(),
             stt=FakeSTT(),
-            tts=FakeTTS(),
+            tts=TTSAdapter([FakeTTS()], default_provider="fake_tts"),
             knowledge=knowledge,
             sessions=SessionStore(max_turns=4, max_sessions=10, ttl_seconds=3600),
             telemetry=recorder,
@@ -719,7 +796,7 @@ class ConnectivityTests(unittest.IsolatedAsyncioTestCase):
             knowledge=knowledge,
             telemetry=recorder,
             rate_limiter=SlidingWindowRateLimiter(requests=20, window_seconds=60),
-            connectivity=ConnectivityService(brain=brain, voice=voice),
+            connectivity=ConnectivityService(brain=brain, stt=stt_probe, tts=tts_probe),
         )
         app = FastAPI()
         app.include_router(create_router(services))
@@ -730,6 +807,8 @@ class ConnectivityTests(unittest.IsolatedAsyncioTestCase):
                 headers={
                     "X-OS1-Brain-API-Key": "browser-brain-key",
                     "X-OS1-Voice-API-Key": "browser-voice-key",
+                    "X-OS1-STT-API-Key": "browser-stt-key",
+                    "X-OS1-TTS-API-Key": "browser-tts-key",
                     "X-OS1-Voice-Gender": "female",
                 },
             )
@@ -738,9 +817,10 @@ class ConnectivityTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(response.json()["ready"])
         self.assertEqual(brain.calls, [("browser-brain-key", None)])
         self.assertEqual(
-            voice.calls,
-            [("browser-voice-key", settings.elevenlabs_female_voice_id)],
+            tts_probe.calls,
+            [("browser-tts-key", "fake-female")],
         )
+        self.assertEqual(stt_probe.calls, [("browser-stt-key", None)])
 
     async def test_xai_probe_validates_model_and_authentication(self) -> None:
         settings = Settings(
@@ -1014,7 +1094,7 @@ class WebSocketIntegrationTests(unittest.TestCase):
                 settings=settings,
                 llm=FakeLLM(),
                 stt=FakeSTT(),
-                tts=FakeTTS(),
+                tts=TTSAdapter([FakeTTS()], default_provider="fake_tts"),
                 knowledge=knowledge,
                 sessions=SessionStore(max_turns=4, max_sessions=10, ttl_seconds=3600),
                 telemetry=recorder,
@@ -1123,17 +1203,17 @@ class WebSocketIntegrationTests(unittest.TestCase):
             self.assertNotIn("integration-brain-secret", database_text)
             self.assertNotIn("integration-voice-secret", database_text)
 
-    def test_server_recording_limit_commits_when_client_never_sends_stop(self) -> None:
+    def test_client_stop_completes_realtime_turn_with_recording_stopped(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             db_path = Path(temp_dir) / "telemetry.sqlite"
             recorder = SQLiteTelemetryRecorder(db_path)
-            settings = Settings(max_recording_seconds=0.05, enforce_local_access=False)
+            settings = Settings(enforce_local_access=False)
             knowledge = FakeKnowledge()
             orchestrator = TurnOrchestrator(
                 settings=settings,
                 llm=FakeLLM(),
                 stt=FakeSTT(),
-                tts=FakeTTS(),
+                tts=TTSAdapter([FakeTTS()], default_provider="fake_tts"),
                 knowledge=knowledge,
                 sessions=SessionStore(max_turns=4, max_sessions=10, ttl_seconds=3600),
                 telemetry=recorder,
@@ -1160,7 +1240,7 @@ class WebSocketIntegrationTests(unittest.TestCase):
                     websocket.send_json(
                         {
                             "type": "start",
-                            "session_id": "limit-session",
+                            "session_id": "vad-session",
                             "brain_api_key": "brain-key",
                             "voice_api_key": "voice-key",
                             "sample_rate": 16000,
@@ -1170,6 +1250,9 @@ class WebSocketIntegrationTests(unittest.TestCase):
                         while True:
                             payload = websocket.receive_json()
                             received.append(payload)
+                            if payload.get("event") == "stt_ready":
+                                websocket.send_bytes(b"\x00\x00" * 160)
+                                websocket.send_json({"type": "stop"})
                             if payload.get("event") == "audio":
                                 websocket.send_json(
                                     {
@@ -1182,35 +1265,37 @@ class WebSocketIntegrationTests(unittest.TestCase):
                     except WebSocketDisconnect:
                         pass
 
-            self.assertIn("stt_ready", [str(item.get("event")) for item in received])
-            self.assertIn("recording_stopped", [str(item.get("event")) for item in received])
+            events = [str(item.get("event")) for item in received]
+            self.assertIn("stt_ready", events)
+            self.assertIn("recording_stopped", events)
+            self.assertIn("transcript", events)
             turn_id = next(
                 str(item["data"]["turn_id"])
                 for item in received
                 if isinstance(item.get("data"), dict) and item["data"].get("turn_id")
             )
             with closing(sqlite3.connect(db_path)) as conn:
-                limit_count = conn.execute(
-                    "SELECT COUNT(*) FROM turn_events WHERE turn_id = ? AND name = ?",
-                    (turn_id, "recording.limit_reached"),
-                ).fetchone()[0]
+                stop_reason = conn.execute(
+                    "SELECT metadata_json FROM turn_events WHERE turn_id = ? AND name = ?",
+                    (turn_id, "recording.stop_received"),
+                ).fetchone()
                 status = conn.execute(
                     "SELECT status FROM turns WHERE turn_id = ?", (turn_id,)
                 ).fetchone()[0]
-            self.assertEqual(limit_count, 1)
+            self.assertIsNotNone(stop_reason)
             self.assertEqual(status, "success")
 
     def test_disconnect_before_stop_cancels_turn_and_stt_call(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             db_path = Path(temp_dir) / "telemetry.sqlite"
             recorder = SQLiteTelemetryRecorder(db_path)
-            settings = Settings(max_recording_seconds=15, enforce_local_access=False)
+            settings = Settings(enforce_local_access=False)
             knowledge = FakeKnowledge()
             orchestrator = TurnOrchestrator(
                 settings=settings,
                 llm=FakeLLM(),
                 stt=FakeSTT(),
-                tts=FakeTTS(),
+                tts=TTSAdapter([FakeTTS()], default_provider="fake_tts"),
                 knowledge=knowledge,
                 sessions=SessionStore(max_turns=4, max_sessions=10, ttl_seconds=3600),
                 telemetry=recorder,
@@ -1272,7 +1357,7 @@ class WebSocketIntegrationTests(unittest.TestCase):
                 settings=settings,
                 llm=FakeLLM(),
                 stt=FakeSTT(),
-                tts=FakeTTS(),
+                tts=TTSAdapter([FakeTTS()], default_provider="fake_tts"),
                 knowledge=knowledge,
                 sessions=SessionStore(max_turns=4, max_sessions=10, ttl_seconds=3600),
                 telemetry=recorder,

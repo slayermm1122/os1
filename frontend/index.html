@@ -161,6 +161,14 @@
       }
 
       .orb {
+        --orb-glow: radial-gradient(
+          circle,
+          rgba(255, 230, 200, 0.18) 0%,
+          rgba(255, 200, 150, 0.08) 34%,
+          rgba(140, 40, 28, 0.04) 52%,
+          transparent 72%
+        );
+        --orb-glow-opacity: 0.5;
         position: absolute;
         top: var(--orb-center-y);
         left: 50%;
@@ -168,41 +176,61 @@
         appearance: none;
         width: var(--orb-size);
         aspect-ratio: 1;
-        border: 1px solid rgba(255, 246, 236, 0.2);
+        border: 1px solid rgba(255, 246, 236, 0.16);
         border-radius: 50%;
         padding: 0;
         display: grid;
         place-items: center;
         background: rgba(95, 23, 16, 0.12);
         color: inherit;
+        /* Soft layered glow only — no solid outer ring / plate. */
         box-shadow:
-          inset 0 0 90px rgba(255, 232, 210, 0.18),
-          0 28px 120px rgba(72, 13, 8, 0.25);
+          inset 0 0 90px rgba(255, 232, 210, 0.16),
+          0 0 28px rgba(255, 210, 170, 0.08),
+          0 0 64px rgba(255, 180, 130, 0.05),
+          0 28px 100px rgba(72, 13, 8, 0.24);
         cursor: pointer;
         pointer-events: auto;
         transition:
-          border-color 180ms ease,
-          box-shadow 180ms ease,
-          transform 180ms ease,
-          background 180ms ease;
+          border-color 170ms ease,
+          box-shadow 170ms ease,
+          transform 170ms ease,
+          background 170ms ease;
       }
 
-      .orb::after {
+      .orb::before {
         content: "";
         position: absolute;
-        inset: -18px;
-        border: 1px solid rgba(255, 228, 156, 0);
+        inset: -36%;
         border-radius: 50%;
+        background: var(--orb-glow);
+        opacity: var(--orb-glow-opacity);
         pointer-events: none;
+        z-index: 0;
+        transition:
+          opacity 170ms ease,
+          transform 170ms ease,
+          background 170ms ease;
+      }
+
+      /* Keep bars in grid center; do not touch .hint-line (it must stay position:absolute). */
+      .orb .bars {
+        z-index: 1;
       }
 
       .orb:not(:disabled):hover {
-        border-color: rgba(255, 246, 236, 0.44);
-        background: rgba(255, 246, 236, 0.08);
+        border-color: rgba(255, 246, 236, 0.34);
+        background: rgba(255, 246, 236, 0.07);
+        --orb-glow-opacity: 0.95;
         box-shadow:
-          inset 0 0 92px rgba(255, 232, 210, 0.2),
-          0 0 0 16px rgba(255, 246, 236, 0.055),
-          0 34px 128px rgba(72, 13, 8, 0.3);
+          inset 0 0 100px rgba(255, 232, 210, 0.2),
+          0 0 36px rgba(255, 220, 180, 0.14),
+          0 0 80px rgba(255, 190, 140, 0.08),
+          0 30px 110px rgba(72, 13, 8, 0.28);
+      }
+
+      .orb:not(:disabled):hover::before {
+        transform: scale(1.03);
       }
 
       .orb:not(:disabled):active {
@@ -217,8 +245,10 @@
       body.providers-unavailable .orb {
         border-color: rgba(255, 246, 236, 0.12);
         background: rgba(255, 246, 236, 0.055);
+        --orb-glow-opacity: 0.28;
         box-shadow:
           inset 0 0 70px rgba(255, 246, 236, 0.07),
+          0 0 24px rgba(255, 200, 160, 0.04),
           0 20px 80px rgba(72, 13, 8, 0.18);
       }
 
@@ -229,31 +259,47 @@
       }
 
       body.is-recording .orb {
-        border-color: rgba(163, 255, 228, 0.5);
+        border-color: rgba(163, 255, 228, 0.38);
+        --orb-glow: radial-gradient(
+          circle,
+          rgba(163, 255, 228, 0.2) 0%,
+          rgba(163, 255, 228, 0.08) 36%,
+          rgba(120, 40, 30, 0.03) 54%,
+          transparent 72%
+        );
+        --orb-glow-opacity: 0.88;
         box-shadow:
-          inset 0 0 96px rgba(163, 255, 228, 0.18),
-          0 0 0 18px rgba(163, 255, 228, 0.08),
-          0 30px 128px rgba(72, 13, 8, 0.3);
-      }
-
-      body.recording-ending .orb::after {
-        animation: countdownWarn 900ms ease-in-out infinite;
+          inset 0 0 96px rgba(163, 255, 228, 0.15),
+          0 0 36px rgba(163, 255, 228, 0.12),
+          0 0 80px rgba(163, 255, 228, 0.06),
+          0 28px 100px rgba(72, 13, 8, 0.28);
       }
 
       body.is-speaking .orb {
-        border-color: rgba(255, 228, 156, 0.55);
+        border-color: rgba(255, 228, 156, 0.42);
+        --orb-glow: radial-gradient(
+          circle,
+          rgba(255, 228, 156, 0.2) 0%,
+          rgba(255, 210, 140, 0.08) 36%,
+          rgba(120, 40, 30, 0.03) 54%,
+          transparent 72%
+        );
+        --orb-glow-opacity: 0.88;
         box-shadow:
-          inset 0 0 100px rgba(255, 228, 156, 0.2),
-          0 0 0 18px rgba(255, 228, 156, 0.075),
-          0 30px 128px rgba(72, 13, 8, 0.3);
+          inset 0 0 100px rgba(255, 228, 156, 0.16),
+          0 0 36px rgba(255, 228, 156, 0.12),
+          0 0 80px rgba(255, 210, 140, 0.06),
+          0 28px 100px rgba(72, 13, 8, 0.28);
       }
 
       body.is-thinking .orb {
-        border-color: rgba(255, 246, 236, 0.34);
+        border-color: rgba(255, 246, 236, 0.28);
+        --orb-glow-opacity: 0.7;
         box-shadow:
-          inset 0 0 96px rgba(255, 246, 236, 0.13),
-          0 0 0 14px rgba(255, 246, 236, 0.035),
-          0 30px 128px rgba(72, 13, 8, 0.26);
+          inset 0 0 96px rgba(255, 246, 236, 0.12),
+          0 0 32px rgba(255, 246, 236, 0.08),
+          0 0 72px rgba(255, 220, 180, 0.04),
+          0 28px 100px rgba(72, 13, 8, 0.26);
       }
 
       .bars {
@@ -265,28 +311,6 @@
         gap: 8px;
       }
 
-      .recording-countdown {
-        position: absolute;
-        bottom: 52px;
-        left: 50%;
-        transform: translateX(-50%);
-        min-width: 42px;
-        color: rgba(255, 246, 236, 0.64);
-        font-size: 13px;
-        font-variant-numeric: tabular-nums;
-        letter-spacing: 0;
-        opacity: 0;
-        transition: color 160ms ease, opacity 160ms ease;
-      }
-
-      body.is-recording .recording-countdown {
-        opacity: 1;
-      }
-
-      body.recording-ending .recording-countdown {
-        color: rgba(255, 232, 156, 0.96);
-      }
-
       .bar {
         width: 8px;
         height: 18px;
@@ -294,23 +318,21 @@
         background: rgba(255, 246, 236, 0.86);
         transform-origin: center;
         opacity: 0.76;
-        transition: height 120ms ease, opacity 120ms ease, background 120ms ease;
+        will-change: height, opacity;
+        transition: height 55ms linear, opacity 55ms linear, background 160ms ease;
       }
 
-      body.is-recording .bar,
-      body.is-speaking .bar {
-        animation: pulse 860ms ease-in-out infinite;
-        opacity: 1;
-      }
-
+      /* Live mic levels drive bar height in JS; no fixed pulse while recording. */
       body.is-recording .bar {
-        animation-duration: 620ms;
+        animation: none;
         background: var(--recording);
+        opacity: 0.72;
       }
 
       body.is-speaking .bar {
-        animation-duration: 980ms;
+        animation: speakPulse 1100ms ease-in-out infinite;
         background: var(--speaking);
+        opacity: 0.9;
       }
 
       body.is-thinking .bar {
@@ -319,34 +341,43 @@
         opacity: 0.84;
       }
 
-      .bar:nth-child(2) { animation-delay: 70ms; }
-      .bar:nth-child(3) { animation-delay: 140ms; }
-      .bar:nth-child(4) { animation-delay: 210ms; }
-      .bar:nth-child(5) { animation-delay: 280ms; }
-      .bar:nth-child(6) { animation-delay: 350ms; }
-      .bar:nth-child(7) { animation-delay: 420ms; }
-      .bar:nth-child(8) { animation-delay: 490ms; }
+      body.is-speaking .bar:nth-child(2) { animation-delay: 80ms; }
+      body.is-speaking .bar:nth-child(3) { animation-delay: 160ms; }
+      body.is-speaking .bar:nth-child(4) { animation-delay: 240ms; }
+      body.is-speaking .bar:nth-child(5) { animation-delay: 320ms; }
+      body.is-speaking .bar:nth-child(6) { animation-delay: 400ms; }
+      body.is-speaking .bar:nth-child(7) { animation-delay: 480ms; }
+      body.is-speaking .bar:nth-child(8) { animation-delay: 560ms; }
 
-      @keyframes pulse {
-        0%, 100% { height: 18px; }
-        45% { height: 104px; }
+      body.is-thinking .bar:nth-child(2) { animation-delay: 70ms; }
+      body.is-thinking .bar:nth-child(3) { animation-delay: 140ms; }
+      body.is-thinking .bar:nth-child(4) { animation-delay: 210ms; }
+      body.is-thinking .bar:nth-child(5) { animation-delay: 280ms; }
+      body.is-thinking .bar:nth-child(6) { animation-delay: 350ms; }
+      body.is-thinking .bar:nth-child(7) { animation-delay: 420ms; }
+      body.is-thinking .bar:nth-child(8) { animation-delay: 490ms; }
+
+      /* Small, calm motion while the assistant is talking — not a full-height dance. */
+      @keyframes speakPulse {
+        0%, 100% { height: 16px; opacity: 0.72; }
+        50% { height: 34px; opacity: 0.95; }
       }
 
       @keyframes thinkingPulse {
-        0%, 100% { height: 18px; opacity: 0.58; }
-        50% { height: 34px; opacity: 0.94; }
+        0%, 100% { height: 16px; opacity: 0.58; }
+        50% { height: 28px; opacity: 0.9; }
       }
 
-      @keyframes countdownWarn {
-        0%, 100% {
-          opacity: 0.25;
-          transform: scale(0.98);
-          border-color: rgba(255, 228, 156, 0.24);
+      @media (prefers-reduced-motion: reduce) {
+        .orb,
+        .orb::before,
+        .bar {
+          transition: none;
         }
-        50% {
-          opacity: 1;
-          transform: scale(1.03);
-          border-color: rgba(255, 228, 156, 0.58);
+        body.is-speaking .bar,
+        body.is-thinking .bar,
+        body.is-recording .bar {
+          animation: none;
         }
       }
 
@@ -377,82 +408,142 @@
         pointer-events: auto;
       }
 
-      .prompt-line {
-        flex: 0 0 auto;
+      .chat-thread {
+        min-height: 0;
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        overflow-x: hidden;
+        overflow-y: auto;
+        padding: 2px 4px 10px;
+        scrollbar-color: rgba(255, 246, 236, 0.18) transparent;
+      }
+
+      .chat-thread::-webkit-scrollbar { width: 5px; }
+      .chat-thread::-webkit-scrollbar-track { background: transparent; }
+      .chat-thread::-webkit-scrollbar-thumb {
+        background: rgba(255, 246, 236, 0.18);
+        border-radius: 999px;
+      }
+
+      .chat-row {
+        display: flex;
         width: 100%;
-        min-height: 24px;
-        margin: 0 auto 4px;
-        text-align: center;
-        font-size: clamp(14px, 2.2vw, 17px);
-        line-height: 1.45;
-        color: rgba(255, 246, 236, 0.58);
+      }
+
+      .chat-row-user {
+        justify-content: flex-end;
+      }
+
+      .chat-row-ai {
+        justify-content: flex-start;
+      }
+
+      .chat-bubble {
+        max-width: min(78%, 380px);
+        border-radius: 12px;
+        border-width: 1px;
+        border-style: solid;
+        padding: 10px 14px;
+        font-weight: 340;
+        font-size: clamp(13px, 1.8vw, 15px);
+        letter-spacing: 0.01em;
+        line-height: 1.58;
+        color: rgba(255, 246, 236, 0.88);
         overflow-wrap: anywhere;
         white-space: pre-wrap;
       }
 
-      .voice-switch {
-        position: absolute;
-        top: var(--orb-center-y);
-        left: calc(max((100vw - 980px) / 2, 0px) + clamp(22px, 4vw, 52px));
-        transform: translateY(-50%);
-        z-index: 2;
-        display: grid;
-        gap: 8px;
-        pointer-events: auto;
+      /* User speech — mint, matches recording waveform */
+      .chat-bubble-user {
+        border-color: rgba(163, 255, 228, 0.42);
+        background: rgba(163, 255, 228, 0.09);
+        color: rgba(232, 255, 248, 0.9);
+        border-bottom-right-radius: 5px;
       }
 
+      /* Assistant — warm gold, matches speaking waveform */
+      .chat-bubble-ai {
+        border-color: rgba(255, 228, 156, 0.4);
+        background: rgba(255, 228, 156, 0.08);
+        color: rgba(255, 246, 236, 0.86);
+        border-bottom-left-radius: 5px;
+      }
+
+      .chat-bubble-ai .chat-line + .chat-line {
+        margin-top: 0.45em;
+      }
+
+      .chat-bubble-ai.is-error {
+        border-color: rgba(255, 196, 160, 0.45);
+        background: rgba(255, 180, 140, 0.08);
+        color: rgba(255, 232, 210, 0.9);
+      }
+
+      .voice-choice-row {
+        display: flex;
+        gap: 18px;
+        align-items: baseline;
+      }
+
+      /* Quiet text links — same spirit as the old home-page speaker switch. */
       .voice-choice {
         appearance: none;
         border: 0;
         padding: 0;
         background: transparent;
-        color: rgba(255, 246, 236, 0.44);
+        color: rgba(255, 246, 236, 0.42);
         font: inherit;
-        font-size: 13px;
+        font-size: 15px;
+        font-weight: 340;
+        letter-spacing: 0.02em;
         line-height: 1.2;
-        letter-spacing: 0;
-        text-align: left;
         cursor: pointer;
-        transition: color 140ms ease, opacity 140ms ease;
+        transition: color 160ms ease, opacity 160ms ease;
       }
 
       .voice-choice.is-active {
-        color: rgba(255, 246, 236, 0.96);
+        color: rgba(255, 246, 236, 0.94);
       }
 
       .voice-choice:disabled {
         cursor: default;
-        opacity: 0.46;
+        opacity: 0.4;
       }
 
-      .answer-panel {
-        min-height: 0;
-        flex: 1 1 auto;
+      .modal-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        margin: 0 0 8px;
       }
 
-      .answer-text {
-        height: 100%;
-        overflow-y: auto;
-        padding: 0 8px 8px;
-        text-align: center;
-        scrollbar-color: rgba(255, 246, 236, 0.22) transparent;
+      .modal-header .modal-title {
+        margin: 0;
       }
 
-      .answer-text::-webkit-scrollbar { width: 6px; }
-      .answer-text::-webkit-scrollbar-track { background: transparent; }
-      .answer-text::-webkit-scrollbar-thumb {
-        background: rgba(255, 246, 236, 0.2);
-        border-radius: 999px;
+      .modal-close {
+        appearance: none;
+        flex: 0 0 auto;
+        width: 32px;
+        height: 32px;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: rgba(255, 246, 236, 0.48);
+        font: inherit;
+        font-size: 22px;
+        font-weight: 300;
+        line-height: 1;
+        cursor: pointer;
+        transition: color 150ms ease, background 150ms ease;
       }
 
-      .answer-line {
-        max-width: 680px;
-        margin: 3px auto;
+      .modal-close:hover {
+        background: rgba(255, 246, 236, 0.06);
         color: rgba(255, 246, 236, 0.88);
-        font-size: clamp(15px, 2.2vw, 18px);
-        line-height: 1.5;
-        overflow-wrap: anywhere;
-        white-space: pre-wrap;
       }
 
       .reference-panel {
@@ -532,96 +623,323 @@
       }
 
       .settings-modal {
-        width: min(100%, 640px);
-        border: 1px solid rgba(255, 246, 236, 0.22);
-        border-radius: 8px;
-        padding: 24px;
+        width: min(100%, 460px);
+        border: 1px solid rgba(255, 246, 236, 0.12);
+        border-radius: 14px;
+        padding: 28px 28px 22px;
         background:
-          linear-gradient(145deg, rgba(94, 22, 15, 0.95), rgba(152, 39, 24, 0.94));
-        box-shadow: 0 28px 120px rgba(47, 8, 5, 0.45);
+          linear-gradient(160deg, rgba(88, 20, 14, 0.92), rgba(132, 34, 22, 0.9));
+        box-shadow:
+          0 0 0 1px rgba(255, 246, 236, 0.03) inset,
+          0 30px 100px rgba(40, 6, 4, 0.42);
       }
 
       .modal-title {
-        margin: 0 0 20px;
-        font-size: 18px;
-        font-weight: 650;
+        margin: 0;
+        font-size: 22px;
+        font-weight: 380;
+        letter-spacing: -0.02em;
+        color: rgba(255, 246, 236, 0.94);
+      }
+
+      .modal-lede {
+        margin: 0 0 22px;
+        color: rgba(255, 246, 236, 0.48);
+        font-size: 13px;
+        font-weight: 340;
+        line-height: 1.5;
       }
 
       .provider-section {
         display: grid;
-        gap: 10px;
-        margin: 0 0 18px;
+        gap: 8px;
+        margin: 0 0 20px;
+        padding: 0 0 18px;
+        border-bottom: 1px solid rgba(255, 246, 236, 0.08);
+      }
+
+      .provider-section:last-of-type {
+        border-bottom: 0;
+        padding-bottom: 0;
+        margin-bottom: 12px;
       }
 
       .provider-title {
-        color: rgba(255, 246, 236, 0.72);
-        font-size: 13px;
-        font-weight: 650;
+        color: rgba(255, 246, 236, 0.5);
+        font-size: 11px;
+        font-weight: 450;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .provider-meta {
+        color: rgba(255, 246, 236, 0.38);
+        font-size: 12px;
+        font-weight: 340;
       }
 
       .provider-row {
         display: grid;
-        grid-template-columns: 138px minmax(0, 1fr);
         gap: 10px;
       }
 
-      select,
-      input {
+      .provider-row.two-col {
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+
+      .field {
+        display: grid;
+        gap: 6px;
+      }
+
+      .field-label {
+        color: rgba(255, 246, 236, 0.52);
+        font-size: 12px;
+        font-weight: 360;
+      }
+
+      /* Quiet inputs: soft wash + hairline, not engineering form chrome. */
+      .settings-modal select,
+      .settings-modal input[type="text"],
+      .settings-modal input[type="password"] {
         width: 100%;
-        height: 42px;
-        border: 1px solid rgba(255, 246, 236, 0.24);
-        border-radius: 8px;
-        background: rgba(255, 246, 236, 0.1);
-        color: var(--ink);
+        height: 40px;
+        border: 1px solid rgba(255, 246, 236, 0.12);
+        border-radius: 10px;
+        background: rgba(255, 246, 236, 0.055);
+        color: rgba(255, 246, 236, 0.9);
         font: inherit;
+        font-size: 14px;
+        font-weight: 340;
+        letter-spacing: 0.01em;
+        outline: none;
+        transition: border-color 150ms ease, background 150ms ease;
+      }
+
+      .settings-modal select {
+        padding: 0 12px;
+        color: rgba(255, 246, 236, 0.55);
+      }
+
+      .settings-modal input[type="text"],
+      .settings-modal input[type="password"] {
+        padding: 0 14px;
+      }
+
+      .settings-modal input::placeholder {
+        color: rgba(255, 246, 236, 0.32);
+        font-weight: 320;
+      }
+
+      .settings-modal input:focus,
+      .settings-modal select:focus {
+        border-color: rgba(255, 232, 156, 0.34);
+        background: rgba(255, 246, 236, 0.075);
+      }
+
+      .settings-modal input:disabled,
+      .settings-modal select:disabled {
+        opacity: 0.72;
+        cursor: default;
+      }
+
+      .slider-field {
+        display: grid;
+        gap: 8px;
+      }
+
+      .slider-label-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .slider-label {
+        color: rgba(255, 246, 236, 0.62);
+        font-size: 13px;
+        font-weight: 360;
+      }
+
+      .slider-value {
+        color: rgba(255, 232, 156, 0.78);
+        font-size: 12px;
+        font-weight: 360;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.02em;
+      }
+
+      .slider-hint {
+        color: rgba(255, 246, 236, 0.38);
+        font-size: 12px;
+        font-weight: 320;
+        line-height: 1.45;
+      }
+
+      input[type="range"].os1-slider {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 100%;
+        height: 28px;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        cursor: pointer;
+      }
+
+      input[type="range"].os1-slider:focus {
         outline: none;
       }
 
-      select {
-        padding: 0 12px;
-        opacity: 0.72;
+      input[type="range"].os1-slider:focus-visible {
+        outline: 1px solid rgba(255, 232, 156, 0.55);
+        outline-offset: 3px;
+        border-radius: 8px;
       }
 
-      input {
-        padding: 0 13px;
+      input[type="range"].os1-slider::-webkit-slider-runnable-track {
+        height: 4px;
+        border-radius: 999px;
+        background: rgba(255, 246, 236, 0.18);
       }
 
-      input::placeholder {
-        color: rgba(255, 246, 236, 0.4);
+      input[type="range"].os1-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 16px;
+        height: 16px;
+        margin-top: -6px;
+        border: 1px solid rgba(255, 246, 236, 0.42);
+        border-radius: 50%;
+        background: rgba(255, 232, 156, 0.92);
+        box-shadow: 0 2px 10px rgba(47, 8, 5, 0.28);
+      }
+
+      input[type="range"].os1-slider::-moz-range-track {
+        height: 4px;
+        border: 0;
+        border-radius: 999px;
+        background: rgba(255, 246, 236, 0.18);
+      }
+
+      input[type="range"].os1-slider::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        border: 1px solid rgba(255, 246, 236, 0.42);
+        border-radius: 50%;
+        background: rgba(255, 232, 156, 0.92);
+        box-shadow: 0 2px 10px rgba(47, 8, 5, 0.28);
+      }
+
+      .toggle-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .toggle-copy {
+        display: grid;
+        gap: 4px;
+        min-width: 0;
+      }
+
+      .toggle-label {
+        color: rgba(255, 246, 236, 0.84);
+        font-size: 13px;
+      }
+
+      .toggle-switch {
+        position: relative;
+        flex: 0 0 auto;
+        width: 44px;
+        height: 26px;
+        border: 1px solid rgba(255, 246, 236, 0.28);
+        border-radius: 999px;
+        background: rgba(255, 246, 236, 0.12);
+        cursor: pointer;
+        transition: background 160ms ease, border-color 160ms ease;
+      }
+
+      .toggle-switch[aria-checked="true"] {
+        border-color: rgba(255, 232, 156, 0.5);
+        background: rgba(255, 232, 156, 0.22);
+      }
+
+      .toggle-switch:focus-visible {
+        outline: 1px solid rgba(255, 232, 156, 0.55);
+        outline-offset: 3px;
+      }
+
+      .toggle-knob {
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: rgba(255, 246, 236, 0.78);
+        box-shadow: 0 2px 8px rgba(47, 8, 5, 0.28);
+        transition: transform 160ms ease, background 160ms ease;
+      }
+
+      .toggle-switch[aria-checked="true"] .toggle-knob {
+        transform: translateX(18px);
+        background: rgba(255, 232, 156, 0.96);
       }
 
       .modal-actions {
         display: flex;
         justify-content: flex-end;
-        gap: 10px;
-        margin-top: 22px;
+        align-items: center;
+        gap: 14px;
+        margin-top: 8px;
       }
 
-      .modal-actions .modal-button:first-child {
+      .modal-actions .modal-button-ghost {
         margin-right: auto;
       }
 
       .modal-button {
         appearance: none;
-        min-width: 92px;
-        height: 42px;
-        border: 1px solid rgba(255, 246, 236, 0.28);
-        border-radius: 8px;
-        background: rgba(255, 246, 236, 0.14);
-        color: var(--ink);
+        min-width: 0;
+        height: auto;
+        border: 0;
+        border-radius: 0;
+        padding: 6px 2px;
+        background: transparent;
+        color: rgba(255, 246, 236, 0.88);
         font: inherit;
-        font-weight: 650;
+        font-size: 14px;
+        font-weight: 420;
+        letter-spacing: 0.01em;
         cursor: pointer;
+        transition: color 150ms ease, opacity 150ms ease;
       }
 
       .modal-button:hover {
-        background: rgba(255, 246, 236, 0.2);
+        color: rgba(255, 246, 236, 1);
+      }
+
+      .modal-button-ghost {
+        color: rgba(255, 246, 236, 0.42);
+        font-weight: 340;
+      }
+
+      .modal-button-ghost:hover {
+        color: rgba(255, 246, 236, 0.72);
       }
 
       .settings-error {
-        min-height: 18px;
-        color: rgba(255, 232, 156, 0.96);
-        font-size: 13px;
+        min-height: 16px;
+        margin: 0 0 4px;
+        color: rgba(255, 220, 170, 0.88);
+        font-size: 12px;
+        font-weight: 340;
+        line-height: 1.4;
       }
 
       @media (max-width: 768px), (orientation: portrait) and (max-width: 1024px) {
@@ -665,8 +983,8 @@
           bottom: 112px;
         }
 
-        .answer-text {
-          padding: 0 10px 12px;
+        .chat-bubble {
+          max-width: min(86%, 360px);
         }
 
         .modal-backdrop {
@@ -686,7 +1004,8 @@
           <button id="brandButton" class="brand-button" type="button" aria-haspopup="menu" aria-expanded="false">OS1</button>
           <div id="brandMenu" class="brand-menu" hidden>
             <button id="menuApiKey" class="menu-item" type="button">API Key</button>
-            <button id="menuKnowledgeBase" class="menu-item" type="button">Knowledge Base</button>
+            <button id="menuVoice" class="menu-item" type="button">Voice</button>
+            <button id="menuKnowledgeBase" class="menu-item" type="button" hidden>Knowledge Base</button>
           </div>
         </div>
         <div id="status">ready</div>
@@ -696,10 +1015,6 @@
         <button id="keyPrompt" class="key-prompt" type="button" hidden>
           Please provide your API key
         </button>
-        <div class="voice-switch" aria-label="Voice" role="group">
-          <button id="voiceMale" class="voice-choice" type="button">male</button>
-          <button id="voiceFemale" class="voice-choice" type="button">female</button>
-        </div>
         <button id="talkButton" class="orb" type="button" aria-label="开始录音">
           <div class="bars" aria-hidden="true">
             <div class="bar"></div>
@@ -711,14 +1026,10 @@
             <div class="bar"></div>
             <div class="bar"></div>
           </div>
-          <div id="recordingCountdown" class="recording-countdown" aria-hidden="true">15s</div>
-          <div id="hint" class="hint-line">Press to Talk</div>
+          <div id="hint" class="hint-line">Tap to speak</div>
         </button>
         <section class="conversation-panel" aria-label="conversation">
-          <div id="transcript" class="prompt-line" aria-live="polite"></div>
-          <div class="answer-panel" aria-label="answer">
-            <div id="reply" class="answer-text" aria-live="polite" tabindex="0"></div>
-          </div>
+          <div id="chatThread" class="chat-thread" aria-live="polite" tabindex="0"></div>
           <section id="referencePanel" class="reference-panel" hidden aria-label="references">
             <button id="referenceHide" class="reference-hide" type="button">hide</button>
             <details id="referenceDetails" open>
@@ -733,42 +1044,131 @@
 
     <div id="settingsModal" class="modal-backdrop" hidden>
       <div class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
-        <h2 id="settingsTitle" class="modal-title">Models & API Keys</h2>
+        <div class="modal-header">
+          <h2 id="settingsTitle" class="modal-title">Keys</h2>
+          <button id="settingsClose" class="modal-close" type="button" aria-label="Close">×</button>
+        </div>
+        <p class="modal-lede">Keys stay in this browser session. Providers are fixed for now.</p>
 
         <section class="provider-section">
           <div class="provider-title">Brain</div>
-          <div class="provider-row">
-            <select id="brainProvider" disabled>
-              <option selected>xAI</option>
-            </select>
-            <input id="brainKey" type="password" autocomplete="off" spellcheck="false" placeholder="xAI API key" />
-          </div>
+          <div class="provider-meta" id="brainProviderLabel">xAI</div>
+          <select id="brainProvider" hidden disabled>
+            <option selected>xAI</option>
+          </select>
+          <input id="brainKey" type="password" autocomplete="off" spellcheck="false" placeholder="API key" />
         </section>
 
         <section class="provider-section">
-          <div class="provider-title">LLM Search</div>
-          <div class="provider-row">
-            <select id="llmSearchProvider" disabled>
-              <option selected>xAI</option>
-            </select>
-            <input id="llmSearchModel" type="text" value="grok-4.5 · low reasoning" disabled />
-          </div>
+          <div class="provider-title">Search</div>
+          <div class="provider-meta" id="llmSearchLabel">xAI · grok-4.5</div>
+          <select id="llmSearchProvider" hidden disabled>
+            <option selected>xAI</option>
+          </select>
+          <input id="llmSearchModel" type="text" value="grok-4.5 · low reasoning" hidden disabled />
         </section>
 
         <section class="provider-section">
           <div class="provider-title">Voice</div>
-          <div class="provider-row">
-            <select id="voiceProvider" disabled>
-              <option selected>ElevenLabs</option>
-            </select>
-            <input id="voiceKey" type="password" autocomplete="off" spellcheck="false" placeholder="ElevenLabs API key" />
-          </div>
+          <div class="provider-meta" id="voiceProviderLabel">ElevenLabs</div>
+          <select id="voiceProvider" hidden disabled>
+            <option selected>ElevenLabs</option>
+          </select>
+          <input id="voiceKey" type="password" autocomplete="off" spellcheck="false" placeholder="API key" />
         </section>
 
         <div id="settingsError" class="settings-error"></div>
         <div class="modal-actions">
-          <button id="clearKeysButton" class="modal-button" type="button">Clear</button>
+          <button id="clearKeysButton" class="modal-button modal-button-ghost" type="button">Clear</button>
           <button id="saveKeysButton" class="modal-button" type="button">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="voiceModal" class="modal-backdrop" hidden>
+      <div class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="voiceTitle">
+        <div class="modal-header">
+          <h2 id="voiceTitle" class="modal-title">Voice</h2>
+          <button id="voiceClose" class="modal-close" type="button" aria-label="Close">×</button>
+        </div>
+        <p class="modal-lede">How OS1 sounds, listens, and introduces itself.</p>
+
+        <section class="provider-section">
+          <div class="provider-title">Name</div>
+          <input
+            id="assistantName"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+            maxlength="40"
+            placeholder="English name, optional"
+            inputmode="text"
+          />
+          <div class="slider-hint">If set, the assistant only calls itself this name. English letters for now.</div>
+        </section>
+
+        <section class="provider-section">
+          <div class="provider-title">Speaker</div>
+          <div class="voice-choice-row" role="group" aria-label="Speaker">
+            <button id="voiceMale" class="voice-choice" type="button">male</button>
+            <button id="voiceFemale" class="voice-choice" type="button">female</button>
+          </div>
+        </section>
+
+        <section class="provider-section">
+          <div class="provider-title">Custom voices</div>
+          <div class="provider-row two-col">
+            <div class="field">
+              <label class="field-label" for="maleVoiceId">Male id</label>
+              <input id="maleVoiceId" type="text" autocomplete="off" spellcheck="false" placeholder="optional" />
+            </div>
+            <div class="field">
+              <label class="field-label" for="femaleVoiceId">Female id</label>
+              <input id="femaleVoiceId" type="text" autocomplete="off" spellcheck="false" placeholder="optional" />
+            </div>
+          </div>
+          <div class="slider-hint">ElevenLabs Voice Library id. Leave blank for defaults.</div>
+        </section>
+
+        <section class="provider-section">
+          <div class="provider-title">Listening</div>
+          <div class="slider-field">
+            <div class="slider-label-row">
+              <label class="slider-label" for="vadSilenceSlider">Silence to end</label>
+              <span id="vadSilenceValue" class="slider-value">1.2s</span>
+            </div>
+            <input
+              id="vadSilenceSlider"
+              class="os1-slider"
+              type="range"
+              min="0.3"
+              max="3"
+              step="0.1"
+              value="1.2"
+            />
+            <div class="slider-hint">How long to pause before the reply begins.</div>
+          </div>
+          <div class="slider-field" style="margin-top: 14px">
+            <div class="slider-label-row">
+              <label class="slider-label" for="vadThresholdSlider">Sensitivity</label>
+              <span id="vadThresholdValue" class="slider-value">0.40</span>
+            </div>
+            <input
+              id="vadThresholdSlider"
+              class="os1-slider"
+              type="range"
+              min="0.1"
+              max="0.9"
+              step="0.05"
+              value="0.4"
+            />
+            <div class="slider-hint">Lower hears quieter speech. 0.1–0.9.</div>
+          </div>
+        </section>
+
+        <div id="voiceError" class="settings-error"></div>
+        <div class="modal-actions">
+          <button id="saveVoiceButton" class="modal-button" type="button">Save</button>
         </div>
       </div>
     </div>
@@ -777,33 +1177,57 @@
       const brandButton = document.querySelector("#brandButton");
       const brandMenu = document.querySelector("#brandMenu");
       const menuApiKey = document.querySelector("#menuApiKey");
+      const menuVoice = document.querySelector("#menuVoice");
       const menuKnowledgeBase = document.querySelector("#menuKnowledgeBase");
       const talkButton = document.querySelector("#talkButton");
       const keyPrompt = document.querySelector("#keyPrompt");
       const voiceMaleButton = document.querySelector("#voiceMale");
       const voiceFemaleButton = document.querySelector("#voiceFemale");
       const settingsModal = document.querySelector("#settingsModal");
+      const settingsClose = document.querySelector("#settingsClose");
+      const voiceModal = document.querySelector("#voiceModal");
+      const voiceClose = document.querySelector("#voiceClose");
+      const saveVoiceButton = document.querySelector("#saveVoiceButton");
+      const maleVoiceIdInput = document.querySelector("#maleVoiceId");
+      const femaleVoiceIdInput = document.querySelector("#femaleVoiceId");
+      const assistantNameInput = document.querySelector("#assistantName");
       const llmSearchModelInput = document.querySelector("#llmSearchModel");
+      const llmSearchLabel = document.querySelector("#llmSearchLabel");
+      const voiceProviderSelect = document.querySelector("#voiceProvider");
+      const voiceProviderLabel = document.querySelector("#voiceProviderLabel");
       const brainKeyInput = document.querySelector("#brainKey");
       const voiceKeyInput = document.querySelector("#voiceKey");
       const clearKeysButton = document.querySelector("#clearKeysButton");
       const saveKeysButton = document.querySelector("#saveKeysButton");
       const settingsError = document.querySelector("#settingsError");
+      const voiceError = document.querySelector("#voiceError");
       const statusEl = document.querySelector("#status");
       const hintEl = document.querySelector("#hint");
-      const transcriptEl = document.querySelector("#transcript");
-      const replyEl = document.querySelector("#reply");
-      const recordingCountdownEl = document.querySelector("#recordingCountdown");
+      const chatThread = document.querySelector("#chatThread");
       const player = document.querySelector("#player");
+      let userBubbleEl = null;
+      let aiBubbleEl = null;
       const referencePanel = document.querySelector("#referencePanel");
       const referenceDetails = document.querySelector("#referenceDetails");
       const referenceSummary = document.querySelector("#referenceSummary");
       const referenceContent = document.querySelector("#referenceContent");
       const referenceHideButton = document.querySelector("#referenceHide");
+      const vadSilenceSlider = document.querySelector("#vadSilenceSlider");
+      const vadSilenceValue = document.querySelector("#vadSilenceValue");
+      const vadThresholdSlider = document.querySelector("#vadThresholdSlider");
+      const vadThresholdValue = document.querySelector("#vadThresholdValue");
 
-      const RECORDING_LIMIT_SECONDS = 15;
-      const RECORDING_WARNING_SECONDS = 5;
       const TARGET_SAMPLE_RATE = 16000;
+      let serverKnowledgeEnabled = true;
+      let knowledgeUiEnabled = false;
+      // ElevenLabs VAD docs use example defaults ~1.5s silence / 0.4 threshold.
+      // Official schema is free-form float; we clamp to practical mic ranges below.
+      const VAD_SILENCE_MIN = 0.3;
+      const VAD_SILENCE_MAX = 3.0;
+      const VAD_SILENCE_DEFAULT = 1.2;
+      const VAD_THRESHOLD_MIN = 0.1;
+      const VAD_THRESHOLD_MAX = 0.9;
+      const VAD_THRESHOLD_DEFAULT = 0.4;
 
       let recorder = null;
       let mediaStream = null;
@@ -813,7 +1237,12 @@
       let micSource = null;
       let micProcessor = null;
       let micSilentGain = null;
+      let micAnalyser = null;
+      let micLevelFrame = 0;
+      let micLevelBins = null;
+      let micBarSmooth = null;
       let activeTurn = null;
+      const barEls = Array.from(document.querySelectorAll(".bar"));
       let sessionId = localStorage.getItem("os1.sessionId") || "";
       let state = "idle";
       let serverHasBrainKey = false;
@@ -823,16 +1252,26 @@
       let connectivityRetryable = false;
       let connectivityRetryTimer = 0;
       let connectivityCheckId = 0;
-      let recordingStartedAt = 0;
-      let recordingStopTimer = 0;
-      let recordingCountdownTimer = 0;
+
       let selectedVoiceGender =
         localStorage.getItem("os1.voiceGender") === "female" ? "female" : "male";
 
       migrateLegacyApiKeys();
+      loadVadSettingsIntoUi();
+      loadVoiceIdSettingsIntoUi();
+      syncKnowledgeMenu();
       setHint("idle");
       setVoiceGender(selectedVoiceGender);
       void refreshConnectivity();
+
+      vadSilenceSlider.addEventListener("input", () => {
+        updateVadSliderLabels();
+        persistVadSettings();
+      });
+      vadThresholdSlider.addEventListener("input", () => {
+        updateVadSliderLabels();
+        persistVadSettings();
+      });
 
       brandButton.addEventListener("click", (event) => {
         event.stopPropagation();
@@ -841,6 +1280,10 @@
       menuApiKey.addEventListener("click", () => {
         setBrandMenuHidden(true);
         openSettingsModal();
+      });
+      menuVoice.addEventListener("click", () => {
+        setBrandMenuHidden(true);
+        openVoiceModal();
       });
       menuKnowledgeBase.addEventListener("click", () => {
         setBrandMenuHidden(true);
@@ -852,6 +1295,22 @@
       voiceFemaleButton.addEventListener("click", () => setVoiceGender("female"));
       clearKeysButton.addEventListener("click", clearApiKeys);
       saveKeysButton.addEventListener("click", () => void saveApiKeys());
+      saveVoiceButton.addEventListener("click", () => {
+        if (!persistAssistantName()) return;
+        persistVadSettings();
+        persistVoiceIdSettings();
+        closeVoiceModal();
+      });
+      assistantNameInput.addEventListener("input", () => {
+        // Live strip non-English characters while typing.
+        const cleaned = assistantNameInput.value.replace(/[^A-Za-z '\-]/g, "");
+        if (cleaned !== assistantNameInput.value) {
+          assistantNameInput.value = cleaned;
+        }
+        if (voiceError) voiceError.textContent = "";
+      });
+      settingsClose.addEventListener("click", closeSettingsModal);
+      voiceClose.addEventListener("click", closeVoiceModal);
       referenceHideButton.addEventListener("click", () => {
         referencePanel.hidden = true;
       });
@@ -859,10 +1318,14 @@
       settingsModal.addEventListener("click", (event) => {
         if (event.target === settingsModal) closeSettingsModal();
       });
+      voiceModal.addEventListener("click", (event) => {
+        if (event.target === voiceModal) closeVoiceModal();
+      });
       window.addEventListener("keydown", (event) => {
         if (event.key === "Escape") {
           setBrandMenuHidden(true);
           if (!settingsModal.hidden) closeSettingsModal();
+          if (!voiceModal.hidden) closeVoiceModal();
         }
       });
 
@@ -900,14 +1363,23 @@
         bindRealtimeSocket(socket, activeTurn);
         await waitForSocketOpen(socket);
         const keys = getApiKeys();
+        const vad = getVadSettings();
         socket.send(
           JSON.stringify({
             type: "start",
             session_id: sessionId,
             brain_api_key: keys.brain,
             voice_api_key: keys.voice,
+            stt_api_key: keys.voice,
+            tts_api_key: keys.voice,
+            voice_provider: getVoiceProvider(),
             voice_gender: selectedVoiceGender,
+            voice_id: getSelectedVoiceId(),
             sample_rate: TARGET_SAMPLE_RATE,
+            vad_threshold: vad.threshold,
+            vad_silence_threshold_secs: vad.silenceSecs,
+            knowledge_enabled: isKnowledgeEnabled(),
+            assistant_name: getAssistantName(),
           }),
         );
         setState("connecting");
@@ -915,12 +1387,11 @@
         await waitForSttReady(activeTurn);
         await startMicPcm(socket);
         setState("recording");
-        setStatus("listening");
-        startRecordingLimit();
+        setStatus("listening — pause when done");
       }
 
       function stopRecording() {
-        clearRecordingLimit();
+        // Optional early cancel: still allowed, but VAD normally ends the turn for you.
         stopMicPcm();
         if (realtimeSocket && realtimeSocket.readyState === WebSocket.OPEN) {
           realtimeSocket.send(JSON.stringify({ type: "stop" }));
@@ -930,22 +1401,6 @@
         }
         closeRealtimeSocket();
         setState("idle");
-      }
-
-      async function onRecordingStopped() {
-        clearRecordingLimit();
-        const type = recorder?.mimeType || "audio/webm";
-        const blob = new Blob(chunks, { type });
-        if (!blob.size) {
-          setStatus("empty");
-          setState("idle");
-          return;
-        }
-        try {
-          await sendTurn(blob, type);
-        } catch (error) {
-          showError(error);
-        }
       }
 
       async function sendTurn(blob, type) {
@@ -1101,22 +1556,23 @@
           turn.resolveSttReady();
         }
         if (event === "recording_stopped") {
-          clearRecordingLimit();
           stopMicPcm();
-          setState("processing");
-          setStatus("transcribing");
+          if (state === "recording" || state === "connecting") {
+            setState("processing");
+            setStatus("transcribing");
+          }
         }
         if (event === "transcript_partial") {
-          transcriptEl.textContent = data.text || "";
+          setUserTranscript(data.text || "");
         }
         if (event === "transcript") {
-          transcriptEl.textContent = data.text || "";
+          setUserTranscript(data.text || "");
         }
         if (event === "transcript_timing") {
           turn.transcriptTiming = Array.isArray(data.words) ? data.words : [];
         }
         if (event === "knowledge") {
-          turn.knowledgeHits = Array.isArray(data.hits) ? data.hits : [];
+          turn.knowledgeHits = isKnowledgeEnabled() && Array.isArray(data.hits) ? data.hits : [];
         }
         if (event === "display") {
           const text = String(data.text || "").trim();
@@ -1185,7 +1641,7 @@
           setStatus(turn.failureStatus);
           const fallbackText = turn.finalText || turn.displayChunks.join("\n");
           if (fallbackText && !getAnswerText()) setAnswerText(fallbackText);
-          appendAnswerLine(providerErrorMessage(data));
+          appendAnswerLine(providerErrorMessage(data), { error: true });
         }
         if (event === "done") {
           turn.finalText = data.text || getAnswerText();
@@ -1200,7 +1656,7 @@
           turn.failureStatus = providerStatusLabel(data, "error");
           turn.rejectSttReady(new Error(message || "Realtime transcription failed"));
           setStatus(turn.failureStatus);
-          setAnswerText(message || "error");
+          setAnswerText(message || "error", { error: true });
         }
       }
 
@@ -1286,7 +1742,7 @@
             const errorData = await responseErrorData(response);
             setState("idle");
             setStatus(providerStatusLabel(errorData, "tts error"));
-            appendAnswerLine(providerErrorMessage(errorData));
+            appendAnswerLine(providerErrorMessage(errorData), { error: true });
             return;
           }
           const blob = await response.blob();
@@ -1684,6 +2140,11 @@
         micProcessor = micAudioContext.createScriptProcessor(4096, 1, 1);
         micSilentGain = micAudioContext.createGain();
         micSilentGain.gain.value = 0;
+        micAnalyser = micAudioContext.createAnalyser();
+        micAnalyser.fftSize = 128;
+        micAnalyser.smoothingTimeConstant = 0.72;
+        micLevelBins = new Uint8Array(micAnalyser.frequencyBinCount);
+        micBarSmooth = new Array(barEls.length).fill(0);
 
         micProcessor.onaudioprocess = (event) => {
           if (state !== "recording" || socket.readyState !== WebSocket.OPEN) return;
@@ -1692,20 +2153,95 @@
           if (pcm.byteLength) socket.send(pcm);
         };
 
+        micSource.connect(micAnalyser);
         micSource.connect(micProcessor);
         micProcessor.connect(micSilentGain);
         micSilentGain.connect(micAudioContext.destination);
         if (micAudioContext.state === "suspended") {
           await micAudioContext.resume();
         }
+        startMicLevelMeter();
+      }
+
+      function startMicLevelMeter() {
+        stopMicLevelMeter({ resetBars: false });
+        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          return;
+        }
+        // Skip DC / sub-bass bins — they stay noisy even when the user is silent.
+        const skipLowBins = 3;
+        const noiseGate = 0.045;
+        const tick = () => {
+          if (state !== "recording" || !micAnalyser || !micLevelBins || !micBarSmooth) return;
+          micAnalyser.getByteFrequencyData(micLevelBins);
+          const barCount = barEls.length;
+          const binCount = micLevelBins.length;
+          const usable = Math.max(1, binCount - skipLowBins);
+          let frameEnergy = 0;
+          for (let bin = skipLowBins; bin < binCount; bin += 1) {
+            frameEnergy += micLevelBins[bin];
+          }
+          frameEnergy /= usable * 255;
+
+          for (let index = 0; index < barCount; index += 1) {
+            let level = 0;
+            if (frameEnergy >= noiseGate) {
+              const start =
+                skipLowBins + Math.floor((index / barCount) * usable * 0.85);
+              const end = Math.max(
+                start + 1,
+                skipLowBins + Math.floor(((index + 1) / barCount) * usable * 0.9),
+              );
+              let sum = 0;
+              for (let bin = start; bin < Math.min(end, binCount); bin += 1) {
+                sum += micLevelBins[bin];
+              }
+              const raw = sum / ((Math.min(end, binCount) - start) * 255);
+              // Subtract a bit of floor so hush stays still; speech still reaches full height.
+              const gated = Math.max(0, raw - noiseGate * 0.6);
+              level = Math.pow(Math.min(1, gated * 1.8), 0.8);
+            }
+            // Fall faster than rise so residual bounce dies when you stop talking.
+            const alpha = level > micBarSmooth[index] ? 0.42 : 0.22;
+            micBarSmooth[index] = micBarSmooth[index] * (1 - alpha) + level * alpha;
+            if (micBarSmooth[index] < 0.02) micBarSmooth[index] = 0;
+            const smooth = micBarSmooth[index];
+            const height = 16 + smooth * 88;
+            const opacity = 0.55 + smooth * 0.45;
+            barEls[index].style.height = `${height.toFixed(1)}px`;
+            barEls[index].style.opacity = opacity.toFixed(3);
+          }
+          micLevelFrame = window.requestAnimationFrame(tick);
+        };
+        micLevelFrame = window.requestAnimationFrame(tick);
+      }
+
+      function stopMicLevelMeter({ resetBars = true } = {}) {
+        if (micLevelFrame) {
+          window.cancelAnimationFrame(micLevelFrame);
+          micLevelFrame = 0;
+        }
+        if (resetBars) {
+          for (const bar of barEls) {
+            bar.style.height = "";
+            bar.style.opacity = "";
+          }
+          micBarSmooth = null;
+        }
       }
 
       function stopMicPcm() {
+        stopMicLevelMeter({ resetBars: true });
         if (micProcessor) {
           micProcessor.onaudioprocess = null;
           micProcessor.disconnect();
           micProcessor = null;
         }
+        if (micAnalyser) {
+          micAnalyser.disconnect();
+          micAnalyser = null;
+        }
+        micLevelBins = null;
         if (micSource) {
           micSource.disconnect();
           micSource = null;
@@ -1742,40 +2278,7 @@
         }
       }
 
-      function startRecordingLimit() {
-        clearRecordingLimit();
-        recordingStartedAt = Date.now();
-        updateRecordingCountdown();
-        recordingCountdownTimer = window.setInterval(updateRecordingCountdown, 250);
-        recordingStopTimer = window.setTimeout(() => {
-          if (state === "recording") stopRecording();
-        }, RECORDING_LIMIT_SECONDS * 1000);
-      }
-
-      function clearRecordingLimit() {
-        window.clearTimeout(recordingStopTimer);
-        window.clearInterval(recordingCountdownTimer);
-        recordingStopTimer = 0;
-        recordingCountdownTimer = 0;
-        document.body.classList.remove("recording-ending");
-        if (recordingCountdownEl) {
-          recordingCountdownEl.textContent = `${RECORDING_LIMIT_SECONDS}s`;
-        }
-      }
-
-      function updateRecordingCountdown() {
-        if (!recordingCountdownEl) return;
-        const elapsedSeconds = Math.floor((Date.now() - recordingStartedAt) / 1000);
-        const remainingSeconds = Math.max(0, RECORDING_LIMIT_SECONDS - elapsedSeconds);
-        recordingCountdownEl.textContent = `${remainingSeconds}s`;
-        document.body.classList.toggle(
-          "recording-ending",
-          state === "recording" && remainingSeconds <= RECORDING_WARNING_SECONDS,
-        );
-      }
-
       function showError(error) {
-        clearRecordingLimit();
         stopMicPcm();
         closeRealtimeSocket();
         setAnswerText(error?.message || String(error));
@@ -1788,43 +2291,111 @@
       }
 
       function clearConversation() {
-        transcriptEl.textContent = "";
-        replyEl.replaceChildren();
-        replyEl.scrollTop = 0;
+        chatThread.replaceChildren();
+        userBubbleEl = null;
+        aiBubbleEl = null;
+        chatThread.scrollTop = 0;
         referencePanel.hidden = true;
         referenceDetails.open = true;
         referenceContent.replaceChildren();
       }
 
-      function appendAnswerLine(text) {
+      function scrollChatToBottom() {
+        chatThread.scrollTop = chatThread.scrollHeight;
+      }
+
+      function setUserTranscript(text) {
+        const value = String(text || "").trim();
+        if (!value) {
+          if (userBubbleEl?.parentElement) {
+            userBubbleEl.parentElement.remove();
+          }
+          userBubbleEl = null;
+          return;
+        }
+        if (!userBubbleEl || !userBubbleEl.isConnected) {
+          const row = document.createElement("div");
+          row.className = "chat-row chat-row-user";
+          userBubbleEl = document.createElement("div");
+          userBubbleEl.className = "chat-bubble chat-bubble-user";
+          row.appendChild(userBubbleEl);
+          // Keep user bubble above the AI reply when both exist.
+          if (aiBubbleEl?.parentElement) {
+            chatThread.insertBefore(row, aiBubbleEl.parentElement);
+          } else {
+            chatThread.appendChild(row);
+          }
+        }
+        userBubbleEl.textContent = value;
+        scrollChatToBottom();
+      }
+
+      function ensureAiBubble({ error = false } = {}) {
+        if (!aiBubbleEl || !aiBubbleEl.isConnected) {
+          const row = document.createElement("div");
+          row.className = "chat-row chat-row-ai";
+          aiBubbleEl = document.createElement("div");
+          aiBubbleEl.className = "chat-bubble chat-bubble-ai";
+          row.appendChild(aiBubbleEl);
+          chatThread.appendChild(row);
+        }
+        aiBubbleEl.classList.toggle("is-error", Boolean(error));
+        return aiBubbleEl;
+      }
+
+      function appendAnswerLine(text, { error = false } = {}) {
         if (!text) return;
+        const bubble = ensureAiBubble({ error });
+        // Drop caption-only synced block when final lines arrive.
+        const synced = bubble.querySelector(".chat-line.is-synced");
+        if (synced && bubble.childElementCount === 1) {
+          bubble.replaceChildren();
+        }
         const line = document.createElement("div");
-        line.className = "answer-line";
+        line.className = "chat-line";
         line.textContent = text;
-        replyEl.appendChild(line);
+        bubble.appendChild(line);
+        scrollChatToBottom();
       }
 
       function setSyncedAnswerText(text) {
         const visibleText = String(text || "").trimStart();
         if (!visibleText) return;
-        let line = replyEl.querySelector(".answer-line.is-synced");
+        const bubble = ensureAiBubble({ error: false });
+        let line = bubble.querySelector(".chat-line.is-synced");
         if (!line) {
-          replyEl.replaceChildren();
+          bubble.replaceChildren();
           line = document.createElement("div");
-          line.className = "answer-line is-synced";
-          replyEl.appendChild(line);
+          line.className = "chat-line is-synced";
+          bubble.appendChild(line);
         }
         line.textContent = visibleText;
-        replyEl.scrollTop = replyEl.scrollHeight;
+        scrollChatToBottom();
       }
 
-      function setAnswerText(text) {
-        replyEl.replaceChildren();
-        splitAnswerLines(text).forEach(appendAnswerLine);
+      function setAnswerText(text, { error = false } = {}) {
+        const lines = splitAnswerLines(text);
+        if (!lines.length) {
+          if (aiBubbleEl?.parentElement) {
+            aiBubbleEl.parentElement.remove();
+          }
+          aiBubbleEl = null;
+          return;
+        }
+        const bubble = ensureAiBubble({ error });
+        bubble.replaceChildren();
+        for (const part of lines) {
+          const line = document.createElement("div");
+          line.className = "chat-line";
+          line.textContent = part;
+          bubble.appendChild(line);
+        }
+        scrollChatToBottom();
       }
 
       function getAnswerText() {
-        return [...replyEl.querySelectorAll(".answer-line")]
+        if (!aiBubbleEl) return "";
+        return [...aiBubbleEl.querySelectorAll(".chat-line")]
           .map((line) => line.textContent)
           .join("\n");
       }
@@ -1842,12 +2413,12 @@
 
       function setHint(next) {
         if (next === "recording") {
-          hintEl.textContent = "Press to Stop";
+          hintEl.textContent = "Speak, then pause";
           hintEl.hidden = false;
           return;
         }
         if (next === "idle") {
-          hintEl.textContent = "Press to Talk";
+          hintEl.textContent = "Tap to speak";
           hintEl.hidden = false;
           return;
         }
@@ -1860,7 +2431,13 @@
         document.body.classList.toggle("is-speaking", next === "speaking");
         document.body.classList.toggle("is-thinking", next === "thinking");
         talkButton.disabled = !canTalk() || (next !== "idle" && next !== "recording");
-        talkButton.setAttribute("aria-label", next === "recording" ? "停止录音" : "开始录音");
+        talkButton.setAttribute(
+          "aria-label",
+          next === "recording" ? "取消录音" : "开始录音",
+        );
+        if (next !== "recording") {
+          stopMicLevelMeter({ resetBars: true });
+        }
         updateVoiceControls();
         setHint(next);
         if (next === "idle" && providersReady) setStatus("ready");
@@ -1880,6 +2457,10 @@
           brain: sessionStorage.getItem("os1.brainApiKey") || "",
           voice: sessionStorage.getItem("os1.voiceApiKey") || "",
         };
+      }
+
+      function getVoiceProvider() {
+        return sessionStorage.getItem("os1.voiceProvider") || voiceProviderSelect.value || "elevenlabs";
       }
 
       function migrateLegacyApiKeys() {
@@ -1902,6 +2483,9 @@
         return {
           "X-OS1-Brain-API-Key": keys.brain,
           "X-OS1-Voice-API-Key": keys.voice,
+          "X-OS1-STT-API-Key": keys.voice,
+          "X-OS1-TTS-API-Key": keys.voice,
+          "X-OS1-Voice-Provider": getVoiceProvider(),
           "X-OS1-Voice-Gender": selectedVoiceGender,
         };
       }
@@ -1938,10 +2522,49 @@
           if (response.ok) {
             const health = await response.json();
             serverHasBrainKey = Boolean(health.has_llm_key);
-            serverHasVoiceKey = Boolean(health.has_elevenlabs_key);
+            const providers = Array.isArray(health.tts_providers) ? health.tts_providers : [];
+            if (providers.length) {
+              const storedProvider = sessionStorage.getItem("os1.voiceProvider");
+              const selectedProvider = providers.includes(storedProvider)
+                ? storedProvider
+                : health.default_tts_provider || providers[0];
+              sessionStorage.setItem("os1.voiceProvider", selectedProvider);
+              voiceProviderSelect.replaceChildren(
+                ...providers.map((provider) => {
+                  const option = document.createElement("option");
+                  option.value = provider;
+                  option.textContent = provider;
+                  option.selected = provider === selectedProvider;
+                  return option;
+                }),
+              );
+              voiceProviderSelect.disabled = providers.length < 2;
+            }
+            const providerKeys = health.tts_provider_keys || {};
+            serverHasVoiceKey = Boolean(
+              providerKeys[getVoiceProvider()] ?? health.has_tts_key ?? health.has_elevenlabs_key
+            );
             const selectorModel = health.llm_search_model || "grok-4.5";
             const selectorEffort = health.llm_search_reasoning_effort || "low";
             llmSearchModelInput.value = `${selectorModel} · ${selectorEffort} reasoning`;
+            if (llmSearchLabel) {
+              llmSearchLabel.textContent = `xAI · ${selectorModel}`;
+            }
+            if (voiceProviderLabel) {
+              voiceProviderLabel.textContent = getVoiceProvider() || "ElevenLabs";
+            }
+            serverKnowledgeEnabled = health.knowledge_enabled !== false;
+            knowledgeUiEnabled = health.knowledge_ui_enabled === true;
+            if (!serverKnowledgeEnabled) {
+              sessionStorage.setItem("os1.knowledgeEnabled", "0");
+            }
+            if (!sessionStorage.getItem("os1.maleVoiceId") && health.default_male_voice_id) {
+              maleVoiceIdInput.placeholder = String(health.default_male_voice_id);
+            }
+            if (!sessionStorage.getItem("os1.femaleVoiceId") && health.default_female_voice_id) {
+              femaleVoiceIdInput.placeholder = String(health.default_female_voice_id);
+            }
+            syncKnowledgeMenu();
           }
         } catch {
           serverHasBrainKey = false;
@@ -1979,11 +2602,11 @@
           const report = await response.json();
           if (checkId !== connectivityCheckId) return;
           providersReady = Boolean(report.ready);
-          connectivityRetryable = [report.brain, report.voice].some(
+          connectivityRetryable = [report.brain, report.stt, report.tts || report.voice].some(
             (provider) => provider && !provider.ok && isRetryableConnectivityCode(provider.code),
           );
           setStatus(connectivityStatus(report));
-          statusEl.title = [report.brain, report.voice]
+          statusEl.title = [report.brain, report.stt, report.tts || report.voice]
             .filter((provider) => provider && !provider.ok)
             .map(providerErrorMessage)
             .join(" ");
@@ -2008,7 +2631,9 @@
 
       function connectivityStatus(report) {
         const brain = report.brain || {};
-        const voice = report.voice || {};
+        const stt = report.stt || report.voice || {};
+        const tts = report.tts || report.voice || {};
+        const voice = stt.ok ? tts : stt;
         if (brain.ok && voice.ok) return "ready";
         if (brain.code === "authentication_failed") return "brain key error";
         if (voice.code === "authentication_failed") return "voice key error";
@@ -2056,8 +2681,74 @@
         brandButton.setAttribute("aria-expanded", String(!hidden));
       }
 
+      function isKnowledgeEnabled() {
+        // No Knowledge menu/UI ⇒ no search and no Ref panel.
+        if (!serverKnowledgeEnabled || !knowledgeUiEnabled) return false;
+        const stored = sessionStorage.getItem("os1.knowledgeEnabled");
+        if (stored === null) return true;
+        return stored === "1" || stored === "true";
+      }
+
+      function syncKnowledgeMenu() {
+        menuKnowledgeBase.hidden = !knowledgeUiEnabled;
+      }
+
+      function getSelectedVoiceId() {
+        const key = selectedVoiceGender === "female" ? "os1.femaleVoiceId" : "os1.maleVoiceId";
+        return (sessionStorage.getItem(key) || "").trim();
+      }
+
+      function loadVoiceIdSettingsIntoUi() {
+        maleVoiceIdInput.value = sessionStorage.getItem("os1.maleVoiceId") || "";
+        femaleVoiceIdInput.value = sessionStorage.getItem("os1.femaleVoiceId") || "";
+        assistantNameInput.value = sessionStorage.getItem("os1.assistantName") || "";
+        if (voiceError) voiceError.textContent = "";
+      }
+
+      function persistVoiceIdSettings() {
+        const male = maleVoiceIdInput.value.trim();
+        const female = femaleVoiceIdInput.value.trim();
+        if (male) sessionStorage.setItem("os1.maleVoiceId", male);
+        else sessionStorage.removeItem("os1.maleVoiceId");
+        if (female) sessionStorage.setItem("os1.femaleVoiceId", female);
+        else sessionStorage.removeItem("os1.femaleVoiceId");
+      }
+
+      function getAssistantName() {
+        return sanitizeAssistantName(sessionStorage.getItem("os1.assistantName") || "");
+      }
+
+      function sanitizeAssistantName(value) {
+        const name = String(value || "").trim().replace(/\s+/g, " ");
+        if (!name) return "";
+        // English only for now.
+        if (!/^[A-Za-z][A-Za-z '\-]{0,39}$/.test(name)) return "";
+        return name;
+      }
+
+      function persistAssistantName() {
+        const raw = assistantNameInput.value.trim().replace(/\s+/g, " ");
+        if (!raw) {
+          sessionStorage.removeItem("os1.assistantName");
+          assistantNameInput.value = "";
+          if (voiceError) voiceError.textContent = "";
+          return true;
+        }
+        const name = sanitizeAssistantName(raw);
+        if (!name) {
+          if (voiceError) {
+            voiceError.textContent = "Name must be English letters only (spaces, - and ' ok).";
+          }
+          return false;
+        }
+        sessionStorage.setItem("os1.assistantName", name);
+        assistantNameInput.value = name;
+        if (voiceError) voiceError.textContent = "";
+        return true;
+      }
+
       function renderReferences(hits) {
-        if (!Array.isArray(hits) || !hits.length) {
+        if (!isKnowledgeEnabled() || !Array.isArray(hits) || !hits.length) {
           referencePanel.hidden = true;
           return;
         }
@@ -2124,6 +2815,81 @@
         updateKeyState();
       }
 
+      function openVoiceModal() {
+        loadVadSettingsIntoUi();
+        loadVoiceIdSettingsIntoUi();
+        setVoiceGender(selectedVoiceGender);
+        voiceModal.hidden = false;
+      }
+
+      function closeVoiceModal() {
+        voiceModal.hidden = true;
+      }
+
+      function clampNumber(value, min, max, fallback) {
+        const number = Number(value);
+        if (!Number.isFinite(number)) return fallback;
+        return Math.min(max, Math.max(min, number));
+      }
+
+      function getVadSettings() {
+        return {
+          silenceSecs: clampNumber(
+            sessionStorage.getItem("os1.vadSilenceSecs") ?? vadSilenceSlider.value,
+            VAD_SILENCE_MIN,
+            VAD_SILENCE_MAX,
+            VAD_SILENCE_DEFAULT,
+          ),
+          threshold: clampNumber(
+            sessionStorage.getItem("os1.vadThreshold") ?? vadThresholdSlider.value,
+            VAD_THRESHOLD_MIN,
+            VAD_THRESHOLD_MAX,
+            VAD_THRESHOLD_DEFAULT,
+          ),
+        };
+      }
+
+      function loadVadSettingsIntoUi() {
+        const vad = getVadSettings();
+        vadSilenceSlider.value = String(vad.silenceSecs);
+        vadThresholdSlider.value = String(vad.threshold);
+        updateVadSliderLabels();
+      }
+
+      function updateVadSliderLabels() {
+        const silence = clampNumber(
+          vadSilenceSlider.value,
+          VAD_SILENCE_MIN,
+          VAD_SILENCE_MAX,
+          VAD_SILENCE_DEFAULT,
+        );
+        const threshold = clampNumber(
+          vadThresholdSlider.value,
+          VAD_THRESHOLD_MIN,
+          VAD_THRESHOLD_MAX,
+          VAD_THRESHOLD_DEFAULT,
+        );
+        vadSilenceValue.textContent = `${silence.toFixed(1)}s`;
+        vadThresholdValue.textContent = threshold.toFixed(2);
+      }
+
+      function persistVadSettings() {
+        const silence = clampNumber(
+          vadSilenceSlider.value,
+          VAD_SILENCE_MIN,
+          VAD_SILENCE_MAX,
+          VAD_SILENCE_DEFAULT,
+        );
+        const threshold = clampNumber(
+          vadThresholdSlider.value,
+          VAD_THRESHOLD_MIN,
+          VAD_THRESHOLD_MAX,
+          VAD_THRESHOLD_DEFAULT,
+        );
+        sessionStorage.setItem("os1.vadSilenceSecs", String(silence));
+        sessionStorage.setItem("os1.vadThreshold", String(threshold));
+      }
+
       async function saveApiKeys() {
         const brain = brainKeyInput.value.trim();
         const voice = voiceKeyInput.value.trim();
@@ -2132,7 +2898,7 @@
           return;
         }
         sessionStorage.setItem("os1.brainProvider", "xai");
-        sessionStorage.setItem("os1.voiceProvider", "elevenlabs");
+        sessionStorage.setItem("os1.voiceProvider", voiceProviderSelect.value || "elevenlabs");
         sessionStorage.setItem("os1.brainApiKey", brain);
         sessionStorage.setItem("os1.voiceApiKey", voice);
         serverHasBrainKey = true;

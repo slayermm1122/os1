@@ -2,6 +2,21 @@
 
 This file records the user-visible and internal changes in each OS1 release. Versions follow the project's `X.Y.Z` convention described in the README.
 
+## v0.03.03 - 2026-07-25
+
+Voice conversation polish: VAD listening, chat bubbles, quieter settings.
+
+- Replaced the press-to-stop / 15-second recording limit with ElevenLabs realtime STT VAD end-of-speech.
+- Added adjustable silence and sensitivity controls in the Voice settings panel.
+- Redesigned Keys and Voice settings toward a calmer OS1 visual language.
+- Moved male / female selection into Voice settings and restored quiet text toggles.
+- Added an optional English assistant name injected into the system prompt.
+- Drove recording orb bars from live microphone levels; kept assistant speaking motion small.
+- Softened the orb hover glow so it fades into the room without a hard plate ring.
+- Replaced centered transcript lines with center-panel chat bubbles (user right, assistant left).
+- Tightened spoken-chat system instructions so replies stay short for live conversation and TTS.
+- Hid advanced product surfaces behind configuration for a leaner default voice experience.
+
 ## v0.03.02 - 2026-07-13
 
 Timestamp-synchronized live captions.

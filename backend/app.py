@@ -25,7 +25,7 @@ from .gateways.knowledge import (
 )
 from .gateways.ai import XAIGateway
 from .gateways.stt import ElevenLabsSTTGateway
-from .gateways.tts import ElevenLabsTTSGateway
+from .gateways.tts import ElevenLabsTTSGateway, TTSAdapter
 from .services import ApplicationServices
 from .telemetry import SQLiteTelemetryRecorder
 from .version import APP_VERSION
@@ -61,11 +61,15 @@ knowledge = KnowledgeSearchCoordinator(
     ],
     telemetry=telemetry,
 )
+tts = TTSAdapter(
+    [ElevenLabsTTSGateway(settings)],
+    default_provider=settings.default_tts_provider,
+)
 orchestrator = TurnOrchestrator(
     settings=settings,
     llm=answer_ai,
     stt=ElevenLabsSTTGateway(settings),
-    tts=ElevenLabsTTSGateway(settings),
+    tts=tts,
     knowledge=knowledge,
     sessions=KVConversationStore(
         max_turns=settings.max_history_turns,
@@ -85,7 +89,9 @@ services = ApplicationServices(
     ),
     connectivity=ConnectivityService(
         brain=XAIConnectivityProbe(settings),
-        voice=ElevenLabsConnectivityProbe(settings),
+        stt=ElevenLabsConnectivityProbe(settings, capabilities=("realtime_scribe",)),
+        tts=[ElevenLabsConnectivityProbe(settings, capabilities=("tts_websocket",))],
+        default_tts_provider=settings.default_tts_provider,
     ),
     knowledge_browser=KnowledgeBrowser(settings.knowledge_root_dir),
 )

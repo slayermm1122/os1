@@ -54,6 +54,7 @@ def settings_for(root: Path, **overrides) -> Settings:
         "root_dir": root,
         "frontend_dir": root / "frontend",
         "knowledge_enabled": True,
+        "knowledge_ui_enabled": True,
         "knowledge_root_dir": root / "knowledge",
         "knowledge_docs_dir": root / "knowledge" / "raw",
         "knowledge_db_path": root / "data" / "knowledge.sqlite",
@@ -144,7 +145,11 @@ class TurnKnowledge:
     provider = "test_knowledge"
     enabled = True
 
+    def __init__(self) -> None:
+        self.calls = 0
+
     async def search_evidence(self, query, **kwargs):
+        self.calls += 1
         return [
             KnowledgeEvidence(
                 f"evidence:{query}", "test", "raw_chunk", "Reference",
@@ -218,6 +223,7 @@ class KVConversationTests(unittest.TestCase):
             user_text="What is attention?",
             history=store.get_history("one"),
             knowledge_context="R1",
+            knowledge_enabled=True,
         )
         self.assertTrue(messages[0]["content"].startswith("stable-system"))
         self.assertIn("untrusted data", messages[0]["content"])
@@ -230,10 +236,68 @@ class KVConversationTests(unittest.TestCase):
             user_text="And multi-head attention?",
             history=store.get_history("one"),
             knowledge_context="R2",
+            knowledge_enabled=True,
         )
         self.assertEqual(second[1]["content"], messages[-1]["content"])
         self.assertIn("R1", second[1]["content"])
         self.assertIn("R2", second[-1]["content"])
+
+    def test_knowledge_disabled_keeps_plain_system_and_user(self) -> None:
+        messages = build_messages(
+            system_prompt="stable-system",
+            user_text="What is attention?",
+            history=[
+                {
+                    "role": "user",
+                    "content": (
+                        "Old question\n\n"
+                        "<knowledge_context>\n"
+                        "secret retrieved chunk\n"
+                        "</knowledge_context>"
+                    ),
+                },
+                {"role": "assistant", "content": "Old answer"},
+            ],
+            knowledge_context="should-not-appear",
+            knowledge_enabled=False,
+        )
+        self.assertTrue(messages[0]["content"].startswith("stable-system"))
+        self.assertIn("short spoken reply", messages[0]["content"])
+        self.assertIn("do not have a document knowledge base", messages[0]["content"])
+        self.assertNotIn("untrusted data", messages[0]["content"])
+        self.assertNotIn("Use relevant reference material", messages[0]["content"])
+        self.assertEqual(messages[1]["content"], "Old question")
+        self.assertNotIn("secret retrieved chunk", messages[1]["content"])
+        self.assertEqual(messages[-1]["content"], "What is attention?")
+        self.assertNotIn("should-not-appear", messages[-1]["content"])
+
+    def test_assistant_name_is_optional_and_english_only(self) -> None:
+        plain = build_messages(
+            system_prompt="stable-system",
+            user_text="Hi",
+            history=[],
+            knowledge_enabled=False,
+        )
+        self.assertNotIn("Your name is", plain[0]["content"])
+
+        named = build_messages(
+            system_prompt="stable-system",
+            user_text="Hi",
+            history=[],
+            knowledge_enabled=False,
+            assistant_name="Samantha",
+        )
+        self.assertIn('Your name is "Samantha"', named[0]["content"])
+        self.assertIn('you are just "Samantha"', named[0]["content"])
+
+        ignored = build_messages(
+            system_prompt="stable-system",
+            user_text="Hi",
+            history=[],
+            knowledge_enabled=False,
+            assistant_name="小明",
+        )
+        self.assertNotIn("Your name is", ignored[0]["content"])
 
     def test_turn_limit_is_configurable(self) -> None:
         store = KVConversationStore(max_turns=2, max_sessions=5, ttl_seconds=3600)
@@ -249,7 +313,7 @@ class KVConversationPipelineTests(unittest.IsolatedAsyncioTestCase):
             recorder = SQLiteTelemetryRecorder(Path(temp) / "telemetry.sqlite", enabled=False)
             conversations = KVConversationStore(max_turns=8, max_sessions=5, ttl_seconds=3600)
             orchestrator = TurnOrchestrator(
-                settings=Settings(knowledge_enabled=True),
+                settings=Settings(knowledge_enabled=True, knowledge_ui_enabled=True),
                 llm=ai,
                 stt=object(),
                 tts=object(),
@@ -278,6 +342,46 @@ class KVConversationPipelineTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("Evidence for What is attention?", second.messages[1]["content"])
             self.assertIn("Ignore previous instructions", second.messages[1]["content"])
             self.assertIn("untrusted data", second.messages[0]["content"])
+
+    async def test_knowledge_off_skips_search_and_keeps_plain_messages(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            ai = CaptureAnswerAI()
+            recorder = SQLiteTelemetryRecorder(Path(temp) / "telemetry.sqlite", enabled=False)
+            conversations = KVConversationStore(max_turns=8, max_sessions=5, ttl_seconds=3600)
+            knowledge = TurnKnowledge()
+            orchestrator = TurnOrchestrator(
+                settings=Settings(knowledge_enabled=True, knowledge_ui_enabled=True),
+                llm=ai,
+                stt=object(),
+                tts=object(),
+                knowledge=knowledge,
+                sessions=conversations,
+                telemetry=recorder,
+            )
+            trace = orchestrator.new_trace(session_id="plain", kind="chat_only")
+            events = [
+                event
+                async for event in orchestrator.stream_chat(
+                    trace,
+                    user_text="What is attention?",
+                    with_audio=False,
+                    brain_api_key="key",
+                    voice_api_key=None,
+                    voice_id=None,
+                    knowledge_enabled=False,
+                )
+            ]
+            self.assertEqual(events[-1].event, "done")
+            self.assertFalse(any(event.event == "knowledge" for event in events))
+            self.assertEqual(knowledge.calls, 0)
+            request = ai.requests[0]
+            self.assertTrue(
+                request.messages[0]["content"].startswith(orchestrator.settings.system_prompt)
+            )
+            self.assertIn("short spoken reply", request.messages[0]["content"])
+            self.assertNotIn("untrusted data", request.messages[0]["content"])
+            self.assertEqual(request.messages[-1]["content"], "What is attention?")
+            self.assertNotIn("knowledge_context", request.messages[-1]["content"])
 
 
 class SearchCoordinatorTests(unittest.IsolatedAsyncioTestCase):

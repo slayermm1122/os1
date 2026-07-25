@@ -24,7 +24,27 @@ class ElevenLabsTTSGateway:
         self.model = settings.elevenlabs_tts_model
         self.http_output_format = settings.elevenlabs_output_format
         self.stream_output_format = settings.elevenlabs_stream_output_format
-        self.stream_sample_rate = settings.tts_stream_sample_rate
+        self.stream_sample_rate = _sample_rate(self.stream_output_format)
+        self.http_media_type = _media_type(self.http_output_format)
+        self.stream_media_type = _media_type(self.stream_output_format)
+
+    @property
+    def api_key_configured(self) -> bool:
+        return bool(self.settings.elevenlabs_api_key.strip())
+
+    def resolve_voice_id(
+        self,
+        voice_id: str | None,
+        voice_gender: str | None,
+    ) -> str | None:
+        if voice_id and voice_id.strip():
+            return voice_id.strip()
+        gender = (voice_gender or "").strip().lower()
+        if gender == "female":
+            return self.settings.elevenlabs_female_voice_id
+        if gender == "male":
+            return self.settings.elevenlabs_male_voice_id
+        return None
 
     def _require_api_key(self, api_key: str | None) -> str:
         resolved = (api_key or self.settings.elevenlabs_api_key).strip()
@@ -317,6 +337,25 @@ def _parse_alignment(value: object) -> TTSAlignment | None:
         char_start_times_ms=tuple(parsed_starts),
         char_durations_ms=tuple(parsed_durations),
     )
+
+
+def _media_type(output_format: str) -> str:
+    if output_format.startswith("mp3"):
+        return "audio/mpeg"
+    if output_format.startswith("wav"):
+        return "audio/wav"
+    if output_format.startswith("pcm"):
+        return "audio/L16"
+    return "application/octet-stream"
+
+
+def _sample_rate(output_format: str) -> int | None:
+    if not output_format.startswith("pcm_"):
+        return None
+    try:
+        return int(output_format.split("_", 1)[1])
+    except (IndexError, ValueError):
+        return None
 
 
 def _finite_number(value: object) -> float | None:
