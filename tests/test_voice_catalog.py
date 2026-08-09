@@ -177,6 +177,8 @@ class LocalSettingsServiceTests(unittest.TestCase):
             service = LocalSettingsService(settings, env_path)
 
             service.select_voice("new_voice_123", "zh")
+            service.update_response_language("zh")
+            service.update_stt_keyterms(["OS1", "ElevenLabs", "OS1"])
             service.update_persona(
                 assistant_name="Samantha",
                 user_name="小明",
@@ -189,12 +191,15 @@ class LocalSettingsServiceTests(unittest.TestCase):
 
             content = env_path.read_text(encoding="utf-8")
             self.assertIn("ELEVENLABS_VOICE_ID=new_voice_123", content)
-            self.assertIn("ELEVENLABS_VOICE_LANGUAGE=zh", content)
+            self.assertNotIn("ELEVENLABS_VOICE_LANGUAGE", content)
+            self.assertIn("ASSISTANT_RESPONSE_LANGUAGE=zh", content)
+            self.assertIn("ELEVENLABS_STT_KEYTERMS_JSON", content)
             self.assertIn("ASSISTANT_NAME=Samantha", content)
             self.assertIn("USER_NAME=小明", content)
             self.assertIn("ASSISTANT_PERSONA=conversational", content)
             self.assertEqual(settings.elevenlabs_voice_id, "new_voice_123")
-            self.assertEqual(settings.elevenlabs_voice_language, "zh")
+            self.assertEqual(settings.assistant_response_language, "zh")
+            self.assertEqual(settings.elevenlabs_stt_keyterms, ("OS1", "ElevenLabs"))
             self.assertEqual(settings.assistant_name, "Samantha")
             self.assertEqual(settings.user_name, "小明")
             self.assertEqual(settings.assistant_persona, "conversational")

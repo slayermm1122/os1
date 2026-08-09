@@ -31,14 +31,19 @@ class KVConversationStore:
         return [message.copy() for message in history]
 
     def append_turn(self, session_id: str, model_user_text: str, assistant_text: str) -> None:
+        self.append_exchange(session_id, model_user_text, assistant_text)
+
+    def append_exchange(
+        self,
+        session_id: str,
+        model_user_text: str,
+        assistant_text: str | None,
+    ) -> None:
         self._purge()
         history = self._sessions.setdefault(session_id, [])
-        history.extend(
-            [
-                {"role": "user", "content": model_user_text},
-                {"role": "assistant", "content": assistant_text},
-            ]
-        )
+        history.append({"role": "user", "content": model_user_text})
+        if assistant_text:
+            history.append({"role": "assistant", "content": assistant_text})
         self._touched_at[session_id] = time.monotonic()
         self._trim()
 

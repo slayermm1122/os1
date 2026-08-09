@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 import threading
@@ -26,12 +27,53 @@ class LocalSettingsService:
         selected = voice_id.strip()
         if not _VOICE_ID_RE.fullmatch(selected):
             raise ValueError("Invalid ElevenLabs voice id.")
-        selected_language = "zh" if str(language or "").lower().startswith("zh") else "en"
+        del language
         with self._lock:
             self._set("ELEVENLABS_VOICE_ID", selected)
-            self._set("ELEVENLABS_VOICE_LANGUAGE", selected_language)
             self.settings.elevenlabs_voice_id = selected
-            self.settings.elevenlabs_voice_language = selected_language
+
+    def update_response_language(self, mode: str) -> None:
+        selected = str(mode or "").strip().lower()
+        if selected not in {"auto", "en", "zh"}:
+            raise ValueError("Response language must be auto, en, or zh.")
+        with self._lock:
+            self._set("ASSISTANT_RESPONSE_LANGUAGE", selected)
+            self.settings.assistant_response_language = selected
+
+    def update_stt_keyterms(self, keyterms: list[str]) -> tuple[str, ...]:
+        cleaned: list[str] = []
+        seen: set[str] = set()
+        for raw in keyterms:
+            term = " ".join(str(raw or "").split()).strip()
+            if not term:
+                continue
+            if len(term) > 20:
+                raise ValueError("Realtime Scribe keyterms may contain at most 20 characters.")
+            if any(character in term for character in "<>{}[]\\"):
+                raise ValueError("A keyterm contains unsupported punctuation.")
+            folded = term.casefold()
+            if folded in seen:
+                continue
+            seen.add(folded)
+            cleaned.append(term)
+        if len(cleaned) > 50:
+            raise ValueError("Realtime Scribe supports at most 50 keyterms.")
+        result = tuple(cleaned)
+        with self._lock:
+            self._set_json("ELEVENLABS_STT_KEYTERMS_JSON", list(result))
+            self.settings.elevenlabs_stt_keyterms = result
+        return result
+
+    def update_pronunciation_locator(self, dictionary_id: str, version_id: str) -> None:
+        selected_dictionary = str(dictionary_id or "").strip()
+        selected_version = str(version_id or "").strip()
+        if bool(selected_dictionary) != bool(selected_version):
+            raise ValueError("Pronunciation dictionary id and version must be set together.")
+        with self._lock:
+            self._set("ELEVENLABS_PRONUNCIATION_DICTIONARY_ID", selected_dictionary)
+            self._set("ELEVENLABS_PRONUNCIATION_DICTIONARY_VERSION_ID", selected_version)
+            self.settings.elevenlabs_pronunciation_dictionary_id = selected_dictionary
+            self.settings.elevenlabs_pronunciation_dictionary_version_id = selected_version
 
     def update_voice_profile(
         self,
@@ -74,6 +116,17 @@ class LocalSettingsService:
     def _set(self, key: str, value: str) -> None:
         self.env_path.touch(mode=0o600, exist_ok=True)
         set_key(str(self.env_path), key, value, quote_mode="never")
+        if os.name == "posix":
+            self.env_path.chmod(0o600)
+
+    def _set_json(self, key: str, value: object) -> None:
+        self.env_path.touch(mode=0o600, exist_ok=True)
+        set_key(
+            str(self.env_path),
+            key,
+            json.dumps(value, ensure_ascii=False, separators=(",", ":")),
+            quote_mode="always",
+        )
         if os.name == "posix":
             self.env_path.chmod(0o600)
 

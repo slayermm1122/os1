@@ -11,12 +11,14 @@ from .api.routes import create_router
 from .config import settings
 from .core.connectivity import ConnectivityService
 from .core.local_settings import LocalSettingsService
+from .core.live_sessions import LiveSessionRegistry
 from .core.orchestrator import TurnOrchestrator
 from .core.rate_limit import SlidingWindowRateLimiter
 from .core.security import is_allowed_websocket, is_local_http_request
 from .core.sessions import KVConversationStore
 from .gateways.connectivity import ElevenLabsConnectivityProbe, XAIConnectivityProbe
 from .gateways.elevenlabs_account import ElevenLabsAccountGateway
+from .gateways.pronunciation import ElevenLabsPronunciationGateway
 from .gateways.ai import XAIGateway
 from .gateways.stt import ElevenLabsSTTGateway
 from .gateways.tts import ElevenLabsTTSGateway, TTSAdapter
@@ -37,6 +39,7 @@ telemetry = SQLiteTelemetryRecorder(
 )
 answer_ai = XAIGateway(settings)
 local_settings = LocalSettingsService(settings, settings.root_dir / ".env")
+live_sessions = LiveSessionRegistry()
 tts = TTSAdapter(
     [ElevenLabsTTSGateway(settings)],
     default_provider=settings.default_tts_provider,
@@ -69,6 +72,8 @@ services = ApplicationServices(
     voice_catalog=ElevenLabsVoiceCatalog(settings),
     account=ElevenLabsAccountGateway(settings),
     local_settings=local_settings,
+    pronunciation=ElevenLabsPronunciationGateway(settings),
+    live_sessions=live_sessions,
 )
 
 
@@ -78,6 +83,7 @@ async def lifespan(_: FastAPI):
     try:
         yield
     finally:
+        await live_sessions.close_all()
         await telemetry.close()
 
 

@@ -8,7 +8,7 @@ import time
 import uuid
 from contextlib import closing
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +36,21 @@ _UPDATE_COLUMNS = {
         "input_chunks", "first_text_ms", "first_audio_ms", "audio_bytes",
         "audio_duration_ms", "character_cost", "provider_request_id", "trace_id", "error_id",
     },
+}
+
+_CONTENT_COLUMNS = {
+    "llm_calls": {"response_text"},
+    "stt_calls": {"transcript_text"},
+    "tts_calls": {"input_text"},
+}
+
+_REQUEST_CONTENT_KEYS = {
+    "content",
+    "contents",
+    "input",
+    "messages",
+    "prompt",
+    "text",
 }
 
 
@@ -102,16 +117,9 @@ class TurnTrace:
         )
 
     def update_text(self, *, user_text: str | None = None, assistant_text: str | None = None) -> None:
-        if user_text is not None:
-            self.recorder._enqueue(
-                "UPDATE turns SET user_text = ? WHERE turn_id = ?",
-                (user_text, self.turn_id),
-            )
-        if assistant_text is not None:
-            self.recorder._enqueue(
-                "UPDATE turns SET assistant_text = ? WHERE turn_id = ?",
-                (assistant_text, self.turn_id),
-            )
+        # Keep the public tracing API stable while deliberately excluding
+        # conversation content from the telemetry database.
+        del user_text, assistant_text
 
     def finish(
         self,
@@ -129,17 +137,11 @@ class TurnTrace:
             status = "partial_failure"
         duration_ms = self.offset_ms()
         self.event("turn.completed", stage="turn", metadata={"status": status}, offset_ms=duration_ms)
+        del assistant_text
         self.recorder._enqueue(
             "UPDATE turns SET status = ?, completed_at = ?, duration_ms = ?, "
-            "assistant_text = COALESCE(?, assistant_text), response_complete = ? WHERE turn_id = ?",
-            (
-                status,
-                utc_now(),
-                duration_ms,
-                assistant_text,
-                int(response_complete),
-                self.turn_id,
-            ),
+            "response_complete = ? WHERE turn_id = ?",
+            (status, utc_now(), duration_ms, int(response_complete), self.turn_id),
         )
 
     def mark_partial_failure(self) -> None:
@@ -192,6 +194,15 @@ class SQLiteTelemetryRecorder:
         await self.queue.put(None)
         await self._writer_task
         self._writer_task = None
+
+    async def usage_summary(self, period: str) -> dict[str, object]:
+        if period not in {"7d", "30d", "all"}:
+            raise ValueError("Usage range must be 7d, 30d, or all.")
+        if self._writer_task is not None:
+            await self.queue.join()
+        if not self.db_path.exists():
+            return _empty_usage_summary(period, enabled=self.enabled)
+        return await asyncio.to_thread(self._usage_summary_sync, period)
 
     def new_turn(self, *, session_id: str, kind: str, turn_id: str | None = None) -> TurnTrace:
         return TurnTrace(
@@ -259,7 +270,7 @@ class SQLiteTelemetryRecorder:
             "status, started_at, request_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 call_id, trace.turn_id, provider, model, reasoning_effort, purpose,
-                "running", utc_now(), json_text(request),
+                "running", utc_now(), json_text(_without_content(request)),
             ),
         )
 
@@ -321,6 +332,13 @@ class SQLiteTelemetryRecorder:
         unknown_columns = set(values) - allowed_columns
         if unknown_columns:
             logger.error("Telemetry update rejected unknown columns for %s: %s", table, sorted(unknown_columns))
+            return
+        values = {
+            column: value
+            for column, value in values.items()
+            if column not in _CONTENT_COLUMNS.get(table, set())
+        }
+        if not values:
             return
         columns = ", ".join(f"{column} = ?" for column in values)
         # SQL identifiers are restricted by the per-table allowlist above.
@@ -431,3 +449,157 @@ class SQLiteTelemetryRecorder:
         if self.manage_parent_permissions and self.db_path.parent.exists():
             prepare_private_directory(self.db_path.parent, manage_existing=True)
         secure_private_files(paths)
+
+    def _usage_summary_sync(self, period: str) -> dict[str, object]:
+        cutoff = _usage_cutoff(period)
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA query_only=ON")
+            conn.execute("PRAGMA busy_timeout=5000")
+            llm_total = _usage_rows(conn, "llm", cutoff, group="total")[0]
+            stt_total = _usage_rows(conn, "stt", cutoff, group="total")[0]
+            tts_total = _usage_rows(conn, "tts", cutoff, group="total")[0]
+            llm_models = _usage_rows(conn, "llm", cutoff, group="model")
+            stt_models = _usage_rows(conn, "stt", cutoff, group="model")
+            tts_models = _usage_rows(conn, "tts", cutoff, group="model")
+            day_rows = {
+                "llm": _usage_rows(conn, "llm", cutoff, group="day"),
+                "stt": _usage_rows(conn, "stt", cutoff, group="day"),
+                "tts": _usage_rows(conn, "tts", cutoff, group="day"),
+            }
+
+        days: dict[str, dict[str, object]] = {}
+        for service, rows in day_rows.items():
+            for row in rows:
+                day = str(row.pop("day"))
+                days.setdefault(day, {"date": day})[service] = row
+
+        elevenlabs_total = _combine_usage(stt_total, tts_total)
+        return {
+            "range": period,
+            "generated_at": utc_now(),
+            "telemetry_enabled": self.enabled,
+            "content_recording": False,
+            "totals": {"llm": llm_total, "elevenlabs": elevenlabs_total},
+            "models": {"llm": llm_models, "stt": stt_models, "tts": tts_models},
+            "days": [days[day] for day in sorted(days, reverse=True)],
+        }
+
+
+def _without_content(value: object) -> object:
+    if isinstance(value, dict):
+        return {
+            key: _without_content(item)
+            for key, item in value.items()
+            if str(key).strip().lower() not in _REQUEST_CONTENT_KEYS
+        }
+    if isinstance(value, list):
+        return [_without_content(item) for item in value]
+    return value
+
+
+def _usage_cutoff(period: str) -> str | None:
+    days = {"7d": 7, "30d": 30}.get(period)
+    if days is None:
+        return None
+    return (datetime.now(timezone.utc) - timedelta(days=days)).isoformat(timespec="milliseconds")
+
+
+def _usage_rows(
+    conn: sqlite3.Connection,
+    service: str,
+    cutoff: str | None,
+    *,
+    group: str,
+) -> list[dict[str, object]]:
+    definitions = {
+        "llm": (
+            "llm_calls",
+            "SUM(COALESCE(prompt_tokens, 0)) AS input_tokens, "
+            "SUM(COALESCE(cached_tokens, 0)) AS cache_hit_tokens, "
+            "SUM(MAX(COALESCE(prompt_tokens, 0) - COALESCE(cached_tokens, 0), 0)) AS cache_miss_tokens, "
+            "SUM(COALESCE(reasoning_tokens, 0)) AS reasoning_tokens, "
+            "SUM(COALESCE(completion_tokens, 0)) AS output_tokens",
+        ),
+        "stt": (
+            "stt_calls",
+            "SUM(COALESCE(audio_duration_ms, 0)) AS audio_duration_ms",
+        ),
+        "tts": (
+            "tts_calls",
+            "SUM(COALESCE(character_cost, input_chars, 0)) AS characters, "
+            "SUM(COALESCE(audio_duration_ms, 0)) AS audio_duration_ms",
+        ),
+    }
+    table, usage_columns = definitions[service]
+    identity = {
+        "total": "",
+        "model": "provider, model, ",
+        "day": "date(started_at) AS day, ",
+    }[group]
+    group_by = {
+        "total": "",
+        "model": " GROUP BY provider, model ORDER BY calls DESC, provider, model",
+        "day": " GROUP BY date(started_at) ORDER BY day DESC",
+    }[group]
+    where = " WHERE started_at >= ?" if cutoff else ""
+    params: tuple[object, ...] = (cutoff,) if cutoff else ()
+    sql = (
+        f"SELECT {identity}COUNT(*) AS calls, "  # nosec B608 -- identifiers are fixed above.
+        "SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) AS successful, "
+        "SUM(CASE WHEN status IN ('failed', 'partial_failure') THEN 1 ELSE 0 END) AS failed, "
+        "SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled, "
+        "SUM(COALESCE(duration_ms, 0)) AS duration_ms, "
+        "AVG(duration_ms) AS average_duration_ms, "
+        f"{usage_columns} FROM {table}{where}{group_by}"  # nosec B608
+    )
+    rows = [dict(row) for row in conn.execute(sql, params).fetchall()]
+    if group == "total" and not rows:
+        rows = [{}]
+    return [_normalize_usage_row(row, service) for row in rows]
+
+
+def _normalize_usage_row(row: dict[str, object], service: str) -> dict[str, object]:
+    integer_fields = {"calls", "successful", "failed", "cancelled"}
+    if service == "llm":
+        integer_fields.update(
+            {"input_tokens", "cache_hit_tokens", "cache_miss_tokens", "reasoning_tokens", "output_tokens"}
+        )
+    elif service == "tts":
+        integer_fields.add("characters")
+    float_fields = {"duration_ms", "average_duration_ms"}
+    if service in {"stt", "tts"}:
+        float_fields.add("audio_duration_ms")
+    for field in integer_fields:
+        row[field] = int(row.get(field) or 0)
+    for field in float_fields:
+        row[field] = round(float(row.get(field) or 0), 1)
+    return row
+
+
+def _combine_usage(stt: dict[str, object], tts: dict[str, object]) -> dict[str, object]:
+    return {
+        "calls": int(stt["calls"]) + int(tts["calls"]),
+        "successful": int(stt["successful"]) + int(tts["successful"]),
+        "failed": int(stt["failed"]) + int(tts["failed"]),
+        "cancelled": int(stt["cancelled"]) + int(tts["cancelled"]),
+        "duration_ms": round(float(stt["duration_ms"]) + float(tts["duration_ms"]), 1),
+        "stt_audio_duration_ms": float(stt["audio_duration_ms"]),
+        "tts_audio_duration_ms": float(tts["audio_duration_ms"]),
+        "tts_characters": int(tts["characters"]),
+    }
+
+
+def _empty_usage_summary(period: str, *, enabled: bool) -> dict[str, object]:
+    llm = _normalize_usage_row({}, "llm")
+    stt = _normalize_usage_row({}, "stt")
+    tts = _normalize_usage_row({}, "tts")
+    return {
+        "range": period,
+        "generated_at": utc_now(),
+        "telemetry_enabled": enabled,
+        "content_recording": False,
+        "totals": {"llm": llm, "elevenlabs": _combine_usage(stt, tts)},
+        "models": {"llm": [], "stt": [], "tts": []},
+        "days": [],
+    }

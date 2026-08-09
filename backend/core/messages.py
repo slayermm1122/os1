@@ -64,13 +64,16 @@ def build_messages(
             + "\n".join(f"- {line}" for line in identity_lines)
         )
     system_parts.append(system_prompt.strip())
-    if str(response_language or "en").strip().lower().startswith("zh"):
-        system_parts.append("请你用简体中文回答。")
-    else:
-        system_parts.append("Please respond in English.")
     system_content = "\n\n".join(part for part in system_parts if part)
+    language = str(response_language or "en").strip().lower()
+    language_instruction = (
+        "请用简体中文回答。"
+        if language.startswith("zh")
+        else "Please respond in English."
+    )
+    model_user_text = f"{user_text.strip()}\n\n{language_instruction}"
     return [
         {"role": "system", "content": system_content},
         *[message.copy() for message in history],
-        {"role": "user", "content": user_text.strip()},
+        {"role": "user", "content": model_user_text},
     ]

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -46,6 +47,19 @@ def _string_env(name: str, default: str) -> str:
     return value.strip() if value and value.strip() else default
 
 
+def _string_list_env(name: str) -> tuple[str, ...]:
+    value = os.getenv(name, "").strip()
+    if not value:
+        return ()
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return ()
+    if not isinstance(parsed, list):
+        return ()
+    return tuple(str(item).strip() for item in parsed if str(item).strip())
+
+
 @dataclass
 class Settings:
     root_dir: Path = ROOT_DIR
@@ -58,7 +72,10 @@ class Settings:
 
     elevenlabs_api_key: str = os.getenv("ELEVENLABS_API_KEY", "")
     elevenlabs_voice_id: str = os.getenv("ELEVENLABS_VOICE_ID", DEFAULT_MALE_VOICE_ID)
-    elevenlabs_voice_language: str = _string_env("ELEVENLABS_VOICE_LANGUAGE", "en").lower()
+    assistant_response_language: str = _string_env(
+        "ASSISTANT_RESPONSE_LANGUAGE",
+        "auto",
+    ).lower()
     elevenlabs_male_voice_id: str = os.getenv("ELEVENLABS_MALE_VOICE_ID", DEFAULT_MALE_VOICE_ID)
     elevenlabs_female_voice_id: str = os.getenv("ELEVENLABS_FEMALE_VOICE_ID", DEFAULT_FEMALE_VOICE_ID)
     elevenlabs_stt_model: str = os.getenv("ELEVENLABS_STT_MODEL", "scribe_v2")
@@ -95,6 +112,17 @@ class Settings:
     elevenlabs_output_format: str = os.getenv("ELEVENLABS_OUTPUT_FORMAT", "mp3_44100_128")
     elevenlabs_stream_output_format: str = os.getenv("ELEVENLABS_STREAM_OUTPUT_FORMAT", "pcm_16000")
     elevenlabs_stt_language_code: str = os.getenv("ELEVENLABS_STT_LANGUAGE_CODE", "")
+    elevenlabs_stt_keyterms: tuple[str, ...] = _string_list_env(
+        "ELEVENLABS_STT_KEYTERMS_JSON"
+    )
+    elevenlabs_pronunciation_dictionary_id: str = os.getenv(
+        "ELEVENLABS_PRONUNCIATION_DICTIONARY_ID",
+        "",
+    )
+    elevenlabs_pronunciation_dictionary_version_id: str = os.getenv(
+        "ELEVENLABS_PRONUNCIATION_DICTIONARY_VERSION_ID",
+        "",
+    )
     elevenlabs_enable_logging: bool = _bool_env("ELEVENLABS_ENABLE_LOGGING", True)
     default_tts_provider: str = os.getenv("TTS_PROVIDER", "elevenlabs")
     assistant_name: str = _string_env("ASSISTANT_NAME", "")

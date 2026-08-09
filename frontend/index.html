@@ -962,6 +962,101 @@
         line-height: 1.45;
       }
 
+      .pronunciation-copy {
+        margin: 0 0 12px;
+        color: rgba(255, 246, 236, 0.38);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .chip-editor {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+        min-height: 38px;
+        padding: 4px 0 7px;
+        border-bottom: 1px solid rgba(255, 246, 236, 0.14);
+      }
+
+      .pronunciation-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 7px;
+        border-radius: 7px;
+        background: rgba(255, 246, 236, 0.08);
+        color: rgba(255, 246, 236, 0.76);
+        font-size: 12px;
+      }
+
+      .pronunciation-chip button,
+      .alias-remove {
+        appearance: none;
+        border: 0;
+        padding: 0;
+        background: transparent;
+        color: rgba(255, 246, 236, 0.34);
+        font: inherit;
+        cursor: pointer;
+      }
+
+      .chip-input {
+        flex: 1 1 110px;
+        min-width: 90px;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        color: var(--ink);
+        font: inherit;
+        font-size: 13px;
+      }
+
+      .pronunciation-meta {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 7px;
+        color: rgba(255, 246, 236, 0.3);
+        font-size: 10px;
+        line-height: 1.4;
+      }
+
+      .alias-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .alias-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 18px minmax(0, 1fr) 20px;
+        align-items: end;
+        gap: 8px;
+      }
+
+      .alias-arrow {
+        padding-bottom: 7px;
+        color: rgba(255, 246, 236, 0.24);
+        font-size: 11px;
+        text-align: center;
+      }
+
+      .alias-remove {
+        padding-bottom: 6px;
+        font-size: 15px;
+      }
+
+      .pronunciation-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 10px;
+      }
+
+      .save-state {
+        color: rgba(255, 246, 236, 0.34);
+        font-size: 11px;
+      }
+
       .persona-save-state {
         margin-right: auto;
         color: rgba(255, 246, 236, 0.34);
@@ -1216,6 +1311,144 @@
         font-size: 12px;
         font-weight: 320;
         line-height: 1.55;
+      }
+
+      .usage-range {
+        display: flex;
+        gap: 15px;
+        margin: 4px 0 28px;
+      }
+
+      .usage-range-choice {
+        appearance: none;
+        padding: 3px 0 5px;
+        border: 0;
+        border-bottom: 1px solid transparent;
+        background: transparent;
+        color: rgba(255, 246, 236, 0.35);
+        font: inherit;
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+        transition: color 160ms ease, border-color 160ms ease;
+      }
+
+      .usage-range-choice:hover,
+      .usage-range-choice:focus-visible {
+        color: rgba(255, 246, 236, 0.8);
+        outline: none;
+      }
+
+      .usage-range-choice.is-selected {
+        border-color: rgba(255, 224, 174, 0.48);
+        color: rgba(255, 246, 236, 0.94);
+      }
+
+      .usage-report {
+        display: grid;
+        gap: 28px;
+        padding-bottom: 8px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .usage-section {
+        display: grid;
+        gap: 11px;
+      }
+
+      .usage-section + .usage-section {
+        padding-top: 25px;
+        border-top: 1px solid rgba(255, 246, 236, 0.07);
+      }
+
+      .usage-section-title,
+      .usage-day-title {
+        color: rgba(255, 246, 236, 0.76);
+        font-size: 12px;
+        font-weight: 430;
+      }
+
+      .usage-line {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: baseline;
+        gap: 14px;
+        min-height: 18px;
+      }
+
+      .usage-label,
+      .usage-model-meta,
+      .usage-day-meta,
+      .usage-note,
+      .usage-loading {
+        color: rgba(255, 246, 236, 0.36);
+        font-size: 11px;
+        font-weight: 320;
+        line-height: 1.5;
+      }
+
+      .usage-value {
+        color: rgba(255, 244, 228, 0.78);
+        font-size: 12px;
+        font-weight: 410;
+        text-align: right;
+      }
+
+      .usage-models {
+        display: grid;
+        gap: 9px;
+        margin-top: 4px;
+        padding-top: 13px;
+        border-top: 1px solid rgba(255, 246, 236, 0.055);
+      }
+
+      .usage-model-name {
+        overflow: hidden;
+        color: rgba(255, 246, 236, 0.58);
+        font-size: 11px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .usage-ledger {
+        display: grid;
+      }
+
+      .usage-day {
+        display: grid;
+        gap: 5px;
+        padding: 13px 0;
+        border-top: 1px solid rgba(255, 246, 236, 0.055);
+      }
+
+      .usage-day:first-child {
+        border-top: 0;
+        padding-top: 2px;
+      }
+
+      .usage-day-title {
+        margin-bottom: 2px;
+        font-size: 11px;
+      }
+
+      .usage-day-meta {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .usage-day-meta span:last-child {
+        color: rgba(255, 246, 236, 0.56);
+        text-align: right;
+      }
+
+      .usage-note {
+        margin: 22px 0 0;
+        color: rgba(255, 246, 236, 0.28);
+      }
+
+      .usage-error {
+        color: rgba(255, 190, 166, 0.72);
       }
 
       .account-footer {
@@ -1518,6 +1751,8 @@
       <nav id="brandMenu" class="brand-menu" aria-label="Settings">
         <button id="menuPersona" class="menu-item" type="button">Persona</button>
         <button id="menuVoice" class="menu-item" type="button">Voice</button>
+        <button id="menuPronunciation" class="menu-item" type="button">Pronunciation</button>
+        <button id="menuUsage" class="menu-item" type="button">Usage</button>
         <button id="menuApiKey" class="menu-item" type="button">API Key</button>
       </nav>
 
@@ -1597,7 +1832,7 @@
             </div>
             <div class="voice-header-actions">
               <div id="voiceLanguageFilter" class="voice-language-filter" role="group" aria-label="Primary language">
-                <button class="voice-language-choice is-selected" type="button" data-language="all">All</button>
+                <button class="voice-language-choice is-selected" type="button" data-language="auto">Auto</button>
                 <button class="voice-language-choice" type="button" data-language="en">English</button>
                 <button class="voice-language-choice" type="button" data-language="zh">中文</button>
               </div>
@@ -1654,6 +1889,58 @@
         </div>
       </section>
 
+      <section id="pronunciationModal" class="settings-modal sidebar-view" hidden aria-labelledby="pronunciationTitle">
+        <div class="sidebar-view-header">
+          <button id="pronunciationClose" class="sidebar-back" type="button" aria-label="Back to settings">←</button>
+          <h2 id="pronunciationTitle" class="modal-title">Pronunciation</h2>
+        </div>
+
+        <section class="provider-section">
+          <div class="provider-title">Listening · Scribe</div>
+          <p class="pronunciation-copy">Help Scribe recognize names and uncommon terms. Enter, comma, or a new line adds a term.</p>
+          <div id="keytermEditor" class="chip-editor">
+            <input id="keytermInput" class="chip-input" type="text" maxlength="20" placeholder="OS1, ElevenLabs" aria-label="Add a Scribe keyterm" />
+          </div>
+          <div class="pronunciation-meta">
+            <span>Keyterms add 20% to STT cost.</span>
+            <span id="keytermCount">0 / 50</span>
+          </div>
+          <div id="keytermError" class="settings-error"></div>
+          <div class="pronunciation-actions">
+            <span id="keytermSaveState" class="save-state">Loading…</span>
+            <button id="saveKeytermsButton" class="modal-button" type="button">Save</button>
+          </div>
+        </section>
+
+        <section class="provider-section">
+          <div class="provider-title">Speaking · TTS aliases</div>
+          <p class="pronunciation-copy">Replace written text with how it should be spoken. Example: OS1 → O S one.</p>
+          <div id="aliasList" class="alias-list"></div>
+          <div class="pronunciation-actions">
+            <button id="addAliasButton" class="modal-button modal-button-ghost" type="button">Add alias</button>
+            <span id="dictionarySaveState" class="save-state">Loading…</span>
+            <button id="saveDictionaryButton" class="modal-button" type="button">Save</button>
+          </div>
+          <div id="dictionaryError" class="settings-error"></div>
+        </section>
+      </section>
+
+      <section id="usageModal" class="settings-modal sidebar-view" hidden aria-labelledby="usageTitle">
+        <div class="sidebar-view-header">
+          <button id="usageClose" class="sidebar-back" type="button" aria-label="Back to settings">←</button>
+          <h2 id="usageTitle" class="modal-title">Usage</h2>
+        </div>
+        <div id="usageRange" class="usage-range" role="group" aria-label="Usage date range">
+          <button class="usage-range-choice is-selected" type="button" data-range="7d" aria-pressed="true">7D</button>
+          <button class="usage-range-choice" type="button" data-range="30d" aria-pressed="false">30D</button>
+          <button class="usage-range-choice" type="button" data-range="all" aria-pressed="false">ALL</button>
+        </div>
+        <div id="usageReport" class="usage-report" aria-live="polite">
+          <div class="usage-loading">Loading usage…</div>
+        </div>
+        <p class="usage-note">Metrics only. New telemetry does not record conversation content.</p>
+      </section>
+
       <footer id="accountFooter" class="account-footer">
         <div class="account-title-row">
           <div id="accountName" class="account-name">ElevenLabs</div>
@@ -1681,6 +1968,8 @@
       const menuPersona = document.querySelector("#menuPersona");
       const menuApiKey = document.querySelector("#menuApiKey");
       const menuVoice = document.querySelector("#menuVoice");
+      const menuPronunciation = document.querySelector("#menuPronunciation");
+      const menuUsage = document.querySelector("#menuUsage");
       const talkButton = document.querySelector("#talkButton");
       const keyPrompt = document.querySelector("#keyPrompt");
       const settingsModal = document.querySelector("#settingsModal");
@@ -1707,6 +1996,23 @@
       const brainEnvStatus = document.querySelector("#brainEnvStatus");
       const voiceEnvStatus = document.querySelector("#voiceEnvStatus");
       const voiceError = document.querySelector("#voiceError");
+      const pronunciationModal = document.querySelector("#pronunciationModal");
+      const pronunciationClose = document.querySelector("#pronunciationClose");
+      const keytermEditor = document.querySelector("#keytermEditor");
+      const keytermInput = document.querySelector("#keytermInput");
+      const keytermCount = document.querySelector("#keytermCount");
+      const keytermError = document.querySelector("#keytermError");
+      const keytermSaveState = document.querySelector("#keytermSaveState");
+      const saveKeytermsButton = document.querySelector("#saveKeytermsButton");
+      const aliasList = document.querySelector("#aliasList");
+      const addAliasButton = document.querySelector("#addAliasButton");
+      const dictionaryError = document.querySelector("#dictionaryError");
+      const dictionarySaveState = document.querySelector("#dictionarySaveState");
+      const saveDictionaryButton = document.querySelector("#saveDictionaryButton");
+      const usageModal = document.querySelector("#usageModal");
+      const usageClose = document.querySelector("#usageClose");
+      const usageReport = document.querySelector("#usageReport");
+      const usageRangeChoices = Array.from(document.querySelectorAll(".usage-range-choice"));
       const accountName = document.querySelector("#accountName");
       const accountBalance = document.querySelector("#accountBalance");
       const accountError = document.querySelector("#accountError");
@@ -1745,6 +2051,11 @@
       let micLevelBins = null;
       let micBarSmooth = null;
       let activeTurn = null;
+      const liveTurns = new Map();
+      let liveActive = false;
+      let livePreconnected = false;
+      let liveSocketPromise = null;
+      let livePartialActive = false;
       const barEls = Array.from(document.querySelectorAll(".bar"));
       let sessionId = "";
       let state = "idle";
@@ -1758,11 +2069,11 @@
       let sidebarCloseTimer = 0;
 
       let selectedVoiceId = "";
-      let selectedVoiceLanguage = "en";
+      let responseLanguageMode = "auto";
       let availableVoices = [];
       let libraryVoices = [];
       let defaultVoices = [];
-      let voiceLanguage = "all";
+      let voiceLanguage = "auto";
       let voiceLibraryLoaded = false;
       let voiceLibraryLoading = false;
       let accountSummaryLoaded = false;
@@ -1773,6 +2084,11 @@
       const previewDurations = new Map();
       let activePersona = "default";
       let savedPersona = { assistantName: "", userName: "", persona: "default" };
+      let keyterms = [];
+      let aliasRules = [];
+      let pronunciationLoaded = false;
+      let usageRange = "7d";
+      let usageRequestId = 0;
       const voicePreviewPlayer = new Audio();
 
       loadVadSettingsIntoUi();
@@ -1801,6 +2117,12 @@
       menuVoice.addEventListener("click", () => {
         openVoiceModal();
       });
+      menuPronunciation.addEventListener("click", () => {
+        void openPronunciationModal();
+      });
+      menuUsage.addEventListener("click", () => {
+        void openUsageModal();
+      });
       keyPrompt.addEventListener("click", openSettingsModal);
       sidebarHome.addEventListener("click", showSidebarHome);
       sidebarClose.addEventListener("click", closeSidebar);
@@ -1815,16 +2137,24 @@
         choice.addEventListener("click", () => setPersonaChoice(choice.dataset.persona));
       }
       for (const choice of voiceLanguageChoices) {
-        choice.addEventListener("click", () => {
-          voiceLanguage = String(choice.dataset.language || "all");
-          syncVoiceLanguageFilter();
-          renderVoiceList(availableVoices);
-        });
+        choice.addEventListener("click", () => void setResponseLanguage(choice.dataset.language));
       }
       settingsClose.addEventListener("click", closeSettingsModal);
       personaClose.addEventListener("click", closePersonaModal);
       voiceClose.addEventListener("click", closeVoiceModal);
+      pronunciationClose.addEventListener("click", closePronunciationModal);
+      usageClose.addEventListener("click", closeUsageModal);
+      saveKeytermsButton.addEventListener("click", () => void saveKeyterms());
+      saveDictionaryButton.addEventListener("click", () => void saveDictionary());
+      addAliasButton.addEventListener("click", () => addAliasRow());
+      keytermInput.addEventListener("keydown", handleKeytermKeydown);
+      keytermInput.addEventListener("paste", handleKeytermPaste);
+      for (const choice of usageRangeChoices) {
+        choice.addEventListener("click", () => void setUsageRange(choice.dataset.range));
+      }
       window.addEventListener("online", () => void refreshConnectivity());
+      window.addEventListener("pagehide", closeLiveBestEffort);
+      document.addEventListener("visibilitychange", reportVisibility);
       window.addEventListener("keydown", (event) => {
         if (event.key === "Escape") {
           closeSidebar();
@@ -1842,19 +2172,229 @@
             await refreshConnectivity();
             return;
           }
-          if (state === "recording") {
-            stopRecording();
+          if (liveActive) {
+            closeLiveSession("manual");
             return;
           }
-          if (state !== "idle") {
-            return;
-          }
-          await startRecording();
+          await startLiveListening();
         } catch (error) {
           showError(error);
           cleanupStream();
         }
       });
+
+      function realtimeSessionUrl() {
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        return `${protocol}//${window.location.host}/api/realtime/session`;
+      }
+
+      async function ensureLiveSession() {
+        if (realtimeSocket?.readyState === WebSocket.OPEN && livePreconnected) {
+          return realtimeSocket;
+        }
+        if (liveSocketPromise) return liveSocketPromise;
+        liveSocketPromise = (async () => {
+          closeRealtimeSocket();
+          const socket = new WebSocket(realtimeSessionUrl());
+          realtimeSocket = socket;
+          socket.binaryType = "arraybuffer";
+          bindLiveSocket(socket);
+          const ready = waitForLiveReady(socket);
+          await waitForSocketOpen(socket);
+          socket.send(JSON.stringify({
+            type: "session_start",
+            session_id: sessionId,
+            sample_rate: TARGET_SAMPLE_RATE,
+          }));
+          await ready;
+          return socket;
+        })();
+        try {
+          return await liveSocketPromise;
+        } finally {
+          liveSocketPromise = null;
+        }
+      }
+
+      function waitForLiveReady(socket) {
+        return new Promise((resolve, reject) => {
+          const timeout = window.setTimeout(() => {
+            cleanup();
+            reject(new Error("Live voice preconnection timed out."));
+          }, 12000);
+          const onReady = () => {
+            cleanup();
+            resolve();
+          };
+          const onClose = () => {
+            cleanup();
+            reject(new Error("Live voice preconnection closed."));
+          };
+          const cleanup = () => {
+            window.clearTimeout(timeout);
+            socket.removeEventListener("os1-live-ready", onReady);
+            socket.removeEventListener("close", onClose);
+          };
+          socket.addEventListener("os1-live-ready", onReady, { once: true });
+          socket.addEventListener("close", onClose, { once: true });
+        });
+      }
+
+      function bindLiveSocket(socket) {
+        socket.addEventListener("message", (message) => {
+          void (async () => {
+            if (typeof message.data !== "string") return;
+            const payload = JSON.parse(message.data);
+            await handleLiveEvent(payload.event, payload.data || {}, socket);
+          })().catch(showError);
+        });
+        socket.addEventListener("close", () => {
+          if (realtimeSocket === socket) realtimeSocket = null;
+          livePreconnected = false;
+          liveActive = false;
+          stopMicPcm();
+          cancelAllLiveAudio();
+          setState("disconnected");
+          setStatus("disconnected");
+          updateKeyState();
+        });
+        socket.addEventListener("error", () => {
+          if (realtimeSocket === socket) setStatus("live connection error");
+        });
+      }
+
+      async function startLiveListening() {
+        const socket = await ensureLiveSession();
+        clearConversation();
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+        liveActive = true;
+        socket.send(JSON.stringify({ type: "listen_start" }));
+        await startMicPcm(socket);
+        setState("recording");
+        setStatus("listening");
+      }
+
+      function closeLiveSession(reason = "manual") {
+        liveActive = false;
+        stopMicPcm();
+        cancelAllLiveAudio();
+        const socket = realtimeSocket;
+        realtimeSocket = null;
+        livePreconnected = false;
+        if (socket?.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ type: "close_session", reason }));
+          window.setTimeout(() => socket.close(), 120);
+        } else if (socket?.readyState === WebSocket.CONNECTING) {
+          socket.close();
+        }
+        setState("disconnected");
+        setStatus("disconnected");
+      }
+
+      function closeLiveBestEffort() {
+        const socket = realtimeSocket;
+        if (socket?.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ type: "close_session", reason: "pagehide" }));
+        }
+        socket?.close();
+      }
+
+      function reportVisibility() {
+        const socket = realtimeSocket;
+        if (socket?.readyState !== WebSocket.OPEN) return;
+        socket.send(JSON.stringify({
+          type: "client_event",
+          name: document.hidden ? "browser.background" : "browser.foreground",
+        }));
+      }
+
+      async function handleLiveEvent(event, data, socket) {
+        if (data.session_id) sessionId = data.session_id;
+        if (event === "live_ready") {
+          livePreconnected = true;
+          socket.dispatchEvent(new Event("os1-live-ready"));
+          reportVisibility();
+          if (!liveActive) {
+            setState("preconnected");
+            setStatus("preconnected");
+          }
+          return;
+        }
+        if (event === "listening_started") {
+          setStatus("connecting listening");
+          return;
+        }
+        if (event === "stt_ready") {
+          if (liveActive) {
+            setState("recording");
+            setStatus("listening");
+          }
+          return;
+        }
+        if (event === "transcript_partial") {
+          if (!livePartialActive) clearConversation();
+          livePartialActive = true;
+          setUserTranscript(data.text || "");
+          return;
+        }
+        if (event === "transcript") {
+          if (!livePartialActive) clearConversation();
+          livePartialActive = false;
+          setUserTranscript(data.text || "");
+          setState("thinking");
+          setStatus("thinking");
+          return;
+        }
+        if (event === "barge_in") {
+          const turn = liveTurns.get(String(data.turn_id || ""));
+          const spokenText = String(turn?.captionText || "");
+          await turn?.audioStream?.cancel?.();
+          if (turn) turn.streamingAudioDisabled = true;
+          socket.send(JSON.stringify({
+            type: "client_event",
+            name: "browser.playback_interrupted",
+            turn_id: data.turn_id || "",
+            spoken_text: spokenText,
+          }));
+          setState("recording");
+          setStatus("interrupted · listening");
+          return;
+        }
+        if (event === "session_idle" || event === "session_closed") {
+          liveActive = false;
+          livePreconnected = false;
+          stopMicPcm();
+          cancelAllLiveAudio();
+          setState("disconnected");
+          setStatus(event === "session_idle" ? "disconnected · inactive" : "disconnected");
+          return;
+        }
+        const turnId = String(data.turn_id || data.context_id || "");
+        if (!turnId && event !== "error" && event !== "status") return;
+        let turn = liveTurns.get(turnId);
+        if (!turn) {
+          turn = createTurnState();
+          turn.turnId = turnId;
+          turn.socket = socket;
+          liveTurns.set(turnId, turn);
+        }
+        await handleTurnEvent(event, data, turn);
+      }
+
+      function cancelAllLiveAudio() {
+        for (const turn of liveTurns.values()) {
+          void turn.audioStream?.cancel?.();
+        }
+        liveTurns.clear();
+        player.pause();
+        player.removeAttribute("src");
+      }
 
       async function startRecording() {
         clearConversation();
@@ -1992,6 +2532,7 @@
           clientStartedAt: performance.now(),
           playbackReported: false,
           playbackFailureReported: false,
+          playbackEndedReported: false,
           playbackStarted: false,
           audioStream: null,
           finalText: "",
@@ -2088,6 +2629,14 @@
                   onPlaybackEnded: () => {
                     const finalText = turn.finalText || turn.displayChunks.join("\n");
                     if (finalText) setAnswerText(finalText);
+                    if (!turn.playbackEndedReported) {
+                      turn.playbackEndedReported = true;
+                      reportPlaybackEnded(turn);
+                    }
+                    if (liveActive) {
+                      setState("recording");
+                      setStatus("listening");
+                    }
                   },
                 },
               );
@@ -2116,6 +2665,13 @@
               reportPlaybackFailed(turn, error);
               turn.ttsFailed = true;
             }
+          } else if (!turn.playbackEndedReported) {
+            turn.playbackEndedReported = true;
+            reportPlaybackEnded(turn);
+            if (liveActive) {
+              setState("recording");
+              setStatus("listening");
+            }
           }
         }
         if (event === "tts_error") {
@@ -2130,6 +2686,14 @@
           turn.finalText = data.text || getAnswerText();
           if (!turn.receivedAudio && turn.ttsFailed && !getAnswerText() && turn.finalText) {
             setAnswerText(turn.finalText);
+          }
+          if (!turn.receivedAudio && turn.ttsFailed && !turn.playbackEndedReported) {
+            turn.playbackEndedReported = true;
+            reportPlaybackEnded(turn);
+            if (liveActive) {
+              setState("recording");
+              setStatus("listening");
+            }
           }
         }
         if (event === "error") {
@@ -2156,7 +2720,7 @@
             turn.ttsFailed = true;
           }
         } else if (!turn.receivedAudio || turn.ttsFailed) {
-          setState("idle");
+          setState(liveActive ? "recording" : "idle");
         }
         if (turn.failureStatus) setStatus(turn.failureStatus);
         if (activeTurn === turn) activeTurn = null;
@@ -2281,6 +2845,7 @@
         let endTimer = 0;
         let startTimer = 0;
         let playbackEnded = false;
+        const sources = new Set();
         const captionTimeline = createCaptionTimeline(
           () => audibleAudioTime(audioContext),
           onCaptionProgress,
@@ -2298,6 +2863,8 @@
           audioBuffer.copyToChannel(samples, 0);
 
           const source = audioContext.createBufferSource();
+          sources.add(source);
+          source.addEventListener("ended", () => sources.delete(source), { once: true });
           source.buffer = audioBuffer;
           source.connect(audioContext.destination);
 
@@ -2318,7 +2885,7 @@
           playbackEnded = true;
           captionTimeline.stop();
           onPlaybackEnded();
-          setState("idle");
+          setState(liveActive ? "recording" : "idle");
         }
 
         async function end() {
@@ -2336,7 +2903,20 @@
           }, waitMs);
         }
 
-        return { appendBase64, end };
+        async function cancel() {
+          if (playbackEnded) return;
+          playbackEnded = true;
+          window.clearTimeout(endTimer);
+          window.clearTimeout(startTimer);
+          captionTimeline.stop();
+          for (const source of sources) {
+            try { source.stop(); } catch (_) {}
+          }
+          sources.clear();
+          try { await audioContext.close(); } catch (_) {}
+        }
+
+        return { appendBase64, end, cancel };
       }
 
       function createEncodedAudioPlayer(
@@ -2357,6 +2937,7 @@
           "MediaSource" in window && window.MediaSource.isTypeSupported(mimeType);
 
         if (!canStream) {
+          let fallbackUrl = "";
           return {
             async appendBase64(base64, alignment) {
               const bytes = base64ToUint8Array(base64);
@@ -2366,17 +2947,23 @@
             async end() {
               if (!fallbackChunks.length) return;
               const blob = new Blob(fallbackChunks, { type: mimeType });
-              const url = URL.createObjectURL(blob);
-              player.src = url;
+              fallbackUrl = URL.createObjectURL(blob);
+              player.src = fallbackUrl;
               player.onended = () => {
                 captionTimeline.stop();
-                URL.revokeObjectURL(url);
+                URL.revokeObjectURL(fallbackUrl);
                 onPlaybackEnded();
-                setState("idle");
+                setState(liveActive ? "recording" : "idle");
               };
               await player.play();
               captionTimeline.start();
               onPlaybackStarted();
+            },
+            async cancel() {
+              captionTimeline.stop();
+              player.pause();
+              player.removeAttribute("src");
+              if (fallbackUrl) URL.revokeObjectURL(fallbackUrl);
             },
           };
         }
@@ -2410,7 +2997,7 @@
           captionTimeline.stop();
           URL.revokeObjectURL(objectUrl);
           onPlaybackEnded();
-          setState("idle");
+          setState(liveActive ? "recording" : "idle");
         };
 
         async function appendBase64(base64, alignment) {
@@ -2443,11 +3030,19 @@
             captionTimeline.stop();
             URL.revokeObjectURL(objectUrl);
             onPlaybackEnded();
-            setState("idle");
+            setState(liveActive ? "recording" : "idle");
           }
         }
 
-        return { appendBase64, end };
+        async function cancel() {
+          closed = true;
+          captionTimeline.stop();
+          player.pause();
+          player.removeAttribute("src");
+          if (objectUrl) URL.revokeObjectURL(objectUrl);
+        }
+
+        return { appendBase64, end, cancel };
       }
 
       function audibleAudioTime(audioContext) {
@@ -2493,6 +3088,17 @@
             message: String(error?.message || error || "Audio playback failed").slice(0, 500),
           }),
         );
+      }
+
+      function reportPlaybackEnded(turn) {
+        const socket = turn?.socket;
+        if (!turn?.turnId || socket?.readyState !== WebSocket.OPEN) return;
+        socket.send(JSON.stringify({
+          type: "client_event",
+          name: "browser.playback_ended",
+          turn_id: turn.turnId,
+        }));
+        liveTurns.delete(turn.turnId);
       }
 
       function pcm16ToFloat32(bytes) {
@@ -2558,7 +3164,7 @@
         micBarSmooth = new Array(barEls.length).fill(0);
 
         micProcessor.onaudioprocess = (event) => {
-          if (state !== "recording" || socket.readyState !== WebSocket.OPEN) return;
+          if (!liveActive || socket.readyState !== WebSocket.OPEN) return;
           const input = event.inputBuffer.getChannelData(0);
           const pcm = floatToPcm16(input, micAudioContext.sampleRate, TARGET_SAMPLE_RATE);
           if (pcm.byteLength) socket.send(pcm);
@@ -2690,7 +3296,10 @@
       }
 
       function showError(error) {
+        liveActive = false;
+        livePreconnected = false;
         stopMicPcm();
+        cancelAllLiveAudio();
         closeRealtimeSocket();
         setAnswerText(error?.message || String(error));
         cleanupStream();
@@ -2821,14 +3430,14 @@
 
       function setHint(next) {
         if (next === "recording") {
-          hintEl.textContent = "Speak, then pause";
+          hintEl.textContent = "Listening · tap to end";
           hintEl.classList.remove("is-personalized");
           hintEl.hidden = false;
           return;
         }
-        if (next === "idle") {
+        if (["idle", "preconnected", "disconnected"].includes(next)) {
           const assistantName = String(savedPersona.assistantName || "").trim();
-          const chineseVoice = selectedVoiceLanguage.startsWith("zh");
+          const chineseVoice = responseLanguageMode === "zh";
           if (chineseVoice) {
             hintEl.textContent = assistantName
               ? `点击按钮和${assistantName}聊天`
@@ -2851,10 +3460,10 @@
         document.body.classList.toggle("is-recording", next === "recording");
         document.body.classList.toggle("is-speaking", next === "speaking");
         document.body.classList.toggle("is-thinking", next === "thinking");
-        talkButton.disabled = !canTalk() || (next !== "idle" && next !== "recording");
+        talkButton.disabled = !canTalk();
         talkButton.setAttribute(
           "aria-label",
-          next === "recording" ? "取消录音" : "开始录音",
+          liveActive ? "关闭 Live 对话" : "开始 Live 对话",
         );
         if (next !== "recording") {
           stopMicLevelMeter({ resetBars: true });
@@ -2877,9 +3486,8 @@
       }
 
       function updateVoiceControls() {
-        const busy = state !== "idle";
         voiceList.querySelectorAll(".voice-select").forEach((button) => {
-          button.disabled = busy;
+          button.disabled = false;
         });
       }
 
@@ -2891,7 +3499,7 @@
           connectivityChecking || (!missing && !providersReady),
         );
         keyPrompt.hidden = !missing;
-        talkButton.disabled = !canTalk() || (state !== "idle" && state !== "recording");
+        talkButton.disabled = !canTalk();
       }
 
       async function refreshServerKeyState() {
@@ -2928,7 +3536,9 @@
             defaultVoices = Array.isArray(health.default_voices) ? health.default_voices : [];
             availableVoices = mergeVoiceCatalog(defaultVoices, libraryVoices);
             selectedVoiceId = String(health.selected_voice_id || health.default_male_voice_id || "");
-            selectedVoiceLanguage = String(health.selected_voice_language || "en").toLowerCase();
+            responseLanguageMode = String(health.response_language_mode || "auto").toLowerCase();
+            voiceLanguage = responseLanguageMode;
+            syncVoiceLanguageFilter();
             assistantNameInput.value = String(health.assistant_name || "");
             userNameInput.value = String(health.user_name || "");
             activePersona = String(health.assistant_persona || "default");
@@ -2994,6 +3604,13 @@
           const sttReady = Boolean((report.stt || report.voice || {}).ok);
           const ttsReady = Boolean((report.tts || report.voice || {}).ok);
           if (sttReady && ttsReady) primeElevenLabsSidebarData();
+          if (providersReady && !liveActive) {
+            void ensureLiveSession().catch((error) => {
+              livePreconnected = false;
+              setStatus("live preconnect unavailable");
+              statusEl.title = error?.message || "Live preconnection failed.";
+            });
+          }
         } catch (error) {
           if (checkId !== connectivityCheckId) return;
           providersReady = false;
@@ -3102,6 +3719,8 @@
         if (view === "persona") openPersonaModal();
         else if (view === "keys") openSettingsModal();
         else if (view === "voice") openVoiceModal();
+        else if (view === "pronunciation") void openPronunciationModal();
+        else if (view === "usage") void openUsageModal();
         else showSidebarHome();
       }
 
@@ -3133,6 +3752,8 @@
           personaModal.hidden = true;
           settingsModal.hidden = true;
           voiceModal.hidden = true;
+          pronunciationModal.hidden = true;
+          usageModal.hidden = true;
           brandMenu.hidden = false;
           sidebarCloseTimer = 0;
           brandButton.focus({ preventScroll: true });
@@ -3144,6 +3765,8 @@
         personaModal.hidden = true;
         settingsModal.hidden = true;
         voiceModal.hidden = true;
+        pronunciationModal.hidden = true;
+        usageModal.hidden = true;
         brandMenu.hidden = false;
       }
 
@@ -3156,6 +3779,8 @@
         brandMenu.hidden = true;
         settingsModal.hidden = true;
         voiceModal.hidden = true;
+        pronunciationModal.hidden = true;
+        usageModal.hidden = true;
         personaModal.hidden = false;
         os1Sidebar.scrollTo({ top: 0 });
         syncPersonaUi();
@@ -3258,9 +3883,8 @@
 
       async function selectVoice(voiceId, rerender = true) {
         const clean = String(voiceId || "").trim();
-        if (!clean || state !== "idle") return;
+        if (!clean) return;
         const previous = selectedVoiceId;
-        const previousLanguage = selectedVoiceLanguage;
         selectedVoiceId = clean;
         if (rerender) renderVoiceList(availableVoices);
         voiceLibraryStatus.textContent = "Saving voice to .env…";
@@ -3273,18 +3897,45 @@
           if (!response.ok) throw new Error(await apiErrorMessage(response));
           const payload = await response.json();
           selectedVoiceId = String(payload.voice_id || clean);
-          selectedVoiceLanguage = String(payload.language || "en").toLowerCase();
           updateCurrentVoiceHint();
           setHint(state);
           voiceLibraryStatus.textContent = voiceLibraryCountLabel(availableVoices.length);
         } catch (error) {
           selectedVoiceId = previous;
-          selectedVoiceLanguage = previousLanguage;
           updateCurrentVoiceHint();
           setHint(state);
           voiceLibraryStatus.textContent = error?.message || "Could not save this voice.";
         }
         if (rerender) renderVoiceList(availableVoices);
+      }
+
+      async function setResponseLanguage(value) {
+        const mode = ["auto", "en", "zh"].includes(String(value)) ? String(value) : "auto";
+        const previous = responseLanguageMode;
+        responseLanguageMode = mode;
+        voiceLanguage = mode;
+        syncVoiceLanguageFilter();
+        renderVoiceList(availableVoices);
+        setHint(state);
+        try {
+          const response = await fetch("/api/settings/language", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mode }),
+          });
+          if (!response.ok) throw new Error(await apiErrorMessage(response));
+          const payload = await response.json();
+          responseLanguageMode = String(payload.mode || mode);
+          voiceLanguage = responseLanguageMode;
+          syncVoiceLanguageFilter();
+          renderVoiceList(availableVoices);
+        } catch (error) {
+          responseLanguageMode = previous;
+          voiceLanguage = previous;
+          syncVoiceLanguageFilter();
+          renderVoiceList(availableVoices);
+          voiceLibraryStatus.textContent = error?.message || "Could not save language mode.";
+        }
       }
 
       async function apiErrorMessage(response) {
@@ -3302,6 +3953,8 @@
         brandMenu.hidden = true;
         personaModal.hidden = true;
         voiceModal.hidden = true;
+        pronunciationModal.hidden = true;
+        usageModal.hidden = true;
         settingsModal.hidden = false;
         os1Sidebar.scrollTo({ top: 0 });
       }
@@ -3319,6 +3972,8 @@
         brandMenu.hidden = true;
         personaModal.hidden = true;
         settingsModal.hidden = true;
+        pronunciationModal.hidden = true;
+        usageModal.hidden = true;
         voiceModal.hidden = false;
         os1Sidebar.scrollTo({ top: 0 });
         renderVoiceList(availableVoices);
@@ -3328,6 +3983,398 @@
         stopVoicePreview();
         voiceModal.hidden = true;
         brandMenu.hidden = false;
+      }
+
+      async function openPronunciationModal() {
+        revealSidebar();
+        brandMenu.hidden = true;
+        personaModal.hidden = true;
+        settingsModal.hidden = true;
+        voiceModal.hidden = true;
+        usageModal.hidden = true;
+        pronunciationModal.hidden = false;
+        os1Sidebar.scrollTo({ top: 0 });
+        if (!pronunciationLoaded) await loadPronunciationSettings();
+      }
+
+      function closePronunciationModal() {
+        pronunciationModal.hidden = true;
+        brandMenu.hidden = false;
+      }
+
+      async function openUsageModal() {
+        revealSidebar();
+        brandMenu.hidden = true;
+        personaModal.hidden = true;
+        settingsModal.hidden = true;
+        voiceModal.hidden = true;
+        pronunciationModal.hidden = true;
+        usageModal.hidden = false;
+        os1Sidebar.scrollTo({ top: 0 });
+        await loadUsage();
+      }
+
+      function closeUsageModal() {
+        usageModal.hidden = true;
+        brandMenu.hidden = false;
+      }
+
+      async function setUsageRange(value) {
+        usageRange = ["7d", "30d", "all"].includes(String(value)) ? String(value) : "7d";
+        for (const choice of usageRangeChoices) {
+          const selected = choice.dataset.range === usageRange;
+          choice.classList.toggle("is-selected", selected);
+          choice.setAttribute("aria-pressed", String(selected));
+        }
+        await loadUsage();
+      }
+
+      async function loadUsage() {
+        const requestId = ++usageRequestId;
+        usageReport.replaceChildren(usageText("Loading usage…", "usage-loading"));
+        try {
+          const response = await fetch(`/api/usage?period=${encodeURIComponent(usageRange)}`, {
+            cache: "no-store",
+          });
+          if (!response.ok) throw new Error(await apiErrorMessage(response));
+          const payload = await response.json();
+          if (requestId !== usageRequestId) return;
+          renderUsage(payload);
+        } catch (error) {
+          if (requestId !== usageRequestId) return;
+          usageReport.replaceChildren(
+            usageText(error?.message || "Could not load usage.", "usage-loading usage-error")
+          );
+        }
+      }
+
+      function renderUsage(payload) {
+        const llm = payload?.totals?.llm || {};
+        const eleven = payload?.totals?.elevenlabs || {};
+        const models = payload?.models || {};
+        const days = Array.isArray(payload?.days) ? payload.days : [];
+        const fragments = [];
+
+        const llmSection = usageSection("LLM");
+        llmSection.append(
+          usageLine("Requests", formatInteger(llm.calls)),
+          usageLine("Successful", usageSuccess(llm)),
+          usageLine("Failed · cancelled", `${formatInteger(llm.failed)} · ${formatInteger(llm.cancelled)}`),
+          usageLine("Input · cache hit", formatInteger(llm.cache_hit_tokens)),
+          usageLine("Input · cache miss", formatInteger(llm.cache_miss_tokens)),
+          usageLine("Reasoning", formatInteger(llm.reasoning_tokens)),
+          usageLine("Output", formatInteger(llm.output_tokens)),
+          usageLine("Average response", formatElapsed(llm.average_duration_ms))
+        );
+        appendUsageModels(llmSection, models.llm, "Brain");
+        fragments.push(llmSection);
+
+        const elevenSection = usageSection("ElevenLabs");
+        elevenSection.append(
+          usageLine("Requests", formatInteger(eleven.calls)),
+          usageLine("Successful", usageSuccess(eleven)),
+          usageLine("Failed · cancelled", `${formatInteger(eleven.failed)} · ${formatInteger(eleven.cancelled)}`),
+          usageLine("Scribe audio", formatElapsed(eleven.stt_audio_duration_ms)),
+          usageLine("TTS characters", formatInteger(eleven.tts_characters)),
+          usageLine("Generated audio", formatElapsed(eleven.tts_audio_duration_ms))
+        );
+        const elevenModels = [
+          ...(Array.isArray(models.stt) ? models.stt.map((model) => ({ ...model, usageLabel: "Scribe" })) : []),
+          ...(Array.isArray(models.tts) ? models.tts.map((model) => ({ ...model, usageLabel: "TTS" })) : []),
+        ];
+        appendUsageModels(elevenSection, elevenModels, "ElevenLabs");
+        fragments.push(elevenSection);
+
+        const ledgerSection = usageSection("Daily ledger");
+        const ledger = document.createElement("div");
+        ledger.className = "usage-ledger";
+        if (!days.length) {
+          ledger.append(usageText("No usage in this period.", "usage-loading"));
+        } else {
+          for (const day of days) ledger.append(usageDay(day));
+        }
+        ledgerSection.append(ledger);
+        fragments.push(ledgerSection);
+        usageReport.replaceChildren(...fragments);
+      }
+
+      function usageSection(title) {
+        const section = document.createElement("section");
+        section.className = "usage-section";
+        const heading = document.createElement("div");
+        heading.className = "usage-section-title";
+        heading.textContent = title;
+        section.append(heading);
+        return section;
+      }
+
+      function usageLine(label, value) {
+        const row = document.createElement("div");
+        row.className = "usage-line";
+        row.append(
+          usageText(label, "usage-label"),
+          usageText(value, "usage-value")
+        );
+        return row;
+      }
+
+      function usageText(value, className) {
+        const element = document.createElement("div");
+        element.className = className;
+        element.textContent = String(value ?? "");
+        return element;
+      }
+
+      function appendUsageModels(section, rows, fallbackLabel) {
+        if (!Array.isArray(rows) || !rows.length) return;
+        const list = document.createElement("div");
+        list.className = "usage-models";
+        for (const row of rows) {
+          const label = row.usageLabel || fallbackLabel;
+          const modelName = String(row.model || "Unknown model");
+          list.append(usageLine(
+            `${label} · ${modelName}`,
+            `${formatInteger(row.calls)} · ${formatElapsed(row.average_duration_ms)} avg`
+          ));
+        }
+        section.append(list);
+      }
+
+      function usageDay(day) {
+        const item = document.createElement("div");
+        item.className = "usage-day";
+        const date = new Date(`${day.date}T00:00:00`);
+        const title = usageText(
+          Number.isNaN(date.getTime())
+            ? day.date
+            : date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }),
+          "usage-day-title"
+        );
+        item.append(title);
+        if (day.llm) {
+          const brain = usageText("", "usage-day-meta");
+          brain.append(
+            usageText(`LLM · ${formatInteger(day.llm.calls)} calls`, ""),
+            usageText(`${formatInteger(day.llm.input_tokens)} in · ${formatInteger(day.llm.output_tokens)} out`, "")
+          );
+          item.append(brain);
+        }
+        if (day.stt || day.tts) {
+          const voiceCalls = Number(day.stt?.calls || 0) + Number(day.tts?.calls || 0);
+          const voice = usageText("", "usage-day-meta");
+          voice.append(
+            usageText(`ElevenLabs · ${formatInteger(voiceCalls)} calls`, ""),
+            usageText(
+              `${formatElapsed(day.stt?.audio_duration_ms)} listened · ${formatInteger(day.tts?.characters)} chars`,
+              ""
+            )
+          );
+          item.append(voice);
+        }
+        return item;
+      }
+
+      function usageSuccess(metrics) {
+        const calls = Number(metrics?.calls || 0);
+        const successful = Number(metrics?.successful || 0);
+        return calls ? `${formatInteger(successful)} / ${formatInteger(calls)}` : "—";
+      }
+
+      function formatElapsed(value) {
+        const milliseconds = Math.max(0, Number(value) || 0);
+        if (!milliseconds) return "—";
+        const seconds = milliseconds / 1000;
+        if (seconds < 60) return `${seconds < 10 ? seconds.toFixed(1) : Math.round(seconds)}s`;
+        const minutes = Math.floor(seconds / 60);
+        const remainder = Math.round(seconds % 60);
+        if (minutes < 60) return remainder ? `${minutes}m ${remainder}s` : `${minutes}m`;
+        const hours = Math.floor(minutes / 60);
+        const minuteRemainder = minutes % 60;
+        return minuteRemainder ? `${hours}h ${minuteRemainder}m` : `${hours}h`;
+      }
+
+      async function loadPronunciationSettings() {
+        keytermError.textContent = "";
+        dictionaryError.textContent = "";
+        try {
+          const [keytermResponse, dictionaryResponse] = await Promise.all([
+            fetch("/api/settings/pronunciation/keyterms", { cache: "no-store" }),
+            fetch("/api/settings/pronunciation/dictionary", { cache: "no-store" }),
+          ]);
+          if (!keytermResponse.ok) throw new Error(await apiErrorMessage(keytermResponse));
+          const keytermPayload = await keytermResponse.json();
+          keyterms = Array.isArray(keytermPayload.keyterms) ? keytermPayload.keyterms : [];
+          renderKeyterms();
+          keytermSaveState.textContent = "Up to date";
+
+          if (!dictionaryResponse.ok) throw new Error(await apiErrorMessage(dictionaryResponse));
+          const dictionaryPayload = await dictionaryResponse.json();
+          aliasRules = Array.isArray(dictionaryPayload.rules) ? dictionaryPayload.rules : [];
+          renderAliasRules();
+          dictionarySaveState.textContent = "Up to date";
+          pronunciationLoaded = true;
+        } catch (error) {
+          const message = error?.message || "Could not load pronunciation settings.";
+          keytermError.textContent = message;
+          dictionaryError.textContent = message;
+          keytermSaveState.textContent = "Unavailable";
+          dictionarySaveState.textContent = "Unavailable";
+        }
+      }
+
+      function renderKeyterms() {
+        keytermEditor.querySelectorAll(".pronunciation-chip").forEach((chip) => chip.remove());
+        keyterms.forEach((term, index) => {
+          const chip = document.createElement("span");
+          chip.className = "pronunciation-chip";
+          const label = document.createElement("span");
+          label.textContent = term;
+          const remove = document.createElement("button");
+          remove.type = "button";
+          remove.setAttribute("aria-label", `Remove ${term}`);
+          remove.textContent = "×";
+          remove.addEventListener("click", () => {
+            keyterms.splice(index, 1);
+            renderKeyterms();
+            keytermSaveState.textContent = "Unsaved";
+          });
+          chip.append(label, remove);
+          keytermEditor.insertBefore(chip, keytermInput);
+        });
+        keytermCount.textContent = `${keyterms.length} / 50`;
+      }
+
+      function addKeyterms(values) {
+        keytermError.textContent = "";
+        for (const raw of values) {
+          const term = String(raw || "").trim();
+          if (!term) continue;
+          if (term.length > 20) {
+            keytermError.textContent = `“${term.slice(0, 20)}…” is longer than 20 characters.`;
+            continue;
+          }
+          if (keyterms.length >= 50) {
+            keytermError.textContent = "Scribe accepts at most 50 keyterms.";
+            break;
+          }
+          if (!keyterms.some((item) => item.toLowerCase() === term.toLowerCase())) {
+            keyterms.push(term);
+          }
+        }
+        keytermInput.value = "";
+        renderKeyterms();
+        keytermSaveState.textContent = "Unsaved";
+      }
+
+      function handleKeytermKeydown(event) {
+        if (event.key === "Enter" || event.key === ",") {
+          event.preventDefault();
+          addKeyterms(keytermInput.value.split(/[\n,]+/));
+        }
+      }
+
+      function handleKeytermPaste(event) {
+        const text = event.clipboardData?.getData("text") || "";
+        if (!/[\n,]/.test(text)) return;
+        event.preventDefault();
+        addKeyterms(text.split(/[\n,]+/));
+      }
+
+      async function saveKeyterms() {
+        if (keytermInput.value.trim()) addKeyterms(keytermInput.value.split(/[\n,]+/));
+        saveKeytermsButton.disabled = true;
+        keytermSaveState.textContent = "Saving…";
+        keytermError.textContent = "";
+        try {
+          const response = await fetch("/api/settings/pronunciation/keyterms", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ keyterms }),
+          });
+          if (!response.ok) throw new Error(await apiErrorMessage(response));
+          const payload = await response.json();
+          keyterms = Array.isArray(payload.keyterms) ? payload.keyterms : [];
+          renderKeyterms();
+          keytermSaveState.textContent = "Saved · next utterance";
+        } catch (error) {
+          keytermError.textContent = error?.message || "Could not save keyterms.";
+          keytermSaveState.textContent = "Not saved";
+        } finally {
+          saveKeytermsButton.disabled = false;
+        }
+      }
+
+      function addAliasRow(rule = { text: "", alias: "" }) {
+        aliasRules.push({ text: String(rule.text || ""), alias: String(rule.alias || "") });
+        renderAliasRules();
+        dictionarySaveState.textContent = "Unsaved";
+      }
+
+      function renderAliasRules() {
+        aliasList.replaceChildren();
+        aliasRules.forEach((rule, index) => {
+          const row = document.createElement("div");
+          row.className = "alias-row";
+          const textInput = document.createElement("input");
+          textInput.className = "persona-input";
+          textInput.type = "text";
+          textInput.placeholder = "Text";
+          textInput.value = String(rule.text || "");
+          const arrow = document.createElement("span");
+          arrow.className = "alias-arrow";
+          arrow.textContent = "→";
+          const aliasInput = document.createElement("input");
+          aliasInput.className = "persona-input";
+          aliasInput.type = "text";
+          aliasInput.placeholder = "Speak as";
+          aliasInput.value = String(rule.alias || "");
+          const remove = document.createElement("button");
+          remove.className = "alias-remove";
+          remove.type = "button";
+          remove.setAttribute("aria-label", "Remove alias");
+          remove.textContent = "×";
+          textInput.addEventListener("input", () => {
+            aliasRules[index].text = textInput.value;
+            dictionarySaveState.textContent = "Unsaved";
+          });
+          aliasInput.addEventListener("input", () => {
+            aliasRules[index].alias = aliasInput.value;
+            dictionarySaveState.textContent = "Unsaved";
+          });
+          remove.addEventListener("click", () => {
+            aliasRules.splice(index, 1);
+            renderAliasRules();
+            dictionarySaveState.textContent = "Unsaved";
+          });
+          row.append(textInput, arrow, aliasInput, remove);
+          aliasList.appendChild(row);
+        });
+      }
+
+      async function saveDictionary() {
+        const rules = aliasRules
+          .map((rule) => ({ text: String(rule.text || "").trim(), alias: String(rule.alias || "").trim() }))
+          .filter((rule) => rule.text && rule.alias);
+        saveDictionaryButton.disabled = true;
+        dictionarySaveState.textContent = "Saving to ElevenLabs…";
+        dictionaryError.textContent = "";
+        try {
+          const response = await fetch("/api/settings/pronunciation/dictionary", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ rules }),
+          });
+          if (!response.ok) throw new Error(await apiErrorMessage(response));
+          const payload = await response.json();
+          aliasRules = Array.isArray(payload.rules) ? payload.rules : [];
+          renderAliasRules();
+          dictionarySaveState.textContent = "Saved · next reply";
+        } catch (error) {
+          dictionaryError.textContent = error?.message || "Could not save aliases.";
+          dictionarySaveState.textContent = "Not saved";
+        } finally {
+          saveDictionaryButton.disabled = false;
+        }
       }
 
       async function refreshVoiceLibrary({ force = false } = {}) {
@@ -3405,7 +4452,7 @@
         for (const voice of Array.isArray(voices) ? voices : []) {
           const voiceId = String(voice?.voice_id || "").trim();
           if (!voiceId || seen.has(voiceId)) continue;
-          if (voiceLanguage !== "all" && voicePrimaryLanguage(voice) !== voiceLanguage) continue;
+          if (voiceLanguage !== "auto" && voicePrimaryLanguage(voice) !== voiceLanguage) continue;
           seen.add(voiceId);
           unique.push(voice);
         }
@@ -3420,7 +4467,7 @@
           select.type = "button";
           select.setAttribute("role", "option");
           select.setAttribute("aria-selected", String(voiceId === selectedVoiceId));
-          select.disabled = state !== "idle";
+          select.disabled = false;
           select.addEventListener("click", () => selectVoice(voiceId));
 
           const name = document.createElement("span");

@@ -52,4 +52,8 @@ class STTGateway(Protocol):
         api_key: str | None = None,
         vad_threshold: float | None = None,
         vad_silence_threshold_secs: float | None = None,
+        continuous: bool = False,
+        detect_language: bool = False,
+        filter_background_audio: bool = False,
+        keyterms: tuple[str, ...] | None = None,
     ) -> AsyncIterator[STTEvent]: ...

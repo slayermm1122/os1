@@ -7,7 +7,7 @@ from backend.core.sessions import KVConversationStore
 
 
 class MessageBuilderTests(unittest.TestCase):
-    def test_persona_precedes_base_prompt_and_language_is_last(self) -> None:
+    def test_persona_precedes_base_prompt_and_language_is_hidden_on_user(self) -> None:
         messages = build_messages(
             system_prompt="stable-system",
             user_text="Hi",
@@ -22,9 +22,11 @@ class MessageBuilderTests(unittest.TestCase):
         self.assertLess(prompt.index('Your name is "Samantha"'), prompt.index("stable-system"))
         self.assertIn('user\'s name is "小丽"', prompt)
         self.assertIn("ask one relevant follow-up question", prompt)
-        self.assertTrue(prompt.endswith("请你用简体中文回答。"))
+        self.assertTrue(prompt.endswith("stable-system"))
+        self.assertNotIn("简体中文", prompt)
+        self.assertEqual(messages[-1]["content"], "Hi\n\n请用简体中文回答。")
 
-    def test_english_voice_requires_english_as_the_final_instruction(self) -> None:
+    def test_english_mode_keeps_system_stable_and_enriches_final_user(self) -> None:
         messages = build_messages(
             system_prompt="stable-system",
             user_text="Hi",
@@ -32,7 +34,23 @@ class MessageBuilderTests(unittest.TestCase):
             response_language="en",
         )
 
-        self.assertTrue(messages[0]["content"].endswith("Please respond in English."))
+        self.assertEqual(messages[0]["content"], "stable-system")
+        self.assertEqual(messages[-1]["content"], "Hi\n\nPlease respond in English.")
+
+    def test_language_changes_do_not_change_system_message(self) -> None:
+        english = build_messages(
+            system_prompt="stable-system",
+            user_text="hello",
+            history=[],
+            response_language="en",
+        )
+        chinese = build_messages(
+            system_prompt="stable-system",
+            user_text="你好",
+            history=[],
+            response_language="zh",
+        )
+        self.assertEqual(english[0], chinese[0])
 
     def test_history_is_preserved_without_turn_truncation(self) -> None:
         store = KVConversationStore(max_turns=1, max_sessions=5, ttl_seconds=3600)
@@ -42,6 +60,14 @@ class MessageBuilderTests(unittest.TestCase):
         self.assertEqual(
             [message["content"] for message in store.get_history("one")],
             ["U0", "A0", "U1", "A1", "U2", "A2"],
+        )
+
+    def test_interrupted_history_can_store_user_without_empty_assistant(self) -> None:
+        store = KVConversationStore(max_turns=1, max_sessions=5, ttl_seconds=3600)
+        store.append_exchange("one", "hello\n\nPlease respond in English.", None)
+        self.assertEqual(
+            store.get_history("one"),
+            [{"role": "user", "content": "hello\n\nPlease respond in English."}],
         )
 
 

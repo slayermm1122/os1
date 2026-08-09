@@ -62,9 +62,18 @@ class ElevenLabsSTTGateway:
         api_key: str | None = None,
     ) -> STTResult:
         resolved_key = self._require_api_key(api_key)
-        form: dict[str, str] = {"model_id": self.upload_model}
-        if self.settings.elevenlabs_stt_language_code:
-            form["language_code"] = self.settings.elevenlabs_stt_language_code
+        multipart: list[tuple[str, tuple[str | None, bytes | str, str | None] | tuple[None, str]]] = [
+            ("model_id", (None, self.upload_model)),
+            *[("keyterms", (None, term)) for term in self.settings.elevenlabs_stt_keyterms],
+            (
+                "file",
+                (
+                    filename or "speech.webm",
+                    data,
+                    content_type or "application/octet-stream",
+                ),
+            ),
+        ]
         timeout = _timeout(self.settings)
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
@@ -72,8 +81,7 @@ class ElevenLabsSTTGateway:
                     f"{self.base_url}/speech-to-text",
                     params={"enable_logging": str(self.settings.elevenlabs_enable_logging).lower()},
                     headers={"xi-api-key": resolved_key},
-                    data=form,
-                    files={"file": (filename or "speech.webm", data, content_type or "application/octet-stream")},
+                    files=multipart,
                 )
             response.raise_for_status()
         except Exception as exc:
@@ -94,6 +102,10 @@ class ElevenLabsSTTGateway:
         api_key: str | None = None,
         vad_threshold: float | None = None,
         vad_silence_threshold_secs: float | None = None,
+        continuous: bool = False,
+        detect_language: bool = False,
+        filter_background_audio: bool = False,
+        keyterms: tuple[str, ...] | None = None,
     ) -> AsyncIterator[STTEvent]:
         resolved_key = self._require_api_key(api_key)
         audio_format = self.settings.elevenlabs_realtime_stt_audio_format
@@ -117,14 +129,23 @@ class ElevenLabsSTTGateway:
             3.0,
             1.2,
         )
-        query: dict[str, str] = {
+        query: dict[str, object] = {
             "model_id": self.realtime_model,
             "audio_format": audio_format,
             "commit_strategy": commit_strategy,
-            "include_timestamps": "true",
-            "timestamps_granularity": "word",
+            "include_timestamps": "false" if filter_background_audio else "true",
             "enable_logging": str(self.settings.elevenlabs_enable_logging).lower(),
+            "secondary_languages": ["en", "zh"],
         }
+        if not filter_background_audio:
+            query["timestamps_granularity"] = "word"
+        if detect_language:
+            query["include_language_detection"] = "true"
+        if filter_background_audio:
+            query["filter_background_audio"] = "true"
+        selected_keyterms = keyterms if keyterms is not None else self.settings.elevenlabs_stt_keyterms
+        if selected_keyterms:
+            query["keyterms"] = list(selected_keyterms)
         if use_vad:
             query["vad_threshold"] = str(resolved_vad_threshold)
             query["vad_silence_threshold_secs"] = str(resolved_silence_secs)
@@ -134,9 +155,7 @@ class ElevenLabsSTTGateway:
             query["min_silence_duration_ms"] = str(
                 self.settings.elevenlabs_stt_vad_min_silence_duration_ms
             )
-        if self.settings.elevenlabs_stt_language_code:
-            query["language_code"] = self.settings.elevenlabs_stt_language_code
-        uri = f"wss://api.elevenlabs.io/v1/speech-to-text/realtime?{urlencode(query)}"
+        uri = f"wss://api.elevenlabs.io/v1/speech-to-text/realtime?{urlencode(query, doseq=True)}"
 
         connected = False
         try:
@@ -150,6 +169,8 @@ class ElevenLabsSTTGateway:
                 connected = True
                 received_commit = False
                 last_committed_text = ""
+                pending_committed_text = ""
+                last_emitted_text = ""
 
                 async def send_audio() -> None:
                     async for chunk in audio_chunks:
@@ -181,7 +202,9 @@ class ElevenLabsSTTGateway:
                 send_task = asyncio.create_task(send_audio())
                 send_results: list[object] = []
                 try:
-                    async with asyncio.timeout(self.settings.upstream_stream_timeout_seconds):
+                    async with asyncio.timeout(
+                        None if continuous else self.settings.upstream_stream_timeout_seconds
+                    ):
                         async for message in websocket:
                             if isinstance(message, bytes):
                                 continue
@@ -215,21 +238,50 @@ class ElevenLabsSTTGateway:
                                     continue
                                 received_commit = True
                                 last_committed_text = committed_text
-                                yield STTEvent(
-                                    kind="committed",
-                                    text=last_committed_text,
-                                    language_code=str(payload.get("language_code") or "") or None,
-                                    request_id=request_id,
-                                )
+                                pending_committed_text = committed_text
+                                if not detect_language:
+                                    yield STTEvent(
+                                        kind="committed",
+                                        text=last_committed_text,
+                                        language_code=None,
+                                        request_id=request_id,
+                                    )
+                                    last_emitted_text = last_committed_text
+                                elif payload.get("language_code"):
+                                    yield STTEvent(
+                                        kind="committed",
+                                        text=last_committed_text,
+                                        language_code=str(payload.get("language_code")),
+                                        request_id=request_id,
+                                    )
+                                    last_emitted_text = last_committed_text
+                                    pending_committed_text = ""
                                 # VAD may emit plain commit first; stop the turn after speech.
-                                if use_vad:
+                                if use_vad and not continuous and not detect_language:
                                     break
-                            elif message_type == "committed_transcript_with_timestamps":
+                            elif message_type in {
+                                "committed_transcript_with_timestamps",
+                                "final_transcript_with_timestamps",
+                            }:
                                 committed_text = str(payload.get("text") or "").strip()
                                 if not committed_text and not last_committed_text:
                                     continue
                                 received_commit = True
-                                if committed_text and committed_text != last_committed_text:
+                                if (
+                                    detect_language
+                                    and (committed_text or pending_committed_text)
+                                    and (committed_text or pending_committed_text) != last_emitted_text
+                                ):
+                                    last_committed_text = committed_text or pending_committed_text
+                                    yield STTEvent(
+                                        kind="committed",
+                                        text=last_committed_text,
+                                        language_code=str(payload.get("language_code") or "") or None,
+                                        request_id=request_id,
+                                    )
+                                    last_emitted_text = last_committed_text
+                                    pending_committed_text = ""
+                                elif committed_text and committed_text != last_committed_text:
                                     last_committed_text = committed_text
                                     yield STTEvent(
                                         kind="committed",
@@ -246,7 +298,8 @@ class ElevenLabsSTTGateway:
                                         request_id=request_id,
                                         words=words,
                                     )
-                                break
+                                if not continuous:
+                                    break
                 finally:
                     if not send_task.done():
                         send_task.cancel()
@@ -257,13 +310,22 @@ class ElevenLabsSTTGateway:
                     asyncio.CancelledError,
                 ):
                     raise send_error
-                if not received_commit:
+                if not received_commit and not continuous:
                     raise GatewayError(
                         stage="stt",
                         provider=self.provider,
                         code="stream_closed",
                         public_message="ElevenLabs transcription ended before committing a transcript.",
                         technical_message="Realtime STT WebSocket closed without a committed transcript event.",
+                        retryable=True,
+                    )
+                if continuous:
+                    raise GatewayError(
+                        stage="stt",
+                        provider=self.provider,
+                        code="stream_closed",
+                        public_message="ElevenLabs live transcription disconnected.",
+                        technical_message="Continuous realtime STT WebSocket closed.",
                         retryable=True,
                     )
         except GatewayError:

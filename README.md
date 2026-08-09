@@ -27,24 +27,26 @@ This is still deliberately small, inspectable, and easy to change.
 
 ## What Works In v0.03.03
 
-- Tap-to-speak voice recording with browser PCM streaming
-- ElevenLabs realtime speech-to-text while you are still speaking
+- One-click Live voice mode with browser PCM streaming
+- One continuous ElevenLabs Scribe connection across multiple turns
 - **VAD auto end-of-speech**: pause briefly to finish; no 15-second hard stop or countdown
 - xAI Grok text generation, currently defaulting to `grok-4.5`
 - `reasoning_effort=low` for faster responses
 - Streaming LLM output from the backend
-- ElevenLabs streaming TTS through WebSocket (`eleven_flash_v2_5`)
+- One preconnected ElevenLabs Multi-Context TTS WebSocket (`eleven_flash_v2_5`)
+- Full-duplex barge-in that stops queued speech and preserves only its audible prefix
 - AudioContext playback for streamed PCM audio chunks
 - Mic-reactive orb bars while you speak; restrained motion while OS1 replies
 - Chat bubbles in the center panel: you on the right, OS1 on the left
-- Overlaying OS1 sidebar with Persona, Voice, and API-key status views
+- Overlaying OS1 sidebar with Persona, Voice, Pronunciation, Usage, and API-key status views
 - Persona settings for the AI name, user name, and default / concise / conversational response style
-- ElevenLabs My Voices plus two default voices, language filters, timed previews, and `.env`-backed selection
-- Automatic English or Simplified Chinese response instructions based on the active voice language
+- ElevenLabs My Voices plus two default voices, response-language filters, timed previews, and `.env`-backed selection
+- Auto, English, or Simplified Chinese reply modes independent of the selected multilingual voice
+- Scribe keyterms and an API-managed ElevenLabs pronunciation alias dictionary
 - API keys and persistent settings read only from the local `.env`
 - ElevenLabs account name and remaining credits in the sidebar
 - Capability-specific LLM, STT, and TTS gateways
-- Per-turn latency, usage, cost, cache, and error telemetry in local SQLite
+- Content-free per-turn latency, usage, cache, model, and error telemetry in local SQLite
 - Startup readiness checks for the configured xAI model and ElevenLabs voice path
 - Explicit `checking`, `listening`, `thinking`, and `speaking` interface states
 - Structured provider errors with upstream status, official error detail, and request ID
@@ -52,16 +54,16 @@ This is still deliberately small, inspectable, and easy to change.
 
 ## Current Limits
 
-OS1 does not interrupt, barge in, or run a fully hands-free continuous loop yet. One tap starts listening; silence ends the turn.
+One tap starts a continuous Live session; a second tap closes it. Silence commits one utterance while Scribe keeps listening for the next. The page-level session closes after three minutes without user speech, model output, or playback.
 
 The current flow is:
 
 ```text
 Browser PCM
-  -> backend WebSocket
-  -> ElevenLabs realtime STT (VAD commit on pause)
+  -> persistent backend session WebSocket
+  -> persistent ElevenLabs realtime STT (repeated VAD commits)
   -> Grok streaming response
-  -> ElevenLabs TTS WebSocket
+  -> per-turn context on one ElevenLabs Multi-Context TTS WebSocket
   -> browser AudioContext playback
 ```
 
@@ -136,11 +138,11 @@ The API Key sidebar page is status-only: it reports whether the backend loaded e
 
 The ElevenLabs key needs the TTS/STT capabilities used by OS1, plus `voices_read` for My Voices and `user_read` for the account name and remaining-credit display. Provider keys are never returned to frontend code, accepted through browser request headers, or stored in browser storage.
 
-Persona and voice settings are local too. The sidebar writes `ASSISTANT_NAME`, `USER_NAME`, `ASSISTANT_PERSONA`, `ELEVENLABS_VOICE_ID`, and `ELEVENLABS_VOICE_LANGUAGE` to `.env`. Persona changes update the running system prompt immediately, and selecting an English or Chinese voice changes both the homepage prompt and the required response language. No browser storage is used.
+Persona, voice, language, and pronunciation settings are local too. The sidebar writes `ASSISTANT_NAME`, `USER_NAME`, `ASSISTANT_PERSONA`, `ELEVENLABS_VOICE_ID`, `ASSISTANT_RESPONSE_LANGUAGE`, and Scribe keyterms to `.env`. Alias rules are managed through the ElevenLabs API; only the dictionary and current version locators are persisted locally. Selecting a voice never changes the reply language. No browser storage is used.
 
 ## Local `.env`
 
-`.env` is OS1's only persistent configuration source. API keys must be edited there manually. Voice selection, Persona, and listening controls update their corresponding local `.env` values through the loopback-only backend.
+`.env` is OS1's only local persistent configuration source. API keys must be edited there manually. Voice selection, Persona, language, listening, and pronunciation controls update their corresponding local `.env` values through the loopback-only backend.
 
 ```bash
 cp .env.example .env
@@ -154,7 +156,7 @@ Telemetry is enabled for local development so every turn and provider stage can 
 
 OS1 is local-first research software. Read [SECURITY.md](SECURITY.md) before publishing, deploying, or sharing a hosted instance.
 
-OS1 v0.03.03 accepts loopback traffic only and is not a public deployment. Telemetry is enabled by default and stores full transcripts, AI responses, and model request snapshots in the ignored local file `data/telemetry.sqlite`. Set `TELEMETRY_ENABLED=false` when this local full-content record is not acceptable.
+OS1 v0.03.03 accepts loopback traffic only and is not a public deployment. Telemetry is enabled by default and stores usage metrics—tokens, cache hits and misses, reasoning/output counts, audio duration, TTS characters, latency, model, and status—in the ignored local file `data/telemetry.sqlite`. New telemetry records do not store transcripts, prompts, or AI response content. The Usage sidebar summarizes 7 days, 30 days, or the complete local history. Existing databases created by older OS1 versions may still contain historical content until those rows are explicitly removed. Set `TELEMETRY_ENABLED=false` to stop new usage records.
 
 ## Roadmap
 

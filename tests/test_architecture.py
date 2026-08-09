@@ -402,7 +402,7 @@ class OrchestratorTests(unittest.IsolatedAsyncioTestCase):
                 ).fetchall()
             )
 
-        self.assertEqual(turn, ("success", "hello", "A concise answer.", None, None))
+        self.assertEqual(turn, ("success", None, None, None, None))
         self.assertEqual(llm[:4], (10, 2, "partial", 1234))
         self.assertIsNotNone(llm[5])
         self.assertIn("stt.committed", event_offsets)
@@ -411,14 +411,16 @@ class OrchestratorTests(unittest.IsolatedAsyncioTestCase):
             event_offsets["llm.first_token"] - event_offsets["stt.committed"],
             0,
         )
-        self.assertIn("A concise answer", tts and turn[2])
         self.assertGreater(stt[0], 0)
         self.assertAlmostEqual(stt[1], 100.0)
         self.assertEqual(stt[2:], (1, 1))
-        self.assertEqual(tts[0], "A concise answer.")
-        self.assertEqual(tts[1], len(tts[0]) + 1)
+        self.assertEqual(tts[0], "")
+        self.assertEqual(tts[1], len("A concise answer.") + 1)
         self.assertAlmostEqual(tts[3], 100.0)
-        self.assertIn("system", llm[4])
+        self.assertEqual(json.loads(llm[4])["model"], "fake-fast")
+        self.assertNotIn("messages", json.loads(llm[4]))
+        self.assertNotIn("hello", database_text)
+        self.assertNotIn("A concise answer.", database_text)
         self.assertNotIn("xai-test-secret", database_text)
         self.assertNotIn("voice-test-secret", database_text)
 
@@ -1007,8 +1009,96 @@ class TelemetryStoreTests(unittest.IsolatedAsyncioTestCase):
                         "SELECT status, assistant_text FROM turns WHERE turn_id = ?",
                         (trace.turn_id,),
                     ).fetchone(),
-                    ("success", "preserved"),
+                    ("success", None),
                 )
+
+    async def test_usage_summary_aggregates_metrics_without_content(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "telemetry.sqlite"
+            recorder = SQLiteTelemetryRecorder(db_path)
+            await recorder.start()
+            trace = recorder.new_turn(session_id="usage-session", kind="voice_live")
+            trace.update_text(user_text="private user text", assistant_text="private assistant text")
+            recorder.start_llm_call(
+                trace,
+                call_id="usage-llm",
+                provider="xai",
+                model="grok-test",
+                reasoning_effort="low",
+                request={"model": "grok-test", "messages": [{"content": "private prompt"}]},
+            )
+            recorder.finish_llm_call(
+                "usage-llm",
+                status="success",
+                duration_ms=1250,
+                response_text="private model response",
+                prompt_tokens=100,
+                cached_tokens=60,
+                reasoning_tokens=12,
+                completion_tokens=25,
+            )
+            recorder.start_stt_call(
+                trace,
+                call_id="usage-stt",
+                provider="elevenlabs",
+                model="scribe-test",
+                sample_rate=16000,
+            )
+            recorder.finish_stt_call(
+                "usage-stt",
+                status="success",
+                duration_ms=800,
+                audio_duration_ms=5000,
+                transcript_text="private transcript",
+            )
+            recorder.start_tts_call(
+                trace,
+                call_id="usage-tts",
+                provider="elevenlabs",
+                model="flash-test",
+                voice_id="voice-test",
+                output_format="pcm_16000",
+                sample_rate=16000,
+            )
+            recorder.finish_tts_call(
+                "usage-tts",
+                status="failed",
+                duration_ms=400,
+                input_text="private speech",
+                input_chars=42,
+                character_cost=40,
+                audio_duration_ms=1200,
+            )
+            trace.finish("partial_failure", assistant_text="private assistant text")
+            summary = await recorder.usage_summary("all")
+            await recorder.close()
+
+            self.assertFalse(summary["content_recording"])
+            self.assertEqual(summary["totals"]["llm"]["cache_hit_tokens"], 60)
+            self.assertEqual(summary["totals"]["llm"]["cache_miss_tokens"], 40)
+            self.assertEqual(summary["totals"]["llm"]["reasoning_tokens"], 12)
+            self.assertEqual(summary["totals"]["llm"]["output_tokens"], 25)
+            self.assertEqual(summary["totals"]["elevenlabs"]["calls"], 2)
+            self.assertEqual(summary["totals"]["elevenlabs"]["tts_characters"], 40)
+            with closing(sqlite3.connect(db_path)) as conn:
+                turn = conn.execute(
+                    "SELECT user_text, assistant_text FROM turns WHERE turn_id = ?",
+                    (trace.turn_id,),
+                ).fetchone()
+                llm = conn.execute(
+                    "SELECT request_json, response_text FROM llm_calls WHERE call_id = 'usage-llm'"
+                ).fetchone()
+                stt_text = conn.execute(
+                    "SELECT transcript_text FROM stt_calls WHERE call_id = 'usage-stt'"
+                ).fetchone()[0]
+                tts_text = conn.execute(
+                    "SELECT input_text FROM tts_calls WHERE call_id = 'usage-tts'"
+                ).fetchone()[0]
+            self.assertEqual(turn, (None, None))
+            self.assertNotIn("messages", json.loads(llm[0]))
+            self.assertIsNone(llm[1])
+            self.assertIsNone(stt_text)
+            self.assertEqual(tts_text, "")
 
     async def test_dynamic_telemetry_update_rejects_unknown_columns(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

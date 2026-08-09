@@ -33,6 +33,23 @@ class VoiceProfileRequest(BaseModel):
     vad_threshold: float = Field(ge=0.1, le=0.9)
 
 
+class LanguageRequest(BaseModel):
+    mode: str = Field(pattern=r"^(auto|en|zh)$")
+
+
+class KeytermsRequest(BaseModel):
+    keyterms: list[str] = Field(default_factory=list, max_length=50)
+
+
+class PronunciationAliasRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=200)
+    alias: str = Field(min_length=1, max_length=200)
+
+
+class PronunciationDictionaryRequest(BaseModel):
+    rules: list[PronunciationAliasRequest] = Field(default_factory=list, max_length=500)
+
+
 class PersonaRequest(BaseModel):
     assistant_name: str = Field(default="", max_length=40)
     user_name: str = Field(default="", max_length=40)
@@ -70,7 +87,7 @@ def create_router(services: ApplicationServices) -> APIRouter:
             },
             "default_tts_provider": orchestrator.tts.default_provider,
             "selected_voice_id": settings.elevenlabs_voice_id,
-            "selected_voice_language": settings.elevenlabs_voice_language,
+            "response_language_mode": settings.assistant_response_language,
             "assistant_name": settings.assistant_name,
             "user_name": settings.user_name,
             "assistant_persona": settings.assistant_persona,
@@ -101,6 +118,17 @@ def create_router(services: ApplicationServices) -> APIRouter:
                 },
             ],
         }
+
+    @router.get("/api/usage")
+    async def usage(period: str = "7d") -> dict[str, object]:
+        if period not in {"7d", "30d", "all"}:
+            raise HTTPException(status_code=400, detail="Usage range must be 7d, 30d, or all.")
+        try:
+            return await services.telemetry.usage_summary(period)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except Exception as exc:
+            raise _http_error(exc) from exc
 
     @router.post("/api/connectivity/check")
     async def connectivity_check() -> dict[str, object]:
@@ -151,22 +179,14 @@ def create_router(services: ApplicationServices) -> APIRouter:
             }
             if request.voice_id not in selectable_ids:
                 raise HTTPException(status_code=400, detail="Voice is not available to this account.")
-            selected_voice = next(
-                (voice for voice in voices if str(voice.get("voice_id") or "") == request.voice_id),
-                None,
-            )
-            language = "en"
-            if selected_voice is not None:
-                primary_language = str(selected_voice.get("primary_language") or "").lower()
-                primary_locale = str(selected_voice.get("primary_locale") or "").lower()
-                if primary_language.startswith("zh") or primary_locale.startswith(("zh", "cmn")):
-                    language = "zh"
             await _in_thread(
-                lambda: services.local_settings.select_voice(request.voice_id, language)
+                lambda: services.local_settings.select_voice(request.voice_id, "")
             )
+            if services.live_sessions is not None:
+                await services.live_sessions.notify("voice")
             return {
                 "voice_id": settings.elevenlabs_voice_id,
-                "language": settings.elevenlabs_voice_language,
+                "response_language_mode": settings.assistant_response_language,
             }
         except HTTPException:
             raise
@@ -187,6 +207,98 @@ def create_router(services: ApplicationServices) -> APIRouter:
             return {
                 "vad_silence_threshold_secs": settings.elevenlabs_stt_vad_silence_threshold_secs,
                 "vad_threshold": settings.elevenlabs_stt_vad_threshold,
+            }
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except Exception as exc:
+            raise _http_error(exc) from exc
+
+    @router.post("/api/settings/language")
+    async def update_language(request: LanguageRequest) -> dict[str, object]:
+        if services.local_settings is None:
+            raise HTTPException(status_code=503, detail="Local language settings are unavailable.")
+        try:
+            await _in_thread(
+                lambda: services.local_settings.update_response_language(request.mode)
+            )
+            if services.live_sessions is not None:
+                await services.live_sessions.notify("language")
+            return {"mode": settings.assistant_response_language}
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except Exception as exc:
+            raise _http_error(exc) from exc
+
+    @router.get("/api/settings/pronunciation/keyterms")
+    async def get_keyterms() -> dict[str, object]:
+        return {"keyterms": list(settings.elevenlabs_stt_keyterms)}
+
+    @router.post("/api/settings/pronunciation/keyterms")
+    async def update_keyterms(request: KeytermsRequest) -> dict[str, object]:
+        if services.local_settings is None:
+            raise HTTPException(status_code=503, detail="Local pronunciation settings are unavailable.")
+        try:
+            keyterms = await _in_thread(
+                lambda: services.local_settings.update_stt_keyterms(request.keyterms)
+            )
+            if services.live_sessions is not None:
+                await services.live_sessions.notify("keyterms")
+            return {"keyterms": list(keyterms)}
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except Exception as exc:
+            raise _http_error(exc) from exc
+
+    @router.get("/api/settings/pronunciation/dictionary")
+    async def get_pronunciation_dictionary() -> dict[str, object]:
+        if services.pronunciation is None:
+            raise HTTPException(status_code=503, detail="Pronunciation dictionaries are unavailable.")
+        try:
+            rules = await services.pronunciation.get_rules()
+            return {
+                "dictionary_id": settings.elevenlabs_pronunciation_dictionary_id,
+                "version_id": settings.elevenlabs_pronunciation_dictionary_version_id,
+                "rules": [
+                    {
+                        "text": str(rule.get("string_to_replace") or ""),
+                        "alias": str(rule.get("alias") or ""),
+                    }
+                    for rule in rules
+                ],
+            }
+        except Exception as exc:
+            raise _http_error(exc) from exc
+
+    @router.post("/api/settings/pronunciation/dictionary")
+    async def update_pronunciation_dictionary(
+        request: PronunciationDictionaryRequest,
+    ) -> dict[str, object]:
+        if services.pronunciation is None or services.local_settings is None:
+            raise HTTPException(status_code=503, detail="Pronunciation dictionaries are unavailable.")
+        rules = [
+            {
+                "type": "alias",
+                "string_to_replace": rule.text,
+                "alias": rule.alias,
+                "case_sensitive": False,
+                "word_boundaries": True,
+            }
+            for rule in request.rules
+        ]
+        try:
+            dictionary_id, version_id = await services.pronunciation.save_rules(rules)
+            await _in_thread(
+                lambda: services.local_settings.update_pronunciation_locator(
+                    dictionary_id,
+                    version_id,
+                )
+            )
+            if services.live_sessions is not None:
+                await services.live_sessions.notify("dictionary")
+            return {
+                "dictionary_id": dictionary_id,
+                "version_id": version_id,
+                "rules": [rule.model_dump() for rule in request.rules],
             }
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

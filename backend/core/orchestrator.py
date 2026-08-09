@@ -25,6 +25,18 @@ class PipelineEvent:
     data: dict[str, object]
 
 
+@dataclass
+class LiveTurnState:
+    user_text: str
+    model_user_text: str = ""
+    assistant_text: str = ""
+    context_id: str = ""
+    response_language: str = "en"
+    completed: bool = False
+    history_committed: bool = False
+    trace: TurnTrace | None = None
+
+
 class ObservedError(Exception):
     def __init__(self, info: ErrorInfo) -> None:
         self.info = info
@@ -136,6 +148,10 @@ class TurnOrchestrator:
             assistant_name=self.settings.assistant_name,
             user_name=self.settings.user_name,
             assistant_persona=self.settings.assistant_persona,
+            response_language=resolve_response_language(
+                self.settings.assistant_response_language,
+                result.language_code,
+            ),
         ):
             yield event
 
@@ -156,6 +172,7 @@ class TurnOrchestrator:
         assistant_name: str | None = None,
         user_name: str | None = None,
         assistant_persona: str | None = None,
+        response_language: str | None = None,
     ) -> AsyncIterator[PipelineEvent]:
         selected_stt_key = stt_api_key if stt_api_key is not None else voice_api_key
         selected_tts_key = tts_api_key if tts_api_key is not None else voice_api_key
@@ -163,6 +180,7 @@ class TurnOrchestrator:
         try:
             user_text = ""
             partial_text = ""
+            detected_language: str | None = None
             stt_ready = False
             async for event in self._transcribe_realtime(
                 trace,
@@ -186,6 +204,7 @@ class TurnOrchestrator:
                         stt_ready = True
                         yield self.event(trace, "stt_ready", {"state": "listening"})
                     user_text = f"{user_text} {event.text.strip()}".strip()
+                    detected_language = event.language_code or detected_language
                     yield self.event(trace, "transcript", {"text": user_text})
                 elif event.kind == "timing" and event.words:
                     yield self.event(
@@ -237,6 +256,10 @@ class TurnOrchestrator:
             assistant_name=assistant_name,
             user_name=user_name,
             assistant_persona=assistant_persona,
+            response_language=response_language or resolve_response_language(
+                self.settings.assistant_response_language,
+                detected_language,
+            ),
         ):
             yield event
 
@@ -253,6 +276,7 @@ class TurnOrchestrator:
         assistant_name: str | None = None,
         user_name: str | None = None,
         assistant_persona: str | None = None,
+        response_language: str | None = None,
     ) -> AsyncIterator[PipelineEvent]:
         trace.update_text(user_text=user_text)
         try:
@@ -264,7 +288,10 @@ class TurnOrchestrator:
                 assistant_name=assistant_name or "",
                 user_name=user_name or "",
                 persona=assistant_persona or "default",
-                response_language=self.settings.elevenlabs_voice_language,
+                response_language=response_language or resolve_response_language(
+                    self.settings.assistant_response_language,
+                    None,
+                ),
             )
         except asyncio.CancelledError:
             trace.finish("cancelled")
@@ -437,6 +464,219 @@ class TurnOrchestrator:
             trace_id=metadata.trace_id,
         )
         trace.finish("success", response_complete=True)
+
+    async def stream_live_chat(
+        self,
+        trace: TurnTrace,
+        *,
+        state: LiveTurnState,
+        live_tts,
+        response_language: str,
+    ) -> AsyncIterator[PipelineEvent]:
+        """Stream one answer through a context on a session-owned TTS connection.
+
+        History is intentionally committed by the realtime session after browser
+        playback completes, so interrupted turns can retain only audible text.
+        """
+        trace.update_text(user_text=state.user_text)
+        history = self.sessions.get_history(trace.session_id)
+        messages = build_messages(
+            system_prompt=self.settings.system_prompt,
+            user_text=state.user_text,
+            history=history,
+            assistant_name=self.settings.assistant_name,
+            user_name=self.settings.user_name,
+            persona=self.settings.assistant_persona,
+            response_language=response_language,
+        )
+        state.model_user_text = messages[-1]["content"]
+        state.response_language = response_language
+        event_queue: asyncio.Queue[tuple[str, object]] = asyncio.Queue()
+        text_queue: asyncio.Queue[str | None] = asyncio.Queue()
+        speech_buffer = ""
+        llm_failed = False
+        tts_failed = False
+
+        async def text_chunks() -> AsyncIterator[str]:
+            while True:
+                chunk = await text_queue.get()
+                if chunk is None:
+                    break
+                yield chunk
+
+        async def produce_llm() -> None:
+            nonlocal speech_buffer, llm_failed
+            try:
+                async for llm_event in self._stream_llm(trace, messages, api_key=None):
+                    if llm_event.kind != "delta":
+                        continue
+                    state.assistant_text += llm_event.text
+                    trace.update_text(assistant_text=state.assistant_text)
+                    await event_queue.put(
+                        ("event", self.event(trace, "delta", {"text": llm_event.text}))
+                    )
+                    speech_buffer += llm_event.text
+                    ready, speech_buffer = pop_ready_speech_chunks(speech_buffer)
+                    for chunk in ready:
+                        await text_queue.put(chunk)
+                        await event_queue.put(
+                            ("event", self.event(trace, "display", {"text": chunk}))
+                        )
+                final_chunk = speech_buffer.strip()
+                if final_chunk:
+                    await text_queue.put(final_chunk)
+                    await event_queue.put(
+                        ("event", self.event(trace, "display", {"text": final_chunk}))
+                    )
+                await event_queue.put(
+                    ("event", self.event(trace, "done", {"text": state.assistant_text}))
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                llm_failed = True
+                info = _observed_info(exc, default_stage="llm")
+                await event_queue.put(
+                    ("event", self.event(trace, "error", info.payload(trace.turn_id)))
+                )
+            finally:
+                await text_queue.put(None)
+                await event_queue.put(("complete", "llm"))
+
+        async def produce_tts() -> None:
+            nonlocal tts_failed
+            call_id = uuid.uuid4().hex
+            call_start = trace.offset_ms()
+            input_chunks: list[str] = []
+            audio_bytes = 0
+            first_text_ms: float | None = None
+            first_audio_ms: float | None = None
+            self.telemetry.start_tts_call(
+                trace,
+                call_id=call_id,
+                provider="elevenlabs",
+                model="eleven_flash_v2_5",
+                voice_id=self.settings.elevenlabs_voice_id,
+                output_format=self.settings.elevenlabs_stream_output_format,
+                sample_rate=_sample_rate(self.settings.elevenlabs_stream_output_format),
+            )
+
+            async def observed_chunks() -> AsyncIterator[str]:
+                nonlocal first_text_ms
+                async for chunk in text_chunks():
+                    if first_text_ms is None:
+                        first_text_ms = trace.offset_ms() - call_start
+                        trace.event("tts.first_text", stage="tts", metadata={"call_id": call_id})
+                    input_chunks.append(chunk)
+                    yield chunk
+
+            trace.event("tts.context_created", stage="tts", metadata={"context_id": state.context_id})
+            try:
+                async for output in live_tts.stream_context(
+                    observed_chunks(),
+                    context_id=state.context_id,
+                ):
+                    if output.kind != "audio":
+                        continue
+                    if first_audio_ms is None:
+                        first_audio_ms = trace.offset_ms() - call_start
+                        trace.event("tts.first_audio", stage="tts", metadata={"call_id": call_id})
+                    audio_bytes += len(output.audio)
+                    data: dict[str, object] = {
+                        "audio": base64.b64encode(output.audio).decode("ascii"),
+                        "mime_type": "audio/L16",
+                        "format": self.settings.elevenlabs_stream_output_format,
+                        "sample_rate": _sample_rate(
+                            self.settings.elevenlabs_stream_output_format
+                        ),
+                        "context_id": state.context_id,
+                    }
+                    if output.alignment is not None:
+                        data["alignment"] = caption_payload(output.alignment)
+                    await event_queue.put(("event", self.event(trace, "audio", data)))
+                await event_queue.put(("event", self.event(trace, "audio_done")))
+            except asyncio.CancelledError:
+                input_text, input_chars = _tts_input_metrics(input_chunks)
+                self.telemetry.finish_tts_call(
+                    call_id,
+                    status="cancelled",
+                    completed_at=utc_now(),
+                    duration_ms=trace.offset_ms() - call_start,
+                    input_text=input_text,
+                    input_chars=input_chars,
+                    input_chunks=len(input_chunks),
+                    first_text_ms=first_text_ms,
+                    first_audio_ms=first_audio_ms,
+                    audio_bytes=audio_bytes,
+                )
+                raise
+            except Exception as exc:
+                tts_failed = True
+                info = _observed_info(exc, default_stage="tts")
+                self.telemetry.record_error(trace, info, call_id=call_id)
+                input_text, input_chars = _tts_input_metrics(input_chunks)
+                self.telemetry.finish_tts_call(
+                    call_id,
+                    status="failed",
+                    completed_at=utc_now(),
+                    duration_ms=trace.offset_ms() - call_start,
+                    input_text=input_text,
+                    input_chars=input_chars,
+                    input_chunks=len(input_chunks),
+                    first_text_ms=first_text_ms,
+                    first_audio_ms=first_audio_ms,
+                    audio_bytes=audio_bytes,
+                )
+                await event_queue.put(
+                    ("event", self.event(trace, "tts_error", info.payload(trace.turn_id)))
+                )
+            else:
+                input_text, input_chars = _tts_input_metrics(input_chunks)
+                self.telemetry.finish_tts_call(
+                    call_id,
+                    status="success",
+                    completed_at=utc_now(),
+                    duration_ms=trace.offset_ms() - call_start,
+                    input_text=input_text,
+                    input_chars=input_chars,
+                    input_chunks=len(input_chunks),
+                    first_text_ms=first_text_ms,
+                    first_audio_ms=first_audio_ms,
+                    audio_bytes=audio_bytes,
+                    audio_duration_ms=_pcm_duration_ms(
+                        audio_bytes,
+                        _sample_rate(self.settings.elevenlabs_stream_output_format),
+                    ),
+                )
+            finally:
+                trace.event("tts.context_closed", stage="tts", metadata={"context_id": state.context_id})
+                await event_queue.put(("complete", "tts"))
+
+        yield self.event(trace, "status", {"state": "thinking"})
+        tasks = [asyncio.create_task(produce_llm()), asyncio.create_task(produce_tts())]
+        completed = 0
+        try:
+            while completed < len(tasks):
+                kind, value = await event_queue.get()
+                if kind == "complete":
+                    completed += 1
+                else:
+                    yield value  # type: ignore[misc]
+        except asyncio.CancelledError:
+            trace.finish("cancelled", assistant_text=state.assistant_text)
+            raise
+        finally:
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+        state.completed = not llm_failed
+        if llm_failed:
+            trace.finish("failed", assistant_text=state.assistant_text)
+        elif tts_failed:
+            trace.finish("partial_failure", assistant_text=state.assistant_text, response_complete=True)
+        else:
+            trace.finish("success", assistant_text=state.assistant_text, response_complete=True)
 
     async def _stream_chat_with_audio(
         self,
@@ -1023,6 +1263,23 @@ def _sample_rate(output_format: str) -> int | None:
         return int(output_format.split("_", 1)[1])
     except (IndexError, ValueError):
         return None
+
+
+def resolve_response_language(
+    mode: str | None,
+    detected_language: str | None,
+    previous_language: str | None = None,
+) -> str:
+    selected = str(mode or "auto").strip().lower()
+    if selected in {"en", "zh"}:
+        return selected
+    detected = str(detected_language or "").strip().lower()
+    if detected.startswith("en") or detected == "eng":
+        return "en"
+    if detected.startswith("zh") or detected in {"cmn", "yue"}:
+        return "zh"
+    previous = str(previous_language or "").strip().lower()
+    return previous if previous in {"en", "zh"} else "en"
 
 
 def _observed_info(exc: Exception, *, default_stage: str) -> ErrorInfo:

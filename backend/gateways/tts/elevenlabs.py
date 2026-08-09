@@ -13,6 +13,7 @@ import websockets
 from ...config import Settings
 from ...core.errors import GatewayError, parse_provider_error
 from .base import TTSAlignment, TTSEvent
+from .elevenlabs_live import ElevenLabsMultiContextSession
 
 
 class ElevenLabsTTSGateway:
@@ -70,6 +71,12 @@ class ElevenLabsTTSGateway:
             )
         return resolved
 
+    def create_live_session(self, voice_id: str | None = None) -> ElevenLabsMultiContextSession:
+        return ElevenLabsMultiContextSession(
+            self.settings,
+            self._resolve_voice_id(voice_id),
+        )
+
     async def stream_http(
         self,
         text: str,
@@ -85,6 +92,9 @@ class ElevenLabsTTSGateway:
             "model_id": self.model,
             "voice_settings": {"stability": 0.45, "similarity_boost": 0.75, "speed": 1.0},
         }
+        locators = self._pronunciation_dictionary_locators()
+        if locators:
+            payload["pronunciation_dictionary_locators"] = locators
         timeout = httpx.Timeout(
             connect=self.settings.upstream_connect_timeout_seconds,
             read=self.settings.upstream_read_timeout_seconds,
@@ -155,20 +165,20 @@ class ElevenLabsTTSGateway:
                 response_headers = getattr(getattr(websocket, "response", None), "headers", {})
                 request_id = response_headers.get("request-id") or response_headers.get("x-request-id")
                 trace_id = response_headers.get("x-trace-id")
-                await websocket.send(
-                    json.dumps(
-                        {
-                            "text": " ",
-                            "xi_api_key": key,
-                            "voice_settings": {
-                                "stability": 0.45,
-                                "similarity_boost": 0.75,
-                                "speed": 1.0,
-                            },
-                            "generation_config": {"chunk_length_schedule": [50, 90, 140, 200]},
-                        }
-                    )
-                )
+                initialize = {
+                    "text": " ",
+                    "xi_api_key": key,
+                    "voice_settings": {
+                        "stability": 0.45,
+                        "similarity_boost": 0.75,
+                        "speed": 1.0,
+                    },
+                    "generation_config": {"chunk_length_schedule": [50, 90, 140, 200]},
+                }
+                locators = self._pronunciation_dictionary_locators()
+                if locators:
+                    initialize["pronunciation_dictionary_locators"] = locators
+                await websocket.send(json.dumps(initialize))
 
                 async def send_text() -> None:
                     pending = ""
@@ -247,6 +257,18 @@ class ElevenLabsTTSGateway:
             raise
         except Exception as exc:
             raise _gateway_error(exc) from exc
+
+    def _pronunciation_dictionary_locators(self) -> list[dict[str, str]]:
+        dictionary_id = self.settings.elevenlabs_pronunciation_dictionary_id.strip()
+        version_id = self.settings.elevenlabs_pronunciation_dictionary_version_id.strip()
+        if not dictionary_id or not version_id:
+            return []
+        return [
+            {
+                "pronunciation_dictionary_id": dictionary_id,
+                "version_id": version_id,
+            }
+        ]
 
 
 def _gateway_error(exc: Exception) -> GatewayError:
