@@ -8,11 +8,11 @@ from collections.abc import AsyncIterable, AsyncIterator
 from dataclasses import dataclass
 
 from ..config import Settings
-from ..gateways.knowledge import KnowledgeEvidence, KnowledgeGateway, SearchHit
 from ..gateways.ai import AIGateway, AIRequest, AIStreamEvent
 from ..gateways.stt import STTEvent, STTGateway, STTResult
 from ..gateways.tts import TTSAdapter, TTSEvent, TTSGateway
 from ..telemetry.sqlite_store import SQLiteTelemetryRecorder, TurnTrace, utc_now
+from .captions import caption_payload
 from .chunking import pop_ready_speech_chunks
 from .errors import ErrorInfo, GatewayError, error_info
 from .messages import build_messages
@@ -39,7 +39,6 @@ class TurnOrchestrator:
         llm: AIGateway,
         stt: STTGateway,
         tts: TTSAdapter,
-        knowledge: KnowledgeGateway,
         sessions: KVConversationStore,
         telemetry: SQLiteTelemetryRecorder,
     ) -> None:
@@ -47,7 +46,6 @@ class TurnOrchestrator:
         self.llm = llm
         self.stt = stt
         self.tts = tts
-        self.knowledge = knowledge
         self.sessions = sessions
         self.telemetry = telemetry
 
@@ -135,6 +133,9 @@ class TurnOrchestrator:
             voice_api_key=selected_tts_key,
             voice_id=voice_id,
             tts_provider=tts_provider,
+            assistant_name=self.settings.assistant_name,
+            user_name=self.settings.user_name,
+            assistant_persona=self.settings.assistant_persona,
         ):
             yield event
 
@@ -152,8 +153,9 @@ class TurnOrchestrator:
         tts_api_key: str | None = None,
         vad_threshold: float | None = None,
         vad_silence_threshold_secs: float | None = None,
-        knowledge_enabled: bool | None = None,
         assistant_name: str | None = None,
+        user_name: str | None = None,
+        assistant_persona: str | None = None,
     ) -> AsyncIterator[PipelineEvent]:
         selected_stt_key = stt_api_key if stt_api_key is not None else voice_api_key
         selected_tts_key = tts_api_key if tts_api_key is not None else voice_api_key
@@ -232,8 +234,9 @@ class TurnOrchestrator:
             voice_api_key=selected_tts_key,
             voice_id=voice_id,
             tts_provider=tts_provider,
-            knowledge_enabled=knowledge_enabled,
             assistant_name=assistant_name,
+            user_name=user_name,
+            assistant_persona=assistant_persona,
         ):
             yield event
 
@@ -247,43 +250,27 @@ class TurnOrchestrator:
         voice_api_key: str | None,
         voice_id: str | None,
         tts_provider: str | None = None,
-        knowledge_enabled: bool | None = None,
         assistant_name: str | None = None,
+        user_name: str | None = None,
+        assistant_persona: str | None = None,
     ) -> AsyncIterator[PipelineEvent]:
-        use_knowledge = (
-            self.settings.knowledge_enabled
-            if knowledge_enabled is None
-            else bool(knowledge_enabled)
-        )
-        # Client cannot force knowledge on when the server has it disabled.
-        if not self.settings.knowledge_enabled:
-            use_knowledge = False
-        # Lean product mode: Knowledge UI off also means no retrieval on turns.
-        if not self.settings.knowledge_ui_enabled:
-            use_knowledge = False
         trace.update_text(user_text=user_text)
         try:
             history = self.sessions.get_history(trace.session_id)
-            hits = await self._search_knowledge(
-                trace,
-                user_text,
-                history=history,
-                api_key=brain_api_key,
-                enabled=use_knowledge,
-            )
             messages = build_messages(
                 system_prompt=self.settings.system_prompt,
                 user_text=user_text,
                 history=history,
-                knowledge_context=self.knowledge.format_hits(hits) if hits else "",
-                knowledge_enabled=use_knowledge,
                 assistant_name=assistant_name or "",
+                user_name=user_name or "",
+                persona=assistant_persona or "default",
+                response_language=self.settings.elevenlabs_voice_language,
             )
         except asyncio.CancelledError:
             trace.finish("cancelled")
             raise
         except Exception as exc:
-            info = _observed_info(exc, default_stage="knowledge")
+            info = _observed_info(exc, default_stage="llm")
             if not isinstance(exc, ObservedError):
                 self.telemetry.record_error(trace, info)
             trace.finish("failed")
@@ -291,25 +278,6 @@ class TurnOrchestrator:
             return
 
         model_user_text = messages[-1]["content"]
-        if use_knowledge and hits:
-            yield self.event(
-                trace,
-                "knowledge",
-                {
-                    "hits": [
-                        {
-                            "path": hit.path,
-                            "chunk": hit.chunk,
-                            "snippet": hit.snippet,
-                            "evidence_id": getattr(hit, "evidence_id", hit.chunk),
-                            "provider": getattr(hit, "provider", self.knowledge.provider),
-                            "kind": getattr(hit, "kind", "chunk"),
-                            "title": getattr(hit, "title", hit.path),
-                        }
-                        for hit in hits
-                    ]
-                },
-            )
         yield self.event(trace, "status", {"state": "thinking"})
 
         if with_audio:
@@ -544,11 +512,7 @@ class TurnOrchestrator:
                         "sample_rate": tts.stream_sample_rate,
                     }
                     if output.alignment is not None:
-                        data["alignment"] = {
-                            "chars": list(output.alignment.chars),
-                            "char_start_times_ms": list(output.alignment.char_start_times_ms),
-                            "char_durations_ms": list(output.alignment.char_durations_ms),
-                        }
+                        data["alignment"] = caption_payload(output.alignment)
                     await event_queue.put(
                         (
                             "event",
@@ -1022,85 +986,6 @@ class TurnOrchestrator:
             language_code=language_code,
             provider_request_id=request_id,
         )
-
-    async def _search_knowledge(
-        self,
-        trace: TurnTrace,
-        query: str,
-        *,
-        history: list[dict[str, str]],
-        api_key: str | None,
-        enabled: bool | None = None,
-    ) -> list[SearchHit] | list[KnowledgeEvidence]:
-        call_id = uuid.uuid4().hex
-        call_start = trace.offset_ms()
-        use_knowledge = self.knowledge.enabled if enabled is None else bool(enabled)
-        if not self.knowledge.enabled:
-            use_knowledge = False
-        if not self.settings.knowledge_ui_enabled:
-            use_knowledge = False
-        self.telemetry.start_knowledge_call(
-            trace,
-            call_id=call_id,
-            provider=self.knowledge.provider,
-            enabled=use_knowledge,
-            query_text=query,
-        )
-        try:
-            if not use_knowledge:
-                hits = []
-            elif hasattr(self.knowledge, "search_evidence"):
-                hits = await self.knowledge.search_evidence(
-                    query,
-                    history=history,
-                    api_key=api_key,
-                    cache_key=trace.session_id,
-                    trace=trace,
-                )
-            else:
-                hits = await asyncio.to_thread(self.knowledge.search, query)
-        except asyncio.CancelledError:
-            self.telemetry.finish_knowledge_call(
-                call_id,
-                status="cancelled",
-                completed_at=utc_now(),
-                duration_ms=trace.offset_ms() - call_start,
-                outcome="cancelled",
-            )
-            raise
-        except Exception as exc:
-            info = error_info(exc, default_stage="knowledge")
-            self.telemetry.finish_knowledge_call(
-                call_id,
-                status="failed",
-                completed_at=utc_now(),
-                duration_ms=trace.offset_ms() - call_start,
-                outcome="error",
-                error_id=info.error_id,
-            )
-            trace.event(
-                "knowledge.degraded",
-                stage="knowledge",
-                metadata={"call_id": call_id, "code": info.code},
-            )
-            return []
-        outcome = "skipped" if not self.knowledge.enabled else "hit" if hits else "miss"
-        results = [{"path": hit.path, "chunk": hit.chunk, "snippet": hit.snippet} for hit in hits]
-        self.telemetry.finish_knowledge_call(
-            call_id,
-            status="success",
-            completed_at=utc_now(),
-            duration_ms=trace.offset_ms() - call_start,
-            outcome=outcome,
-            hit_count=len(hits),
-            results_json=results,
-        )
-        trace.event(
-            "knowledge.completed",
-            stage="knowledge",
-            metadata={"call_id": call_id, "outcome": outcome, "hit_count": len(hits)},
-        )
-        return hits
 
     def _validate_user_text(self, text: str) -> None:
         if not text.strip():

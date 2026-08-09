@@ -124,27 +124,19 @@ def create_realtime_router(services: ApplicationServices) -> APIRouter:
                 trace,
                 audio_chunks(),
                 sample_rate=sample_rate,
-                brain_api_key=str(init.get("brain_api_key") or ""),
-                voice_api_key=str(init.get("voice_api_key") or ""),
-                voice_id=resolve_voice_id(
-                    services.orchestrator.tts,
-                    str(init.get("voice_provider") or ""),
-                    str(init.get("voice_id") or ""),
-                    str(init.get("voice_gender") or ""),
+                brain_api_key=None,
+                voice_api_key=None,
+                voice_id=resolve_voice_id(services.orchestrator.tts, None, None, None),
+                tts_provider=None,
+                stt_api_key=None,
+                tts_api_key=None,
+                vad_threshold=services.settings.elevenlabs_stt_vad_threshold,
+                vad_silence_threshold_secs=(
+                    services.settings.elevenlabs_stt_vad_silence_threshold_secs
                 ),
-                tts_provider=str(init.get("voice_provider") or ""),
-                stt_api_key=(
-                    str(init.get("stt_api_key")) if init.get("stt_api_key") is not None else None
-                ),
-                tts_api_key=(
-                    str(init.get("tts_api_key")) if init.get("tts_api_key") is not None else None
-                ),
-                vad_threshold=_optional_float(init.get("vad_threshold")),
-                vad_silence_threshold_secs=_optional_float(
-                    init.get("vad_silence_threshold_secs")
-                ),
-                knowledge_enabled=_optional_bool(init.get("knowledge_enabled")),
-                assistant_name=str(init.get("assistant_name") or "")[:64],
+                assistant_name=services.settings.assistant_name,
+                user_name=services.settings.user_name,
+                assistant_persona=services.settings.assistant_persona,
             ):
                 await send_event(event)
 
@@ -306,34 +298,6 @@ def _record_browser_error(services: ApplicationServices, trace, payload: dict[st
     services.telemetry.record_error(trace, info)
     trace.mark_partial_failure()
     return True
-
-
-def _optional_float(value: object) -> float | None:
-    if value is None or value == "":
-        return None
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return None
-    if not math.isfinite(number):
-        return None
-    return number
-
-
-def _optional_bool(value: object) -> bool | None:
-    if value is None or value == "":
-        return None
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)) and value in (0, 1):
-        return bool(value)
-    if isinstance(value, str):
-        normalized = value.strip().lower()
-        if normalized in {"1", "true", "yes", "on"}:
-            return True
-        if normalized in {"0", "false", "no", "off"}:
-            return False
-    return None
 
 
 async def _send(websocket: WebSocket, event: PipelineEvent) -> None:

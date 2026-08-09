@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import Any, Literal, Protocol
+from typing import Literal, Protocol
 
 from ...core.messages import Message
 
@@ -46,17 +46,6 @@ class LLMStreamEvent:
     service_tier: str | None = None
 
 
-@dataclass(frozen=True)
-class AIObjectResult:
-    value: dict[str, Any]
-    raw_text: str = ""
-    usage: LLMUsage | None = None
-    finish_reason: str | None = None
-    request_id: str | None = None
-    system_fingerprint: str | None = None
-    service_tier: str | None = None
-
-
 class AIGateway(Protocol):
     provider: str
     model: str
@@ -65,14 +54,5 @@ class AIGateway(Protocol):
     def request_snapshot(self, request: LLMRequest) -> dict[str, object]: ...
 
     def stream_text(self, request: LLMRequest) -> AsyncIterator[LLMStreamEvent]: ...
-
-    async def generate_object(
-        self,
-        request: LLMRequest,
-        *,
-        schema_name: str,
-        schema: dict[str, Any],
-    ) -> AIObjectResult: ...
-
 
 LLMGateway = AIGateway

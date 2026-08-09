@@ -12,8 +12,8 @@ Continuity therefore has to come from memory maintenance, not from exposing a co
 
 The current system has two separate forms of history:
 
-1. Runtime model context is held by `KVConversationStore` in process memory. It keeps the latest eight complete enriched-user/assistant turns by default, expires an idle conversation after one hour, and is cleared whenever the backend restarts. The enriched user message is the exact message sent to the model, including any references selected for that turn, so an unchanged prefix can benefit from provider caching.
-2. Optional telemetry persists operational records in `data/telemetry.sqlite`. A `turn` is the highest-level persisted entity. Each STT, knowledge, LLM, TTS, event, and error record belongs to a `turn_id`.
+1. Runtime model context is held by `KVConversationStore` in process memory. It keeps complete user/assistant turns, expires an idle conversation after one hour, and is cleared whenever the backend restarts.
+2. Optional telemetry persists operational records in `data/telemetry.sqlite`. A `turn` is the highest-level persisted entity. Each STT, LLM, TTS, event, and error record belongs to a `turn_id`.
 
 The telemetry `turns` table contains a `session_id` label for correlation, but there is no `sessions`, `conversations`, or `memories` table and no persisted parent object above a turn. Telemetry is diagnostic evidence, not application memory or business state.
 
@@ -22,7 +22,7 @@ The prompt currently contains:
 ```text
 stable system instruction
 recent exact model-message history
-current user message with optional delimited knowledge results appended
+current user message
 ```
 
 ## Invariants For v0.05
@@ -32,7 +32,6 @@ current user message with optional delimited knowledge results appended
 - Keep immutable turn records separate from derived memory.
 - Make every memory item traceable to the turn or evidence that created it.
 - Support correction and forgetting; retained information cannot be append-only truth.
-- Keep memory retrieval separate from handbook and document retrieval.
 - Keep provider gateways independent from memory policy.
 - Measure the latency, token cost, and hit quality introduced by memory operations.
 - Treat stored memory as private user data with an explicit deletion lifecycle.

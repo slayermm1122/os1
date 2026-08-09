@@ -34,7 +34,6 @@ from backend.core.rate_limit import SlidingWindowRateLimiter
 from backend.core.security import is_allowed_websocket, is_local_http_request
 from backend.core.sessions import SessionStore
 from backend.gateways.connectivity import ElevenLabsConnectivityProbe, XAIConnectivityProbe
-from backend.gateways.knowledge import SQLiteFTSKnowledgeGateway, SearchHit
 from backend.gateways.llm import LLMRequest, LLMStreamEvent, LLMUsage
 from backend.gateways.llm.xai import _parse_usage
 from backend.gateways.stt import STTEvent, STTResult, STTWordTiming
@@ -46,23 +45,6 @@ from backend.gateways.tts import TTSAdapter, TTSAlignment, TTSEvent
 from backend.gateways.tts.elevenlabs import _parse_alignment
 from backend.telemetry import SQLiteTelemetryRecorder
 from backend.services import ApplicationServices
-
-
-class FakeKnowledge:
-    provider = "fake_knowledge"
-    enabled = False
-
-    def ensure_index(self) -> None:
-        return None
-
-    def reindex(self) -> int:
-        return 0
-
-    def search(self, query: str, limit: int | None = None) -> list[SearchHit]:
-        return []
-
-    def format_hits(self, hits: list[SearchHit]) -> str:
-        return ""
 
 
 class FakeLLM:
@@ -347,7 +329,7 @@ class OrchestratorTests(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self) -> None:
         await self.recorder.close()
         with closing(sqlite3.connect(self.db_path)) as conn:
-            for table in ("turns", "llm_calls", "stt_calls", "tts_calls", "knowledge_calls"):
+            for table in ("turns", "llm_calls", "stt_calls", "tts_calls"):
                 self.assertEqual(
                     conn.execute(f"SELECT COUNT(*) FROM {table} WHERE status = 'running'").fetchone()[0],
                     0,
@@ -363,7 +345,6 @@ class OrchestratorTests(unittest.IsolatedAsyncioTestCase):
             llm=llm or FakeLLM(),
             stt=stt or FakeSTT(),
             tts=TTSAdapter([tts_gateway], default_provider=tts_gateway.provider),
-            knowledge=FakeKnowledge(),
             sessions=SessionStore(max_turns=4, max_sessions=10, ttl_seconds=3600),
             telemetry=self.recorder,
         )
@@ -774,26 +755,23 @@ class ConnectivityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(stt.calls, [("stt-key", None)])
         self.assertEqual(tts.calls, [("tts-key", "voice-id")])
 
-    async def test_connectivity_endpoint_uses_selected_voice(self) -> None:
+    async def test_connectivity_endpoint_ignores_browser_provider_credentials(self) -> None:
         brain = FakeProbe("xai")
         stt_probe = FakeProbe("elevenlabs")
         tts_probe = FakeProbe("fake_tts")
         settings = Settings(enforce_local_access=False)
         recorder = SQLiteTelemetryRecorder(Path("unused.sqlite"), enabled=False)
-        knowledge = FakeKnowledge()
         orchestrator = TurnOrchestrator(
             settings=settings,
             llm=FakeLLM(),
             stt=FakeSTT(),
             tts=TTSAdapter([FakeTTS()], default_provider="fake_tts"),
-            knowledge=knowledge,
             sessions=SessionStore(max_turns=4, max_sessions=10, ttl_seconds=3600),
             telemetry=recorder,
         )
         services = ApplicationServices(
             settings=settings,
             orchestrator=orchestrator,
-            knowledge=knowledge,
             telemetry=recorder,
             rate_limiter=SlidingWindowRateLimiter(requests=20, window_seconds=60),
             connectivity=ConnectivityService(brain=brain, stt=stt_probe, tts=tts_probe),
@@ -815,12 +793,12 @@ class ConnectivityTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["ready"])
-        self.assertEqual(brain.calls, [("browser-brain-key", None)])
+        self.assertEqual(brain.calls, [(None, None)])
         self.assertEqual(
             tts_probe.calls,
-            [("browser-tts-key", "fake-female")],
+            [(None, None)],
         )
-        self.assertEqual(stt_probe.calls, [("browser-stt-key", None)])
+        self.assertEqual(stt_probe.calls, [(None, None)])
 
     async def test_xai_probe_validates_model_and_authentication(self) -> None:
         settings = Settings(
@@ -1063,46 +1041,23 @@ class TelemetryStoreTests(unittest.IsolatedAsyncioTestCase):
                 )
 
 
-class KnowledgeStorageTests(unittest.TestCase):
-    def test_default_knowledge_storage_is_private(self) -> None:
-        if os.name != "posix":
-            self.skipTest("POSIX permissions only")
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            settings = Settings(
-                root_dir=root,
-                frontend_dir=root / "frontend",
-                knowledge_db_path=root / "data" / "knowledge.sqlite",
-                knowledge_docs_dir=root / "knowledge_docs",
-            )
-            gateway = SQLiteFTSKnowledgeGateway(settings)
-            gateway.ensure_index()
-
-            self.assertEqual((root / "data").stat().st_mode & 0o777, 0o700)
-            self.assertEqual(settings.knowledge_docs_dir.stat().st_mode & 0o777, 0o700)
-            self.assertEqual(settings.knowledge_db_path.stat().st_mode & 0o777, 0o600)
-
-
 class WebSocketIntegrationTests(unittest.TestCase):
     def test_realtime_protocol_records_browser_playback(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             db_path = Path(temp_dir) / "telemetry.sqlite"
             recorder = SQLiteTelemetryRecorder(db_path)
             settings = Settings(enforce_local_access=False)
-            knowledge = FakeKnowledge()
             orchestrator = TurnOrchestrator(
                 settings=settings,
                 llm=FakeLLM(),
                 stt=FakeSTT(),
                 tts=TTSAdapter([FakeTTS()], default_provider="fake_tts"),
-                knowledge=knowledge,
                 sessions=SessionStore(max_turns=4, max_sessions=10, ttl_seconds=3600),
                 telemetry=recorder,
             )
             services = ApplicationServices(
                 settings=settings,
                 orchestrator=orchestrator,
-                knowledge=knowledge,
                 telemetry=recorder,
                 rate_limiter=SlidingWindowRateLimiter(requests=20, window_seconds=60),
             )
@@ -1208,20 +1163,17 @@ class WebSocketIntegrationTests(unittest.TestCase):
             db_path = Path(temp_dir) / "telemetry.sqlite"
             recorder = SQLiteTelemetryRecorder(db_path)
             settings = Settings(enforce_local_access=False)
-            knowledge = FakeKnowledge()
             orchestrator = TurnOrchestrator(
                 settings=settings,
                 llm=FakeLLM(),
                 stt=FakeSTT(),
                 tts=TTSAdapter([FakeTTS()], default_provider="fake_tts"),
-                knowledge=knowledge,
                 sessions=SessionStore(max_turns=4, max_sessions=10, ttl_seconds=3600),
                 telemetry=recorder,
             )
             services = ApplicationServices(
                 settings=settings,
                 orchestrator=orchestrator,
-                knowledge=knowledge,
                 telemetry=recorder,
                 rate_limiter=SlidingWindowRateLimiter(requests=20, window_seconds=60),
             )
@@ -1290,20 +1242,17 @@ class WebSocketIntegrationTests(unittest.TestCase):
             db_path = Path(temp_dir) / "telemetry.sqlite"
             recorder = SQLiteTelemetryRecorder(db_path)
             settings = Settings(enforce_local_access=False)
-            knowledge = FakeKnowledge()
             orchestrator = TurnOrchestrator(
                 settings=settings,
                 llm=FakeLLM(),
                 stt=FakeSTT(),
                 tts=TTSAdapter([FakeTTS()], default_provider="fake_tts"),
-                knowledge=knowledge,
                 sessions=SessionStore(max_turns=4, max_sessions=10, ttl_seconds=3600),
                 telemetry=recorder,
             )
             services = ApplicationServices(
                 settings=settings,
                 orchestrator=orchestrator,
-                knowledge=knowledge,
                 telemetry=recorder,
                 rate_limiter=SlidingWindowRateLimiter(requests=20, window_seconds=60),
             )
@@ -1352,20 +1301,17 @@ class WebSocketIntegrationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             recorder = SQLiteTelemetryRecorder(Path(temp_dir) / "telemetry.sqlite")
             settings = Settings(enforce_local_access=False)
-            knowledge = FakeKnowledge()
             orchestrator = TurnOrchestrator(
                 settings=settings,
                 llm=FakeLLM(),
                 stt=FakeSTT(),
                 tts=TTSAdapter([FakeTTS()], default_provider="fake_tts"),
-                knowledge=knowledge,
                 sessions=SessionStore(max_turns=4, max_sessions=10, ttl_seconds=3600),
                 telemetry=recorder,
             )
             services = ApplicationServices(
                 settings=settings,
                 orchestrator=orchestrator,
-                knowledge=knowledge,
                 telemetry=recorder,
                 rate_limiter=SlidingWindowRateLimiter(requests=20, window_seconds=60),
             )

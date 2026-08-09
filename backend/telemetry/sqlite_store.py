@@ -36,10 +36,6 @@ _UPDATE_COLUMNS = {
         "input_chunks", "first_text_ms", "first_audio_ms", "audio_bytes",
         "audio_duration_ms", "character_cost", "provider_request_id", "trace_id", "error_id",
     },
-    "knowledge_calls": {
-        "status", "completed_at", "duration_ms", "outcome", "hit_count",
-        "results_json", "error_id",
-    },
 }
 
 
@@ -317,35 +313,6 @@ class SQLiteTelemetryRecorder:
 
     def finish_tts_call(self, call_id: str, **values: object) -> None:
         self._update("tts_calls", call_id, values)
-
-    def start_knowledge_call(
-        self,
-        trace: TurnTrace,
-        *,
-        call_id: str,
-        provider: str,
-        enabled: bool,
-        query_text: str,
-    ) -> None:
-        self._enqueue(
-            "INSERT INTO knowledge_calls(call_id, turn_id, provider, enabled, status, started_at, "
-            "query_text, outcome) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                call_id,
-                trace.turn_id,
-                provider,
-                int(enabled),
-                "running",
-                utc_now(),
-                query_text,
-                "pending",
-            ),
-        )
-
-    def finish_knowledge_call(self, call_id: str, **values: object) -> None:
-        if "results_json" in values and not isinstance(values["results_json"], str):
-            values["results_json"] = json_text(values["results_json"])
-        self._update("knowledge_calls", call_id, values)
 
     def _update(self, table: str, call_id: str, values: dict[str, object]) -> None:
         allowed_columns = _UPDATE_COLUMNS.get(table)

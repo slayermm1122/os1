@@ -6,10 +6,18 @@ from .messages import Message
 
 
 class KVConversationStore:
-    """Bounded, in-memory storage for the exact messages sent to the answer model."""
+    """In-memory storage for the exact chronological model conversation."""
 
-    def __init__(self, *, max_turns: int, max_sessions: int, ttl_seconds: int) -> None:
-        self.max_turns = max(max_turns, 1)
+    def __init__(
+        self,
+        *,
+        max_sessions: int,
+        ttl_seconds: int,
+        max_turns: int | None = None,
+    ) -> None:
+        # Retained as a no-op keyword for compatibility with older callers. OS1
+        # now keeps every turn for the lifetime of the local session.
+        del max_turns
         self.max_sessions = max_sessions
         self.ttl_seconds = ttl_seconds
         self._sessions: dict[str, list[Message]] = {}
@@ -31,9 +39,6 @@ class KVConversationStore:
                 {"role": "assistant", "content": assistant_text},
             ]
         )
-        max_messages = self.max_turns * 2
-        if len(history) > max_messages:
-            del history[:-max_messages]
         self._touched_at[session_id] = time.monotonic()
         self._trim()
 

@@ -385,13 +385,18 @@
         position: absolute;
         bottom: 28px;
         left: 50%;
-        width: 100%;
+        width: calc(100% - 48px);
         transform: translateX(-50%);
         min-height: 20px;
         color: rgba(255, 246, 236, 0.56);
         font-size: 13px;
         text-align: center;
         pointer-events: none;
+      }
+
+      .hint-line.is-personalized {
+        bottom: 34px;
+        line-height: 1.35;
       }
 
       .conversation-panel {
@@ -546,63 +551,6 @@
         color: rgba(255, 246, 236, 0.88);
       }
 
-      .reference-panel {
-        position: relative;
-        flex: 0 0 auto;
-        max-height: min(28vh, 220px);
-        margin-top: 10px;
-        border-top: 1px solid rgba(255, 246, 236, 0.16);
-        color: rgba(255, 246, 236, 0.66);
-        text-align: left;
-      }
-
-      .reference-panel[hidden] { display: none; }
-
-      .reference-panel details { max-height: inherit; }
-      .reference-panel summary {
-        padding: 9px 70px 7px 4px;
-        cursor: pointer;
-        font-size: 12px;
-        font-weight: 650;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-      }
-
-      .reference-hide {
-        position: absolute;
-        top: 5px;
-        right: 0;
-        z-index: 1;
-        border: 0;
-        padding: 4px 6px;
-        background: transparent;
-        color: rgba(255, 246, 236, 0.46);
-        font: inherit;
-        font-size: 11px;
-        cursor: pointer;
-      }
-
-      .reference-content {
-        max-height: min(22vh, 170px);
-        overflow-y: auto;
-        padding: 0 4px 8px;
-      }
-
-      .reference-group { margin: 4px 0 10px; }
-      .reference-group-title {
-        margin-bottom: 4px;
-        color: rgba(255, 246, 236, 0.88);
-        font-size: 12px;
-        font-weight: 650;
-      }
-      .reference-item {
-        margin: 4px 0;
-        font-size: 12px;
-        line-height: 1.45;
-        overflow-wrap: anywhere;
-      }
-      .reference-id { color: rgba(255, 232, 156, 0.92); }
-
       audio {
         display: none;
       }
@@ -640,14 +588,6 @@
         font-weight: 380;
         letter-spacing: -0.02em;
         color: rgba(255, 246, 236, 0.94);
-      }
-
-      .modal-lede {
-        margin: 0 0 22px;
-        color: rgba(255, 246, 236, 0.48);
-        font-size: 13px;
-        font-weight: 340;
-        line-height: 1.5;
       }
 
       .provider-section {
@@ -697,6 +637,23 @@
         color: rgba(255, 246, 236, 0.52);
         font-size: 12px;
         font-weight: 360;
+      }
+
+      .field-label-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 14px;
+      }
+
+      .current-voice-hint {
+        overflow: hidden;
+        color: rgba(255, 246, 236, 0.32);
+        font-size: 10px;
+        font-weight: 330;
+        text-align: right;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       /* Quiet inputs: soft wash + hairline, not engineering form chrome. */
@@ -942,6 +899,522 @@
         line-height: 1.4;
       }
 
+      .persona-fields {
+        display: grid;
+        gap: 18px;
+      }
+
+      .settings-modal input.persona-input[type="text"] {
+        height: 32px;
+        padding: 0 1px 5px;
+        border: 0;
+        border-bottom: 1px solid rgba(255, 246, 236, 0.14);
+        border-radius: 0;
+        background: transparent;
+        font-size: 14px;
+      }
+
+      .settings-modal input.persona-input[type="text"]:focus {
+        border-color: rgba(255, 232, 156, 0.46);
+        background: transparent;
+      }
+
+      .persona-choices,
+      .voice-language-filter {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+      }
+
+      .persona-choice,
+      .voice-language-choice {
+        appearance: none;
+        border: 0;
+        padding: 3px 0;
+        background: transparent;
+        color: rgba(255, 246, 236, 0.36);
+        font: inherit;
+        font-size: 12px;
+        font-weight: 350;
+        cursor: pointer;
+        transition: color 150ms ease, text-shadow 150ms ease;
+      }
+
+      .persona-choice:hover,
+      .persona-choice:focus-visible,
+      .persona-choice.is-selected,
+      .voice-language-choice:hover,
+      .voice-language-choice:focus-visible,
+      .voice-language-choice.is-selected {
+        color: rgba(255, 246, 236, 0.9);
+        outline: none;
+      }
+
+      .persona-choice.is-selected,
+      .voice-language-choice.is-selected {
+        text-shadow: 0 0 14px rgba(255, 210, 150, 0.18);
+      }
+
+      .persona-description {
+        min-height: 18px;
+        color: rgba(255, 246, 236, 0.38);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      .persona-save-state {
+        margin-right: auto;
+        color: rgba(255, 246, 236, 0.34);
+        font-size: 11px;
+        transition: color 150ms ease;
+      }
+
+      .persona-save-state.is-dirty {
+        color: rgba(255, 220, 170, 0.78);
+      }
+
+      .persona-save-state.is-success {
+        color: rgba(255, 232, 156, 0.72);
+      }
+
+      .modal-button:disabled {
+        color: rgba(255, 246, 236, 0.28);
+        cursor: default;
+      }
+
+      /* OS1 settings are a quiet overlaying rail. It never participates in the
+         page layout, so the conversation orb remains centered in the viewport. */
+      .sidebar-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 9;
+        background: rgba(48, 7, 4, 0.18);
+        backdrop-filter: blur(3px);
+        animation: sidebarVeilIn 180ms ease both;
+      }
+
+      .sidebar-backdrop.is-closing {
+        animation: sidebarVeilOut 170ms ease both;
+        pointer-events: none;
+      }
+
+      .sidebar-backdrop[hidden],
+      .os1-sidebar[hidden] {
+        display: none;
+      }
+
+      .os1-sidebar {
+        position: fixed;
+        inset: 0 auto 0 0;
+        z-index: 10;
+        width: min(390px, 100vw);
+        height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+        padding: 28px 30px 26px;
+        border-right: 1px solid rgba(255, 246, 236, 0.075);
+        background: rgba(91, 20, 14, 0.965);
+        box-shadow: 26px 0 80px rgba(40, 6, 4, 0.18);
+        backdrop-filter: blur(22px);
+        animation: sidebarIn 180ms ease both;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 246, 236, 0.14) transparent;
+      }
+
+      .os1-sidebar.is-closing {
+        animation: sidebarOut 170ms ease both;
+        pointer-events: none;
+      }
+
+      .sidebar-header,
+      .sidebar-view-header {
+        display: flex;
+        align-items: center;
+      }
+
+      .sidebar-header {
+        justify-content: space-between;
+        min-height: 30px;
+        margin-bottom: 46px;
+      }
+
+      .sidebar-wordmark,
+      .sidebar-back {
+        appearance: none;
+        border: 0;
+        padding: 0;
+        background: transparent;
+        color: rgba(255, 246, 236, 0.9);
+        font: inherit;
+        cursor: pointer;
+      }
+
+      .sidebar-wordmark {
+        font-size: 17px;
+        font-weight: 620;
+      }
+
+      .sidebar-back {
+        width: 26px;
+        margin-right: 9px;
+        color: rgba(255, 246, 236, 0.42);
+        font-size: 16px;
+        text-align: left;
+        transition: color 160ms ease, transform 160ms ease;
+      }
+
+      .sidebar-back:hover {
+        color: rgba(255, 246, 236, 0.88);
+        transform: translateX(-2px);
+      }
+
+      .os1-sidebar .brand-menu {
+        position: static;
+        min-width: 0;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+        backdrop-filter: none;
+        animation: sidebarContentIn 160ms ease both;
+      }
+
+      .os1-sidebar .menu-item {
+        height: 44px;
+        padding: 0;
+        border-radius: 0;
+        color: rgba(255, 246, 236, 0.48);
+        font-size: 18px;
+        font-weight: 340;
+        transition: color 160ms ease, transform 160ms ease;
+      }
+
+      .os1-sidebar .menu-item:hover,
+      .os1-sidebar .menu-item:focus-visible {
+        background: transparent;
+        color: rgba(255, 246, 236, 0.94);
+        transform: translateX(3px);
+        outline: none;
+      }
+
+      .os1-sidebar .settings-modal {
+        width: 100%;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        box-shadow: none;
+        animation: sidebarContentIn 160ms ease both;
+      }
+
+      .sidebar-view-header {
+        margin-bottom: 8px;
+      }
+
+      .voice-library-status {
+        min-width: 0;
+        max-width: 92px;
+        overflow: hidden;
+        color: rgba(255, 246, 236, 0.36);
+        font-size: 10px;
+        line-height: 1.45;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .voice-language-filter {
+        justify-content: flex-end;
+        margin-left: auto;
+        gap: 11px;
+      }
+
+      .voice-heading {
+        display: flex;
+        align-items: baseline;
+        gap: 7px;
+        min-width: 0;
+      }
+
+      .voice-header-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 9px;
+      }
+
+      .section-title-row,
+      .account-title-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .quiet-refresh {
+        appearance: none;
+        display: grid;
+        place-items: center;
+        width: 24px;
+        height: 24px;
+        padding: 0;
+        border: 0;
+        border-radius: 50%;
+        background: transparent;
+        color: rgba(255, 246, 236, 0.3);
+        cursor: pointer;
+        transition: color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+      }
+
+      .quiet-refresh svg {
+        width: 13px;
+        height: 13px;
+        fill: none;
+        stroke: currentColor;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-width: 1.45;
+      }
+
+      .quiet-refresh:hover,
+      .quiet-refresh:focus-visible {
+        background: rgba(255, 232, 156, 0.07);
+        color: rgba(255, 246, 236, 0.78);
+        box-shadow: 0 0 16px rgba(255, 199, 132, 0.08);
+        outline: none;
+      }
+
+      .quiet-refresh:disabled {
+        cursor: default;
+        opacity: 0.42;
+      }
+
+      .quiet-refresh.is-loading svg {
+        animation: quietRefreshSpin 900ms linear infinite;
+      }
+
+      .environment-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .environment-status {
+        color: rgba(255, 246, 236, 0.34);
+        font-size: 11px;
+        font-weight: 340;
+      }
+
+      .environment-status.is-ready {
+        color: rgba(255, 232, 156, 0.68);
+      }
+
+      .environment-note {
+        color: rgba(255, 246, 236, 0.36);
+        font-size: 12px;
+        font-weight: 320;
+        line-height: 1.55;
+      }
+
+      .account-footer {
+        margin-top: auto;
+        padding-top: 24px;
+        border-top: 1px solid rgba(255, 246, 236, 0.07);
+      }
+
+      .account-name {
+        color: rgba(255, 246, 236, 0.74);
+        font-size: 12px;
+        font-weight: 390;
+      }
+
+      .account-balance {
+        margin-top: 4px;
+        color: rgba(255, 232, 156, 0.52);
+        font-size: 11px;
+        font-weight: 330;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .account-error {
+        margin-top: 5px;
+        color: rgba(255, 246, 236, 0.3);
+        font-size: 10px;
+        line-height: 1.4;
+      }
+
+      .voice-list {
+        display: grid;
+        gap: 1px;
+        max-height: min(34vh, 270px);
+        overflow-y: auto;
+        margin: 2px -7px 0;
+        padding: 0 7px;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 246, 236, 0.12) transparent;
+      }
+
+      .voice-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 32px;
+        align-items: center;
+        gap: 10px;
+        min-height: 52px;
+      }
+
+      .voice-select,
+      .voice-preview {
+        appearance: none;
+        border: 0;
+        background: transparent;
+        font: inherit;
+        cursor: pointer;
+      }
+
+      .voice-select {
+        min-width: 0;
+        padding: 6px 0;
+        color: rgba(255, 246, 236, 0.44);
+        text-align: left;
+        transition: color 160ms ease, transform 160ms ease;
+      }
+
+      .voice-select:hover,
+      .voice-select:focus-visible {
+        color: rgba(255, 246, 236, 0.76);
+        transform: translateX(2px);
+        outline: none;
+      }
+
+      .voice-row.is-selected .voice-select {
+        color: rgba(255, 246, 236, 0.98);
+      }
+
+      .voice-name {
+        display: block;
+        overflow: hidden;
+        font-size: 14px;
+        font-weight: 390;
+        line-height: 1.35;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .voice-meta {
+        display: block;
+        overflow: hidden;
+        margin-top: 2px;
+        color: rgba(255, 246, 236, 0.3);
+        font-size: 11px;
+        font-weight: 320;
+        line-height: 1.35;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        transition: color 160ms ease;
+      }
+
+      .voice-row.is-selected .voice-meta,
+      .voice-select:hover .voice-meta {
+        color: rgba(255, 232, 156, 0.58);
+      }
+
+      .voice-preview {
+        --preview-progress: 0deg;
+        position: relative;
+        display: grid;
+        place-items: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        color: rgba(255, 246, 236, 0.42);
+        font-size: 9px;
+        line-height: 1;
+        transition: color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+      }
+
+      .voice-preview::before {
+        content: "";
+        position: absolute;
+        inset: -3px;
+        border-radius: 50%;
+        background: conic-gradient(
+          rgba(255, 220, 150, 0.86) var(--preview-progress),
+          rgba(255, 220, 150, 0.12) 0
+        );
+        opacity: 0;
+        -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 1px), #000 0);
+        mask: radial-gradient(farthest-side, transparent calc(100% - 1px), #000 0);
+        pointer-events: none;
+        transition: opacity 150ms ease;
+      }
+
+      .voice-preview.is-playing::before {
+        opacity: 1;
+      }
+
+      .voice-preview:hover,
+      .voice-preview:focus-visible,
+      .voice-preview.is-playing {
+        background: rgba(255, 232, 156, 0.09);
+        color: rgba(255, 246, 236, 0.88);
+        box-shadow: 0 0 18px rgba(255, 199, 132, 0.1);
+        outline: none;
+      }
+
+      .voice-preview:disabled,
+      .voice-select:disabled {
+        cursor: default;
+        opacity: 0.35;
+      }
+
+      @keyframes sidebarIn {
+        from { opacity: 0; transform: translateX(-14px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+
+      @keyframes sidebarOut {
+        from { opacity: 1; transform: translateX(0); }
+        to { opacity: 0; transform: translateX(-14px); }
+      }
+
+      @keyframes sidebarVeilIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+
+      @keyframes sidebarVeilOut {
+        from { opacity: 1; }
+        to { opacity: 0; }
+      }
+
+      @keyframes sidebarContentIn {
+        from { opacity: 0; transform: translateX(-4px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+
+      @keyframes quietRefreshSpin {
+        to { transform: rotate(360deg); }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .sidebar-backdrop,
+        .os1-sidebar,
+        .os1-sidebar .brand-menu,
+        .os1-sidebar .settings-modal {
+          animation: none;
+        }
+
+        .quiet-refresh.is-loading svg {
+          animation: none;
+        }
+
+        .brand-button {
+          transition: none;
+        }
+      }
+
       @media (max-width: 768px), (orientation: portrait) and (max-width: 1024px) {
         body {
           background:
@@ -991,6 +1464,11 @@
           padding: 32px;
         }
 
+        .os1-sidebar {
+          width: min(360px, 100vw);
+          padding: 24px 26px;
+        }
+
         .provider-row {
           grid-template-columns: 1fr;
         }
@@ -1001,19 +1479,14 @@
     <main>
       <div class="topbar">
         <div>
-          <button id="brandButton" class="brand-button" type="button" aria-haspopup="menu" aria-expanded="false">OS1</button>
-          <div id="brandMenu" class="brand-menu" hidden>
-            <button id="menuApiKey" class="menu-item" type="button">API Key</button>
-            <button id="menuVoice" class="menu-item" type="button">Voice</button>
-            <button id="menuKnowledgeBase" class="menu-item" type="button" hidden>Knowledge Base</button>
-          </div>
+          <button id="brandButton" class="brand-button" type="button" aria-haspopup="dialog" aria-expanded="false">OS1</button>
         </div>
         <div id="status">ready</div>
       </div>
 
       <section class="stage" aria-label="voice">
         <button id="keyPrompt" class="key-prompt" type="button" hidden>
-          Please provide your API key
+          Configure API keys in .env
         </button>
         <button id="talkButton" class="orb" type="button" aria-label="开始录音">
           <div class="bars" aria-hidden="true">
@@ -1030,104 +1503,113 @@
         </button>
         <section class="conversation-panel" aria-label="conversation">
           <div id="chatThread" class="chat-thread" aria-live="polite" tabindex="0"></div>
-          <section id="referencePanel" class="reference-panel" hidden aria-label="references">
-            <button id="referenceHide" class="reference-hide" type="button">hide</button>
-            <details id="referenceDetails" open>
-              <summary id="referenceSummary">Ref</summary>
-              <div id="referenceContent" class="reference-content"></div>
-            </details>
-          </section>
         </section>
       </section>
     </main>
     <audio id="player"></audio>
 
-    <div id="settingsModal" class="modal-backdrop" hidden>
-      <div class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
-        <div class="modal-header">
-          <h2 id="settingsTitle" class="modal-title">Keys</h2>
-          <button id="settingsClose" class="modal-close" type="button" aria-label="Close">×</button>
-        </div>
-        <p class="modal-lede">Keys stay in this browser session. Providers are fixed for now.</p>
+    <div id="os1SidebarBackdrop" class="sidebar-backdrop" hidden></div>
+    <aside id="os1Sidebar" class="os1-sidebar" hidden aria-hidden="true" aria-label="OS1 settings">
+      <header class="sidebar-header">
+        <button id="sidebarHome" class="sidebar-wordmark" type="button">OS1</button>
+        <button id="sidebarClose" class="modal-close" type="button" aria-label="Close settings">×</button>
+      </header>
 
-        <section class="provider-section">
-          <div class="provider-title">Brain</div>
-          <div class="provider-meta" id="brainProviderLabel">xAI</div>
-          <select id="brainProvider" hidden disabled>
-            <option selected>xAI</option>
-          </select>
-          <input id="brainKey" type="password" autocomplete="off" spellcheck="false" placeholder="API key" />
+      <nav id="brandMenu" class="brand-menu" aria-label="Settings">
+        <button id="menuPersona" class="menu-item" type="button">Persona</button>
+        <button id="menuVoice" class="menu-item" type="button">Voice</button>
+        <button id="menuApiKey" class="menu-item" type="button">API Key</button>
+      </nav>
+
+      <section id="personaModal" class="settings-modal sidebar-view" hidden aria-labelledby="personaTitle">
+        <div class="sidebar-view-header">
+          <button id="personaClose" class="sidebar-back" type="button" aria-label="Back to settings">←</button>
+          <h2 id="personaTitle" class="modal-title">Persona</h2>
+        </div>
+        <section class="provider-section persona-fields">
+          <label class="field">
+            <span class="field-label-row">
+              <span class="field-label">Name of AI</span>
+              <span id="currentVoiceHint" class="current-voice-hint">Current voice: loading</span>
+            </span>
+            <input id="assistantName" class="persona-input" type="text" name="os1-assistant-display-name" autocomplete="new-password" data-1p-ignore="true" data-lpignore="true" data-form-type="other" maxlength="40" placeholder="Optional" />
+          </label>
+          <label class="field">
+            <span class="field-label">Name of user</span>
+            <input id="userName" class="persona-input" type="text" name="os1-user-display-name" autocomplete="new-password" data-1p-ignore="true" data-lpignore="true" data-form-type="other" maxlength="40" placeholder="Optional" />
+          </label>
         </section>
 
         <section class="provider-section">
-          <div class="provider-title">Search</div>
-          <div class="provider-meta" id="llmSearchLabel">xAI · grok-4.5</div>
-          <select id="llmSearchProvider" hidden disabled>
-            <option selected>xAI</option>
-          </select>
-          <input id="llmSearchModel" type="text" value="grok-4.5 · low reasoning" hidden disabled />
+          <div class="provider-title">Persona</div>
+          <div id="personaChoices" class="persona-choices" role="radiogroup" aria-label="Conversation persona">
+            <button class="persona-choice is-selected" type="button" role="radio" aria-checked="true" data-persona="default">Default</button>
+            <button class="persona-choice" type="button" role="radio" aria-checked="false" data-persona="concise">Concise</button>
+            <button class="persona-choice" type="button" role="radio" aria-checked="false" data-persona="conversational">Conversational</button>
+          </div>
+          <div id="personaDescription" class="persona-description">Use OS1’s base response style.</div>
+        </section>
+
+        <div id="personaError" class="settings-error"></div>
+        <div class="modal-actions">
+          <span id="personaSaveState" class="persona-save-state">Up to date</span>
+          <button id="savePersonaButton" class="modal-button" type="button" disabled>Applied</button>
+        </div>
+      </section>
+
+      <section id="settingsModal" class="settings-modal sidebar-view" hidden aria-labelledby="settingsTitle">
+        <div class="sidebar-view-header">
+          <button id="settingsClose" class="sidebar-back" type="button" aria-label="Back to settings">←</button>
+          <h2 id="settingsTitle" class="modal-title">API key</h2>
+        </div>
+        <section class="provider-section">
+          <div class="provider-title">Brain</div>
+          <div class="environment-row">
+            <span class="provider-meta" id="brainProviderLabel">xAI</span>
+            <span id="brainEnvStatus" class="environment-status">checking</span>
+          </div>
         </section>
 
         <section class="provider-section">
           <div class="provider-title">Voice</div>
-          <div class="provider-meta" id="voiceProviderLabel">ElevenLabs</div>
+          <div class="environment-row">
+            <span class="provider-meta" id="voiceProviderLabel">ElevenLabs</span>
+            <span id="voiceEnvStatus" class="environment-status">checking</span>
+          </div>
           <select id="voiceProvider" hidden disabled>
             <option selected>ElevenLabs</option>
           </select>
-          <input id="voiceKey" type="password" autocomplete="off" spellcheck="false" placeholder="API key" />
         </section>
 
-        <div id="settingsError" class="settings-error"></div>
-        <div class="modal-actions">
-          <button id="clearKeysButton" class="modal-button modal-button-ghost" type="button">Clear</button>
-          <button id="saveKeysButton" class="modal-button" type="button">Save</button>
-        </div>
-      </div>
-    </div>
+        <div class="environment-note">Set LLM_API_KEY and ELEVENLABS_API_KEY in .env, then restart OS1.</div>
+      </section>
 
-    <div id="voiceModal" class="modal-backdrop" hidden>
-      <div class="settings-modal" role="dialog" aria-modal="true" aria-labelledby="voiceTitle">
-        <div class="modal-header">
+      <section id="voiceModal" class="settings-modal sidebar-view" hidden aria-labelledby="voiceTitle">
+        <div class="sidebar-view-header">
+          <button id="voiceClose" class="sidebar-back" type="button" aria-label="Back to settings">←</button>
           <h2 id="voiceTitle" class="modal-title">Voice</h2>
-          <button id="voiceClose" class="modal-close" type="button" aria-label="Close">×</button>
         </div>
-        <p class="modal-lede">How OS1 sounds, listens, and introduces itself.</p>
-
         <section class="provider-section">
-          <div class="provider-title">Name</div>
-          <input
-            id="assistantName"
-            type="text"
-            autocomplete="off"
-            spellcheck="false"
-            maxlength="40"
-            placeholder="English name, optional"
-            inputmode="text"
-          />
-          <div class="slider-hint">If set, the assistant only calls itself this name. English letters for now.</div>
-        </section>
-
-        <section class="provider-section">
-          <div class="provider-title">Speaker</div>
-          <div class="voice-choice-row" role="group" aria-label="Speaker">
-            <button id="voiceMale" class="voice-choice" type="button">male</button>
-            <button id="voiceFemale" class="voice-choice" type="button">female</button>
-          </div>
-        </section>
-
-        <section class="provider-section">
-          <div class="provider-title">Custom voices</div>
-          <div class="provider-row two-col">
-            <div class="field">
-              <label class="field-label" for="maleVoiceId">Male id</label>
-              <input id="maleVoiceId" type="text" autocomplete="off" spellcheck="false" placeholder="optional" />
+          <div class="section-title-row">
+            <div class="voice-heading">
+              <div class="provider-title">Voices</div>
+              <div id="voiceLibraryStatus" class="voice-library-status">Loading…</div>
             </div>
-            <div class="field">
-              <label class="field-label" for="femaleVoiceId">Female id</label>
-              <input id="femaleVoiceId" type="text" autocomplete="off" spellcheck="false" placeholder="optional" />
+            <div class="voice-header-actions">
+              <div id="voiceLanguageFilter" class="voice-language-filter" role="group" aria-label="Primary language">
+                <button class="voice-language-choice is-selected" type="button" data-language="all">All</button>
+                <button class="voice-language-choice" type="button" data-language="en">English</button>
+                <button class="voice-language-choice" type="button" data-language="zh">中文</button>
+              </div>
+              <button id="voiceRefreshButton" class="quiet-refresh" type="button" aria-label="Refresh My Voices" title="Refresh My Voices">
+                <svg viewBox="0 0 16 16" aria-hidden="true">
+                  <path d="M12.7 5.2A5.2 5.2 0 1 0 13 10" />
+                  <path d="M12.7 2.5v2.8H9.9" />
+                </svg>
+              </button>
             </div>
           </div>
-          <div class="slider-hint">ElevenLabs Voice Library id. Leave blank for defaults.</div>
+          <div id="voiceList" class="voice-list" role="listbox" aria-label="ElevenLabs voices"></div>
         </section>
 
         <section class="provider-section">
@@ -1170,56 +1652,77 @@
         <div class="modal-actions">
           <button id="saveVoiceButton" class="modal-button" type="button">Save</button>
         </div>
-      </div>
-    </div>
+      </section>
 
+      <footer id="accountFooter" class="account-footer">
+        <div class="account-title-row">
+          <div id="accountName" class="account-name">ElevenLabs</div>
+          <button id="accountRefreshButton" class="quiet-refresh" type="button" aria-label="Refresh ElevenLabs credits" title="Refresh credits">
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M12.7 5.2A5.2 5.2 0 1 0 13 10" />
+              <path d="M12.7 2.5v2.8H9.9" />
+            </svg>
+          </button>
+        </div>
+        <div id="accountBalance" class="account-balance">Loading account…</div>
+        <div id="accountError" class="account-error" hidden></div>
+      </footer>
+    </aside>
+
+    <script src="/assets/captions.js"></script>
     <script>
+      const createCaptionTimeline = window.OS1Captions.createTimeline;
       const brandButton = document.querySelector("#brandButton");
       const brandMenu = document.querySelector("#brandMenu");
+      const os1Sidebar = document.querySelector("#os1Sidebar");
+      const os1SidebarBackdrop = document.querySelector("#os1SidebarBackdrop");
+      const sidebarHome = document.querySelector("#sidebarHome");
+      const sidebarClose = document.querySelector("#sidebarClose");
+      const menuPersona = document.querySelector("#menuPersona");
       const menuApiKey = document.querySelector("#menuApiKey");
       const menuVoice = document.querySelector("#menuVoice");
-      const menuKnowledgeBase = document.querySelector("#menuKnowledgeBase");
       const talkButton = document.querySelector("#talkButton");
       const keyPrompt = document.querySelector("#keyPrompt");
-      const voiceMaleButton = document.querySelector("#voiceMale");
-      const voiceFemaleButton = document.querySelector("#voiceFemale");
       const settingsModal = document.querySelector("#settingsModal");
       const settingsClose = document.querySelector("#settingsClose");
+      const personaModal = document.querySelector("#personaModal");
+      const personaClose = document.querySelector("#personaClose");
+      const userNameInput = document.querySelector("#userName");
+      const currentVoiceHint = document.querySelector("#currentVoiceHint");
+      const personaChoices = Array.from(document.querySelectorAll(".persona-choice"));
+      const personaDescription = document.querySelector("#personaDescription");
+      const personaError = document.querySelector("#personaError");
+      const personaSaveState = document.querySelector("#personaSaveState");
+      const savePersonaButton = document.querySelector("#savePersonaButton");
       const voiceModal = document.querySelector("#voiceModal");
       const voiceClose = document.querySelector("#voiceClose");
       const saveVoiceButton = document.querySelector("#saveVoiceButton");
-      const maleVoiceIdInput = document.querySelector("#maleVoiceId");
-      const femaleVoiceIdInput = document.querySelector("#femaleVoiceId");
+      const voiceList = document.querySelector("#voiceList");
+      const voiceLibraryStatus = document.querySelector("#voiceLibraryStatus");
+      const voiceRefreshButton = document.querySelector("#voiceRefreshButton");
+      const voiceLanguageChoices = Array.from(document.querySelectorAll(".voice-language-choice"));
       const assistantNameInput = document.querySelector("#assistantName");
-      const llmSearchModelInput = document.querySelector("#llmSearchModel");
-      const llmSearchLabel = document.querySelector("#llmSearchLabel");
       const voiceProviderSelect = document.querySelector("#voiceProvider");
       const voiceProviderLabel = document.querySelector("#voiceProviderLabel");
-      const brainKeyInput = document.querySelector("#brainKey");
-      const voiceKeyInput = document.querySelector("#voiceKey");
-      const clearKeysButton = document.querySelector("#clearKeysButton");
-      const saveKeysButton = document.querySelector("#saveKeysButton");
-      const settingsError = document.querySelector("#settingsError");
+      const brainEnvStatus = document.querySelector("#brainEnvStatus");
+      const voiceEnvStatus = document.querySelector("#voiceEnvStatus");
       const voiceError = document.querySelector("#voiceError");
+      const accountName = document.querySelector("#accountName");
+      const accountBalance = document.querySelector("#accountBalance");
+      const accountError = document.querySelector("#accountError");
+      const accountRefreshButton = document.querySelector("#accountRefreshButton");
       const statusEl = document.querySelector("#status");
       const hintEl = document.querySelector("#hint");
       const chatThread = document.querySelector("#chatThread");
       const player = document.querySelector("#player");
       let userBubbleEl = null;
       let aiBubbleEl = null;
-      const referencePanel = document.querySelector("#referencePanel");
-      const referenceDetails = document.querySelector("#referenceDetails");
-      const referenceSummary = document.querySelector("#referenceSummary");
-      const referenceContent = document.querySelector("#referenceContent");
-      const referenceHideButton = document.querySelector("#referenceHide");
       const vadSilenceSlider = document.querySelector("#vadSilenceSlider");
       const vadSilenceValue = document.querySelector("#vadSilenceValue");
       const vadThresholdSlider = document.querySelector("#vadThresholdSlider");
       const vadThresholdValue = document.querySelector("#vadThresholdValue");
 
       const TARGET_SAMPLE_RATE = 16000;
-      let serverKnowledgeEnabled = true;
-      let knowledgeUiEnabled = false;
       // ElevenLabs VAD docs use example defaults ~1.5s silence / 0.4 threshold.
       // Official schema is free-form float; we clamp to practical mic ranges below.
       const VAD_SILENCE_MIN = 0.3;
@@ -1243,7 +1746,7 @@
       let micBarSmooth = null;
       let activeTurn = null;
       const barEls = Array.from(document.querySelectorAll(".bar"));
-      let sessionId = localStorage.getItem("os1.sessionId") || "";
+      let sessionId = "";
       let state = "idle";
       let serverHasBrainKey = false;
       let serverHasVoiceKey = false;
@@ -1252,80 +1755,79 @@
       let connectivityRetryable = false;
       let connectivityRetryTimer = 0;
       let connectivityCheckId = 0;
+      let sidebarCloseTimer = 0;
 
-      let selectedVoiceGender =
-        localStorage.getItem("os1.voiceGender") === "female" ? "female" : "male";
+      let selectedVoiceId = "";
+      let selectedVoiceLanguage = "en";
+      let availableVoices = [];
+      let libraryVoices = [];
+      let defaultVoices = [];
+      let voiceLanguage = "all";
+      let voiceLibraryLoaded = false;
+      let voiceLibraryLoading = false;
+      let accountSummaryLoaded = false;
+      let accountSummaryLoading = false;
+      let previewVoiceId = "";
+      let previewObjectUrl = "";
+      let previewProgressFrame = 0;
+      const previewDurations = new Map();
+      let activePersona = "default";
+      let savedPersona = { assistantName: "", userName: "", persona: "default" };
+      const voicePreviewPlayer = new Audio();
 
-      migrateLegacyApiKeys();
       loadVadSettingsIntoUi();
-      loadVoiceIdSettingsIntoUi();
-      syncKnowledgeMenu();
+      loadVoiceSettingsIntoUi();
       setHint("idle");
-      setVoiceGender(selectedVoiceGender);
       void refreshConnectivity();
 
       vadSilenceSlider.addEventListener("input", () => {
         updateVadSliderLabels();
-        persistVadSettings();
       });
       vadThresholdSlider.addEventListener("input", () => {
         updateVadSliderLabels();
-        persistVadSettings();
       });
 
       brandButton.addEventListener("click", (event) => {
         event.stopPropagation();
-        setBrandMenuHidden(!brandMenu.hidden);
+        if (os1Sidebar.hidden) openSidebar();
+        else closeSidebar();
+      });
+      menuPersona.addEventListener("click", () => {
+        openPersonaModal();
       });
       menuApiKey.addEventListener("click", () => {
-        setBrandMenuHidden(true);
         openSettingsModal();
       });
       menuVoice.addEventListener("click", () => {
-        setBrandMenuHidden(true);
         openVoiceModal();
       });
-      menuKnowledgeBase.addEventListener("click", () => {
-        setBrandMenuHidden(true);
-        window.location.assign("/knowledge");
-      });
-      document.addEventListener("click", () => setBrandMenuHidden(true));
       keyPrompt.addEventListener("click", openSettingsModal);
-      voiceMaleButton.addEventListener("click", () => setVoiceGender("male"));
-      voiceFemaleButton.addEventListener("click", () => setVoiceGender("female"));
-      clearKeysButton.addEventListener("click", clearApiKeys);
-      saveKeysButton.addEventListener("click", () => void saveApiKeys());
-      saveVoiceButton.addEventListener("click", () => {
-        if (!persistAssistantName()) return;
-        persistVadSettings();
-        persistVoiceIdSettings();
-        closeVoiceModal();
-      });
-      assistantNameInput.addEventListener("input", () => {
-        // Live strip non-English characters while typing.
-        const cleaned = assistantNameInput.value.replace(/[^A-Za-z '\-]/g, "");
-        if (cleaned !== assistantNameInput.value) {
-          assistantNameInput.value = cleaned;
-        }
-        if (voiceError) voiceError.textContent = "";
-      });
+      sidebarHome.addEventListener("click", showSidebarHome);
+      sidebarClose.addEventListener("click", closeSidebar);
+      os1SidebarBackdrop.addEventListener("click", closeSidebar);
+      saveVoiceButton.addEventListener("click", () => void saveVoiceSettings());
+      savePersonaButton.addEventListener("click", () => void savePersonaSettings());
+      voiceRefreshButton.addEventListener("click", () => void refreshVoiceLibrary({ force: true }));
+      accountRefreshButton.addEventListener("click", () => void refreshAccountSummary({ force: true }));
+      assistantNameInput.addEventListener("input", markPersonaDirty);
+      userNameInput.addEventListener("input", markPersonaDirty);
+      for (const choice of personaChoices) {
+        choice.addEventListener("click", () => setPersonaChoice(choice.dataset.persona));
+      }
+      for (const choice of voiceLanguageChoices) {
+        choice.addEventListener("click", () => {
+          voiceLanguage = String(choice.dataset.language || "all");
+          syncVoiceLanguageFilter();
+          renderVoiceList(availableVoices);
+        });
+      }
       settingsClose.addEventListener("click", closeSettingsModal);
+      personaClose.addEventListener("click", closePersonaModal);
       voiceClose.addEventListener("click", closeVoiceModal);
-      referenceHideButton.addEventListener("click", () => {
-        referencePanel.hidden = true;
-      });
       window.addEventListener("online", () => void refreshConnectivity());
-      settingsModal.addEventListener("click", (event) => {
-        if (event.target === settingsModal) closeSettingsModal();
-      });
-      voiceModal.addEventListener("click", (event) => {
-        if (event.target === voiceModal) closeVoiceModal();
-      });
       window.addEventListener("keydown", (event) => {
         if (event.key === "Escape") {
-          setBrandMenuHidden(true);
-          if (!settingsModal.hidden) closeSettingsModal();
-          if (!voiceModal.hidden) closeVoiceModal();
+          closeSidebar();
         }
       });
 
@@ -1362,24 +1864,11 @@
         activeTurn = createTurnState();
         bindRealtimeSocket(socket, activeTurn);
         await waitForSocketOpen(socket);
-        const keys = getApiKeys();
-        const vad = getVadSettings();
         socket.send(
           JSON.stringify({
             type: "start",
             session_id: sessionId,
-            brain_api_key: keys.brain,
-            voice_api_key: keys.voice,
-            stt_api_key: keys.voice,
-            tts_api_key: keys.voice,
-            voice_provider: getVoiceProvider(),
-            voice_gender: selectedVoiceGender,
-            voice_id: getSelectedVoiceId(),
             sample_rate: TARGET_SAMPLE_RATE,
-            vad_threshold: vad.threshold,
-            vad_silence_threshold_secs: vad.silenceSecs,
-            knowledge_enabled: isKnowledgeEnabled(),
-            assistant_name: getAssistantName(),
           }),
         );
         setState("connecting");
@@ -1411,7 +1900,6 @@
         setStatus("transcribing");
         const response = await fetch("/api/turn/stream", {
           method: "POST",
-          headers: apiKeyHeaders(),
           body: form,
         });
         if (!response.ok || !response.body) {
@@ -1522,7 +2010,6 @@
           resolveSttReady,
           rejectSttReady,
           sttReadyReceived: false,
-          knowledgeHits: [],
         };
       }
 
@@ -1545,7 +2032,6 @@
         }
         if (data.session_id) {
           sessionId = data.session_id;
-          localStorage.setItem("os1.sessionId", sessionId);
         }
         if (event === "status") {
           setStatus(data.state || "working");
@@ -1570,9 +2056,6 @@
         }
         if (event === "transcript_timing") {
           turn.transcriptTiming = Array.isArray(data.words) ? data.words : [];
-        }
-        if (event === "knowledge") {
-          turn.knowledgeHits = isKnowledgeEnabled() && Array.isArray(data.hits) ? data.hits : [];
         }
         if (event === "display") {
           const text = String(data.text || "").trim();
@@ -1648,7 +2131,6 @@
           if (!turn.receivedAudio && turn.ttsFailed && !getAnswerText() && turn.finalText) {
             setAnswerText(turn.finalText);
           }
-          renderReferences(turn.knowledgeHits);
         }
         if (event === "error") {
           turn.failed = true;
@@ -1735,7 +2217,7 @@
           setStatus("speaking");
           const response = await fetch("/api/tts", {
             method: "POST",
-            headers: { "Content-Type": "application/json", ...apiKeyHeaders() },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ text }),
           });
           if (!response.ok) {
@@ -1966,77 +2448,6 @@
         }
 
         return { appendBase64, end };
-      }
-
-      function createCaptionTimeline(currentTime, onProgress) {
-        const cues = [];
-        let nextCue = 0;
-        let text = "";
-        let animationFrame = 0;
-
-        function add(alignment, baseTime, autoStart = true) {
-          const normalized = normalizeAlignment(alignment);
-          if (!normalized) return 0;
-          let duration = 0;
-          normalized.chars.forEach((char, index) => {
-            const start = normalized.starts[index] / 1000;
-            const charDuration = normalized.durations[index] / 1000;
-            cues.push({ char, at: baseTime + start });
-            duration = Math.max(duration, start + charDuration);
-          });
-          if (autoStart) start();
-          return duration;
-        }
-
-        function start() {
-          if (animationFrame || nextCue >= cues.length) return;
-          animationFrame = window.requestAnimationFrame(tick);
-        }
-
-        function tick() {
-          animationFrame = 0;
-          const now = currentTime();
-          let changed = false;
-          while (nextCue < cues.length && cues[nextCue].at <= now + 0.012) {
-            text += cues[nextCue].char;
-            nextCue += 1;
-            changed = true;
-          }
-          if (changed) onProgress(text);
-          if (nextCue < cues.length) start();
-        }
-
-        function stop() {
-          if (animationFrame) window.cancelAnimationFrame(animationFrame);
-          animationFrame = 0;
-        }
-
-        return { add, start, stop };
-      }
-
-      function normalizeAlignment(alignment) {
-        if (!alignment || !Array.isArray(alignment.chars)) return null;
-        const starts = alignment.char_start_times_ms;
-        const durations = alignment.char_durations_ms;
-        if (!Array.isArray(starts) || !Array.isArray(durations)) return null;
-        const length = Math.min(alignment.chars.length, starts.length, durations.length);
-        if (!length) return null;
-        const chars = [];
-        const validStarts = [];
-        const validDurations = [];
-        for (let index = 0; index < length; index += 1) {
-          const start = Number(starts[index]);
-          const duration = Number(durations[index]);
-          const char = String(alignment.chars[index] || "");
-          if (!char || !Number.isFinite(start) || !Number.isFinite(duration)) continue;
-          if (start < 0 || duration < 0) continue;
-          chars.push(char);
-          validStarts.push(start);
-          validDurations.push(duration);
-        }
-        return chars.length
-          ? { chars, starts: validStarts, durations: validDurations }
-          : null;
       }
 
       function audibleAudioTime(audioContext) {
@@ -2295,9 +2706,6 @@
         userBubbleEl = null;
         aiBubbleEl = null;
         chatThread.scrollTop = 0;
-        referencePanel.hidden = true;
-        referenceDetails.open = true;
-        referenceContent.replaceChildren();
       }
 
       function scrollChatToBottom() {
@@ -2414,14 +2822,27 @@
       function setHint(next) {
         if (next === "recording") {
           hintEl.textContent = "Speak, then pause";
+          hintEl.classList.remove("is-personalized");
           hintEl.hidden = false;
           return;
         }
         if (next === "idle") {
-          hintEl.textContent = "Tap to speak";
+          const assistantName = String(savedPersona.assistantName || "").trim();
+          const chineseVoice = selectedVoiceLanguage.startsWith("zh");
+          if (chineseVoice) {
+            hintEl.textContent = assistantName
+              ? `点击按钮和${assistantName}聊天`
+              : "点击按钮开始聊天";
+          } else {
+            hintEl.textContent = assistantName
+              ? `Tap to speak to ${assistantName}`
+              : "Tap to speak";
+          }
+          hintEl.classList.toggle("is-personalized", Boolean(assistantName));
           hintEl.hidden = false;
           return;
         }
+        hintEl.classList.remove("is-personalized");
         hintEl.hidden = true;
       }
 
@@ -2448,61 +2869,18 @@
       }
 
       function hasApiKeys() {
-        const keys = getApiKeys();
-        return Boolean((keys.brain || serverHasBrainKey) && (keys.voice || serverHasVoiceKey));
-      }
-
-      function getApiKeys() {
-        return {
-          brain: sessionStorage.getItem("os1.brainApiKey") || "",
-          voice: sessionStorage.getItem("os1.voiceApiKey") || "",
-        };
+        return Boolean(serverHasBrainKey && serverHasVoiceKey);
       }
 
       function getVoiceProvider() {
-        return sessionStorage.getItem("os1.voiceProvider") || voiceProviderSelect.value || "elevenlabs";
-      }
-
-      function migrateLegacyApiKeys() {
-        for (const key of [
-          "os1.brainProvider",
-          "os1.voiceProvider",
-          "os1.brainApiKey",
-          "os1.voiceApiKey",
-        ]) {
-          const legacyValue = localStorage.getItem(key);
-          if (legacyValue && !sessionStorage.getItem(key)) {
-            sessionStorage.setItem(key, legacyValue);
-          }
-          localStorage.removeItem(key);
-        }
-      }
-
-      function apiKeyHeaders() {
-        const keys = getApiKeys();
-        return {
-          "X-OS1-Brain-API-Key": keys.brain,
-          "X-OS1-Voice-API-Key": keys.voice,
-          "X-OS1-STT-API-Key": keys.voice,
-          "X-OS1-TTS-API-Key": keys.voice,
-          "X-OS1-Voice-Provider": getVoiceProvider(),
-          "X-OS1-Voice-Gender": selectedVoiceGender,
-        };
-      }
-
-      function setVoiceGender(gender) {
-        if (state !== "idle") return;
-        selectedVoiceGender = gender === "female" ? "female" : "male";
-        localStorage.setItem("os1.voiceGender", selectedVoiceGender);
-        updateVoiceControls();
+        return voiceProviderSelect.value || "elevenlabs";
       }
 
       function updateVoiceControls() {
         const busy = state !== "idle";
-        voiceMaleButton.disabled = busy;
-        voiceFemaleButton.disabled = busy;
-        voiceMaleButton.classList.toggle("is-active", selectedVoiceGender === "male");
-        voiceFemaleButton.classList.toggle("is-active", selectedVoiceGender === "female");
+        voiceList.querySelectorAll(".voice-select").forEach((button) => {
+          button.disabled = busy;
+        });
       }
 
       function updateKeyState() {
@@ -2524,11 +2902,7 @@
             serverHasBrainKey = Boolean(health.has_llm_key);
             const providers = Array.isArray(health.tts_providers) ? health.tts_providers : [];
             if (providers.length) {
-              const storedProvider = sessionStorage.getItem("os1.voiceProvider");
-              const selectedProvider = providers.includes(storedProvider)
-                ? storedProvider
-                : health.default_tts_provider || providers[0];
-              sessionStorage.setItem("os1.voiceProvider", selectedProvider);
+              const selectedProvider = health.default_tts_provider || providers[0];
               voiceProviderSelect.replaceChildren(
                 ...providers.map((provider) => {
                   const option = document.createElement("option");
@@ -2544,31 +2918,39 @@
             serverHasVoiceKey = Boolean(
               providerKeys[getVoiceProvider()] ?? health.has_tts_key ?? health.has_elevenlabs_key
             );
-            const selectorModel = health.llm_search_model || "grok-4.5";
-            const selectorEffort = health.llm_search_reasoning_effort || "low";
-            llmSearchModelInput.value = `${selectorModel} · ${selectorEffort} reasoning`;
-            if (llmSearchLabel) {
-              llmSearchLabel.textContent = `xAI · ${selectorModel}`;
-            }
+            brainEnvStatus.textContent = serverHasBrainKey ? "configured" : "missing";
+            voiceEnvStatus.textContent = serverHasVoiceKey ? "configured" : "missing";
+            brainEnvStatus.classList.toggle("is-ready", serverHasBrainKey);
+            voiceEnvStatus.classList.toggle("is-ready", serverHasVoiceKey);
             if (voiceProviderLabel) {
               voiceProviderLabel.textContent = getVoiceProvider() || "ElevenLabs";
             }
-            serverKnowledgeEnabled = health.knowledge_enabled !== false;
-            knowledgeUiEnabled = health.knowledge_ui_enabled === true;
-            if (!serverKnowledgeEnabled) {
-              sessionStorage.setItem("os1.knowledgeEnabled", "0");
-            }
-            if (!sessionStorage.getItem("os1.maleVoiceId") && health.default_male_voice_id) {
-              maleVoiceIdInput.placeholder = String(health.default_male_voice_id);
-            }
-            if (!sessionStorage.getItem("os1.femaleVoiceId") && health.default_female_voice_id) {
-              femaleVoiceIdInput.placeholder = String(health.default_female_voice_id);
-            }
-            syncKnowledgeMenu();
+            defaultVoices = Array.isArray(health.default_voices) ? health.default_voices : [];
+            availableVoices = mergeVoiceCatalog(defaultVoices, libraryVoices);
+            selectedVoiceId = String(health.selected_voice_id || health.default_male_voice_id || "");
+            selectedVoiceLanguage = String(health.selected_voice_language || "en").toLowerCase();
+            assistantNameInput.value = String(health.assistant_name || "");
+            userNameInput.value = String(health.user_name || "");
+            activePersona = String(health.assistant_persona || "default");
+            savedPersona = {
+              assistantName: assistantNameInput.value,
+              userName: userNameInput.value,
+              persona: activePersona,
+            };
+            syncPersonaUi();
+            updateCurrentVoiceHint();
+            setHint(state);
+            vadSilenceSlider.value = String(
+              health.vad_silence_threshold_secs ?? VAD_SILENCE_DEFAULT
+            );
+            vadThresholdSlider.value = String(health.vad_threshold ?? VAD_THRESHOLD_DEFAULT);
+            updateVadSliderLabels();
           }
         } catch {
           serverHasBrainKey = false;
           serverHasVoiceKey = false;
+          brainEnvStatus.textContent = "unavailable";
+          voiceEnvStatus.textContent = "unavailable";
         }
       }
 
@@ -2595,7 +2977,6 @@
         try {
           const response = await fetch("/api/connectivity/check", {
             method: "POST",
-            headers: apiKeyHeaders(),
             cache: "no-store",
           });
           if (!response.ok) throw new Error("Connectivity check failed.");
@@ -2610,6 +2991,9 @@
             .filter((provider) => provider && !provider.ok)
             .map(providerErrorMessage)
             .join(" ");
+          const sttReady = Boolean((report.stt || report.voice || {}).ok);
+          const ttsReady = Boolean((report.tts || report.voice || {}).ok);
+          if (sttReady && ttsReady) primeElevenLabsSidebarData();
         } catch (error) {
           if (checkId !== connectivityCheckId) return;
           providersReady = false;
@@ -2676,117 +3060,231 @@
         return ["timeout", "transport_error", "upstream_rejected", "rate_limited"].includes(code);
       }
 
-      function setBrandMenuHidden(hidden) {
-        brandMenu.hidden = hidden;
-        brandButton.setAttribute("aria-expanded", String(!hidden));
+      function primeElevenLabsSidebarData() {
+        if (!serverHasVoiceKey) return;
+        void refreshVoiceLibrary();
+        void refreshAccountSummary();
       }
 
-      function isKnowledgeEnabled() {
-        // No Knowledge menu/UI ⇒ no search and no Ref panel.
-        if (!serverKnowledgeEnabled || !knowledgeUiEnabled) return false;
-        const stored = sessionStorage.getItem("os1.knowledgeEnabled");
-        if (stored === null) return true;
-        return stored === "1" || stored === "true";
+      async function refreshAccountSummary({ force = false } = {}) {
+        if ((accountSummaryLoaded && !force) || accountSummaryLoading) return;
+        accountSummaryLoading = true;
+        accountRefreshButton.disabled = true;
+        accountRefreshButton.classList.add("is-loading");
+        accountName.textContent = "ElevenLabs";
+        accountBalance.textContent = "Loading account…";
+        accountError.hidden = true;
+        try {
+          const response = await fetch("/api/account", { cache: "no-store" });
+          if (!response.ok) throw new Error(await apiErrorMessage(response));
+          const account = await response.json();
+          accountName.textContent = String(account.name || "ElevenLabs");
+          const remaining = Number(account.credits_remaining || 0);
+          accountBalance.textContent = `${formatInteger(remaining)} credits left`;
+          accountSummaryLoaded = true;
+        } catch (error) {
+          accountBalance.textContent = "Balance unavailable";
+          accountError.textContent = error?.message || "Could not load ElevenLabs account.";
+          accountError.hidden = false;
+        } finally {
+          accountSummaryLoading = false;
+          accountRefreshButton.disabled = false;
+          accountRefreshButton.classList.remove("is-loading");
+        }
       }
 
-      function syncKnowledgeMenu() {
-        menuKnowledgeBase.hidden = !knowledgeUiEnabled;
+      function formatInteger(value) {
+        return Math.max(0, Number(value) || 0).toLocaleString("en-US");
       }
 
-      function getSelectedVoiceId() {
-        const key = selectedVoiceGender === "female" ? "os1.femaleVoiceId" : "os1.maleVoiceId";
-        return (sessionStorage.getItem(key) || "").trim();
+      function openSidebar(view = "home") {
+        revealSidebar();
+        if (view === "persona") openPersonaModal();
+        else if (view === "keys") openSettingsModal();
+        else if (view === "voice") openVoiceModal();
+        else showSidebarHome();
       }
 
-      function loadVoiceIdSettingsIntoUi() {
-        maleVoiceIdInput.value = sessionStorage.getItem("os1.maleVoiceId") || "";
-        femaleVoiceIdInput.value = sessionStorage.getItem("os1.femaleVoiceId") || "";
-        assistantNameInput.value = sessionStorage.getItem("os1.assistantName") || "";
+      function revealSidebar() {
+        window.clearTimeout(sidebarCloseTimer);
+        sidebarCloseTimer = 0;
+        os1Sidebar.classList.remove("is-closing");
+        os1SidebarBackdrop.classList.remove("is-closing");
+        os1Sidebar.hidden = false;
+        os1SidebarBackdrop.hidden = false;
+        os1Sidebar.setAttribute("aria-hidden", "false");
+        brandButton.setAttribute("aria-expanded", "true");
+      }
+
+      function closeSidebar() {
+        if (os1Sidebar.hidden || os1Sidebar.classList.contains("is-closing")) return;
+        stopVoicePreview();
+        os1Sidebar.setAttribute("aria-hidden", "true");
+        brandButton.setAttribute("aria-expanded", "false");
+        os1Sidebar.classList.add("is-closing");
+        os1SidebarBackdrop.classList.add("is-closing");
+        updateKeyState();
+        const closeDelay = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 170;
+        sidebarCloseTimer = window.setTimeout(() => {
+          os1Sidebar.hidden = true;
+          os1SidebarBackdrop.hidden = true;
+          os1Sidebar.classList.remove("is-closing");
+          os1SidebarBackdrop.classList.remove("is-closing");
+          personaModal.hidden = true;
+          settingsModal.hidden = true;
+          voiceModal.hidden = true;
+          brandMenu.hidden = false;
+          sidebarCloseTimer = 0;
+          brandButton.focus({ preventScroll: true });
+        }, closeDelay);
+      }
+
+      function showSidebarHome() {
+        os1Sidebar.scrollTo({ top: 0 });
+        personaModal.hidden = true;
+        settingsModal.hidden = true;
+        voiceModal.hidden = true;
+        brandMenu.hidden = false;
+      }
+
+      function loadVoiceSettingsIntoUi() {
         if (voiceError) voiceError.textContent = "";
       }
 
-      function persistVoiceIdSettings() {
-        const male = maleVoiceIdInput.value.trim();
-        const female = femaleVoiceIdInput.value.trim();
-        if (male) sessionStorage.setItem("os1.maleVoiceId", male);
-        else sessionStorage.removeItem("os1.maleVoiceId");
-        if (female) sessionStorage.setItem("os1.femaleVoiceId", female);
-        else sessionStorage.removeItem("os1.femaleVoiceId");
+      function openPersonaModal() {
+        revealSidebar();
+        brandMenu.hidden = true;
+        settingsModal.hidden = true;
+        voiceModal.hidden = true;
+        personaModal.hidden = false;
+        os1Sidebar.scrollTo({ top: 0 });
+        syncPersonaUi();
       }
 
-      function getAssistantName() {
-        return sanitizeAssistantName(sessionStorage.getItem("os1.assistantName") || "");
+      function closePersonaModal() {
+        personaModal.hidden = true;
+        brandMenu.hidden = false;
       }
 
-      function sanitizeAssistantName(value) {
-        const name = String(value || "").trim().replace(/\s+/g, " ");
-        if (!name) return "";
-        // English only for now.
-        if (!/^[A-Za-z][A-Za-z '\-]{0,39}$/.test(name)) return "";
-        return name;
+      function normalizePersonaName(value) {
+        return String(value || "").trim().replace(/\s+/g, " ");
       }
 
-      function persistAssistantName() {
-        const raw = assistantNameInput.value.trim().replace(/\s+/g, " ");
-        if (!raw) {
-          sessionStorage.removeItem("os1.assistantName");
-          assistantNameInput.value = "";
-          if (voiceError) voiceError.textContent = "";
-          return true;
-        }
-        const name = sanitizeAssistantName(raw);
-        if (!name) {
-          if (voiceError) {
-            voiceError.textContent = "Name must be English letters only (spaces, - and ' ok).";
-          }
-          return false;
-        }
-        sessionStorage.setItem("os1.assistantName", name);
-        assistantNameInput.value = name;
-        if (voiceError) voiceError.textContent = "";
-        return true;
+      function currentPersonaState() {
+        return {
+          assistantName: normalizePersonaName(assistantNameInput.value),
+          userName: normalizePersonaName(userNameInput.value),
+          persona: activePersona,
+        };
       }
 
-      function renderReferences(hits) {
-        if (!isKnowledgeEnabled() || !Array.isArray(hits) || !hits.length) {
-          referencePanel.hidden = true;
-          return;
-        }
-        const wiki = hits.filter((hit) => String(hit.provider || "").startsWith("llm_search"));
-        const lexical = hits.filter((hit) => String(hit.provider || "").startsWith("lex_search"));
-        referenceContent.replaceChildren();
-        appendReferenceGroup("llm_search · Wiki", wiki);
-        appendReferenceGroup("lex_search · Chunks", lexical);
-        referenceSummary.textContent = `Ref · ${wiki.length} wiki · ${lexical.length} chunks`;
-        referenceDetails.open = true;
-        referencePanel.hidden = false;
+      function personaIsDirty() {
+        const current = currentPersonaState();
+        return current.assistantName !== savedPersona.assistantName
+          || current.userName !== savedPersona.userName
+          || current.persona !== savedPersona.persona;
       }
 
-      function appendReferenceGroup(title, hits) {
-        const group = document.createElement("section");
-        group.className = "reference-group";
-        const heading = document.createElement("div");
-        heading.className = "reference-group-title";
-        heading.textContent = title;
-        group.appendChild(heading);
-        if (!hits.length) {
-          const empty = document.createElement("div");
-          empty.className = "reference-item";
-          empty.textContent = "No result returned.";
-          group.appendChild(empty);
+      function markPersonaDirty() {
+        personaError.textContent = "";
+        const dirty = personaIsDirty();
+        personaSaveState.textContent = dirty ? "Unsaved changes · confirm to apply" : "Up to date";
+        personaSaveState.classList.toggle("is-dirty", dirty);
+        personaSaveState.classList.remove("is-success");
+        savePersonaButton.disabled = !dirty;
+        savePersonaButton.textContent = dirty ? "Apply changes" : "Applied";
+      }
+
+      function setPersonaChoice(persona) {
+        activePersona = ["default", "concise", "conversational"].includes(persona)
+          ? persona
+          : "default";
+        syncPersonaUi();
+        markPersonaDirty();
+      }
+
+      function syncPersonaUi() {
+        const descriptions = {
+          default: "Use OS1’s base response style.",
+          concise: "Direct, complete, and brief.",
+          conversational: "Connected replies with a relevant follow-up.",
+        };
+        for (const choice of personaChoices) {
+          const selected = choice.dataset.persona === activePersona;
+          choice.classList.toggle("is-selected", selected);
+          choice.setAttribute("aria-checked", String(selected));
         }
-        for (const hit of hits) {
-          const item = document.createElement("div");
-          item.className = "reference-item";
-          const id = document.createElement("span");
-          id.className = "reference-id";
-          id.textContent = hit.chunk || hit.evidence_id || "unknown";
-          item.appendChild(id);
-          item.append(` · ${hit.title || hit.path || "Reference"}`);
-          if (hit.snippet) item.append(` — ${hit.snippet}`);
-          group.appendChild(item);
+        personaDescription.textContent = descriptions[activePersona] || descriptions.default;
+        markPersonaDirty();
+      }
+
+      async function savePersonaSettings() {
+        const current = currentPersonaState();
+        savePersonaButton.disabled = true;
+        savePersonaButton.textContent = "Applying…";
+        personaSaveState.textContent = "Writing to .env…";
+        personaSaveState.classList.remove("is-dirty", "is-success");
+        personaError.textContent = "";
+        try {
+          const response = await fetch("/api/settings/persona", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              assistant_name: current.assistantName,
+              user_name: current.userName,
+              persona: current.persona,
+            }),
+          });
+          if (!response.ok) throw new Error(await apiErrorMessage(response));
+          const payload = await response.json();
+          assistantNameInput.value = String(payload.assistant_name || "");
+          userNameInput.value = String(payload.user_name || "");
+          activePersona = String(payload.persona || "default");
+          savedPersona = currentPersonaState();
+          syncPersonaUi();
+          setHint(state);
+          personaSaveState.textContent = "Applied · system prompt updated";
+          personaSaveState.classList.add("is-success");
+          savePersonaButton.textContent = "Applied";
+          savePersonaButton.disabled = true;
+        } catch (error) {
+          personaError.textContent = error?.message || "Could not apply persona settings.";
+          personaSaveState.textContent = "Not applied";
+          personaSaveState.classList.add("is-dirty");
+          savePersonaButton.textContent = "Try again";
+          savePersonaButton.disabled = false;
         }
-        referenceContent.appendChild(group);
+      }
+
+      async function selectVoice(voiceId, rerender = true) {
+        const clean = String(voiceId || "").trim();
+        if (!clean || state !== "idle") return;
+        const previous = selectedVoiceId;
+        const previousLanguage = selectedVoiceLanguage;
+        selectedVoiceId = clean;
+        if (rerender) renderVoiceList(availableVoices);
+        voiceLibraryStatus.textContent = "Saving voice to .env…";
+        try {
+          const response = await fetch("/api/settings/voice", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ voice_id: clean }),
+          });
+          if (!response.ok) throw new Error(await apiErrorMessage(response));
+          const payload = await response.json();
+          selectedVoiceId = String(payload.voice_id || clean);
+          selectedVoiceLanguage = String(payload.language || "en").toLowerCase();
+          updateCurrentVoiceHint();
+          setHint(state);
+          voiceLibraryStatus.textContent = voiceLibraryCountLabel(availableVoices.length);
+        } catch (error) {
+          selectedVoiceId = previous;
+          selectedVoiceLanguage = previousLanguage;
+          updateCurrentVoiceHint();
+          setHint(state);
+          voiceLibraryStatus.textContent = error?.message || "Could not save this voice.";
+        }
+        if (rerender) renderVoiceList(availableVoices);
       }
 
       async function apiErrorMessage(response) {
@@ -2800,30 +3298,244 @@
       }
 
       function openSettingsModal() {
-        const keys = getApiKeys();
-        brainKeyInput.value = keys.brain;
-        voiceKeyInput.value = keys.voice;
-        settingsError.textContent = "";
+        revealSidebar();
+        brandMenu.hidden = true;
+        personaModal.hidden = true;
+        voiceModal.hidden = true;
         settingsModal.hidden = false;
-        window.setTimeout(() => {
-          (brainKeyInput.value ? voiceKeyInput : brainKeyInput).focus();
-        }, 0);
+        os1Sidebar.scrollTo({ top: 0 });
       }
 
       function closeSettingsModal() {
         settingsModal.hidden = true;
+        brandMenu.hidden = false;
         updateKeyState();
       }
 
       function openVoiceModal() {
         loadVadSettingsIntoUi();
-        loadVoiceIdSettingsIntoUi();
-        setVoiceGender(selectedVoiceGender);
+        loadVoiceSettingsIntoUi();
+        revealSidebar();
+        brandMenu.hidden = true;
+        personaModal.hidden = true;
+        settingsModal.hidden = true;
         voiceModal.hidden = false;
+        os1Sidebar.scrollTo({ top: 0 });
+        renderVoiceList(availableVoices);
       }
 
       function closeVoiceModal() {
+        stopVoicePreview();
         voiceModal.hidden = true;
+        brandMenu.hidden = false;
+      }
+
+      async function refreshVoiceLibrary({ force = false } = {}) {
+        if ((voiceLibraryLoaded && !force) || voiceLibraryLoading) return;
+        voiceLibraryLoading = true;
+        voiceRefreshButton.disabled = true;
+        voiceRefreshButton.classList.add("is-loading");
+        voiceLibraryStatus.textContent = "Loading from ElevenLabs…";
+        try {
+          const response = await fetch("/api/tts/voices", { cache: "no-store" });
+          if (!response.ok) throw new Error(await apiErrorMessage(response));
+          const payload = await response.json();
+          libraryVoices = Array.isArray(payload.voices) ? payload.voices : [];
+          availableVoices = mergeVoiceCatalog(defaultVoices, libraryVoices);
+          voiceLibraryLoaded = true;
+          updateCurrentVoiceHint();
+          renderVoiceList(availableVoices);
+          voiceLibraryStatus.textContent = availableVoices.length
+            ? voiceLibraryCountLabel(availableVoices.length)
+            : "No voices available.";
+        } catch (error) {
+          availableVoices = mergeVoiceCatalog(defaultVoices, libraryVoices);
+          renderVoiceList(availableVoices);
+          voiceLibraryStatus.textContent = error?.message || "Could not load My Voices.";
+        } finally {
+          voiceLibraryLoading = false;
+          voiceRefreshButton.disabled = false;
+          voiceRefreshButton.classList.remove("is-loading");
+        }
+      }
+
+      function voiceLibraryCountLabel(count) {
+        return `${count} ${count === 1 ? "voice" : "voices"} available`;
+      }
+
+      function mergeVoiceCatalog(defaults, library) {
+        const merged = [];
+        const seen = new Set();
+        for (const voice of [...(Array.isArray(defaults) ? defaults : []), ...(Array.isArray(library) ? library : [])]) {
+          const voiceId = String(voice?.voice_id || "").trim();
+          if (!voiceId || seen.has(voiceId)) continue;
+          seen.add(voiceId);
+          merged.push(voice);
+        }
+        return merged;
+      }
+
+      function voicePrimaryLanguage(voice) {
+        const language = String(voice?.primary_language || "").trim().toLowerCase();
+        const locale = String(voice?.primary_locale || "").trim().toLowerCase();
+        if (language.startsWith("zh") || locale.startsWith("zh") || locale.startsWith("cmn")) return "zh";
+        if (language.startsWith("en") || locale.startsWith("en")) return "en";
+        return language;
+      }
+
+      function updateCurrentVoiceHint() {
+        const voice = availableVoices.find(
+          (candidate) => String(candidate?.voice_id || "") === selectedVoiceId,
+        );
+        currentVoiceHint.textContent = `Current voice: ${String(voice?.name || "Unknown")}`;
+      }
+
+      function syncVoiceLanguageFilter() {
+        for (const choice of voiceLanguageChoices) {
+          const selected = choice.dataset.language === voiceLanguage;
+          choice.classList.toggle("is-selected", selected);
+          choice.setAttribute("aria-pressed", String(selected));
+        }
+      }
+
+      function renderVoiceList(voices) {
+        voiceList.replaceChildren();
+        const unique = [];
+        const seen = new Set();
+        for (const voice of Array.isArray(voices) ? voices : []) {
+          const voiceId = String(voice?.voice_id || "").trim();
+          if (!voiceId || seen.has(voiceId)) continue;
+          if (voiceLanguage !== "all" && voicePrimaryLanguage(voice) !== voiceLanguage) continue;
+          seen.add(voiceId);
+          unique.push(voice);
+        }
+        for (const voice of unique) {
+          const voiceId = String(voice.voice_id);
+          const row = document.createElement("div");
+          row.className = "voice-row";
+          row.classList.toggle("is-selected", voiceId === selectedVoiceId);
+
+          const select = document.createElement("button");
+          select.className = "voice-select";
+          select.type = "button";
+          select.setAttribute("role", "option");
+          select.setAttribute("aria-selected", String(voiceId === selectedVoiceId));
+          select.disabled = state !== "idle";
+          select.addEventListener("click", () => selectVoice(voiceId));
+
+          const name = document.createElement("span");
+          name.className = "voice-name";
+          name.textContent = String(voice.name || "Untitled voice");
+          const meta = document.createElement("span");
+          meta.className = "voice-meta";
+          meta.textContent = voiceMeta(voice);
+          select.append(name, meta);
+
+          const preview = document.createElement("button");
+          preview.className = "voice-preview";
+          preview.classList.toggle("is-playing", previewVoiceId === voiceId);
+          preview.dataset.previewId = voiceId;
+          preview.type = "button";
+          preview.textContent = previewVoiceId === voiceId ? "Ⅱ" : "▶";
+          const duration = previewDurations.get(voiceId);
+          const durationText = Number.isFinite(duration) ? ` · ${formatAudioDuration(duration)}` : "";
+          preview.title = `${previewVoiceId === voiceId ? "Pause" : "Preview"}${durationText}`;
+          preview.setAttribute(
+            "aria-label",
+            `${previewVoiceId === voiceId ? "Pause" : "Preview"} ${name.textContent}${durationText}`,
+          );
+          if (previewVoiceId === voiceId && Number.isFinite(voicePreviewPlayer.duration)) {
+            const progress = voicePreviewPlayer.currentTime / voicePreviewPlayer.duration;
+            preview.style.setProperty("--preview-progress", `${Math.max(0, Math.min(1, progress)) * 360}deg`);
+          }
+          preview.disabled = voice.preview_available === false;
+          preview.addEventListener("click", () => void toggleVoicePreview(voiceId));
+
+          row.append(select, preview);
+          voiceList.appendChild(row);
+        }
+      }
+
+      function voiceMeta(voice) {
+        const parts = [];
+        const gender = String(voice.gender || "").trim().toLowerCase();
+        if (gender) parts.push(gender);
+        const language = voicePrimaryLanguage(voice);
+        if (language && !parts.includes(language)) parts.push(language);
+        return parts.join(" · ") || "ElevenLabs voice";
+      }
+
+      async function toggleVoicePreview(voiceId) {
+        if (previewVoiceId === voiceId && !voicePreviewPlayer.paused) {
+          stopVoicePreview();
+          renderVoiceList(availableVoices);
+          return;
+        }
+        stopVoicePreview();
+        previewVoiceId = voiceId;
+        renderVoiceList(availableVoices);
+        try {
+          const response = await fetch(`/api/tts/voices/${encodeURIComponent(voiceId)}/preview`);
+          if (!response.ok) throw new Error(await apiErrorMessage(response));
+          const blob = await response.blob();
+          previewObjectUrl = URL.createObjectURL(blob);
+          voicePreviewPlayer.src = previewObjectUrl;
+          voicePreviewPlayer.onloadedmetadata = () => {
+            if (Number.isFinite(voicePreviewPlayer.duration)) {
+              previewDurations.set(voiceId, voicePreviewPlayer.duration);
+            }
+          };
+          voicePreviewPlayer.onended = () => {
+            stopVoicePreview();
+            renderVoiceList(availableVoices);
+          };
+          await voicePreviewPlayer.play();
+          updateVoicePreviewProgress();
+        } catch (error) {
+          stopVoicePreview();
+          voiceLibraryStatus.textContent = error?.message || "Could not play this preview.";
+          renderVoiceList(availableVoices);
+        }
+      }
+
+      function stopVoicePreview() {
+        window.cancelAnimationFrame(previewProgressFrame);
+        previewProgressFrame = 0;
+        voicePreviewPlayer.pause();
+        voicePreviewPlayer.onloadedmetadata = null;
+        voicePreviewPlayer.onended = null;
+        voicePreviewPlayer.removeAttribute("src");
+        voicePreviewPlayer.load();
+        if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+        previewObjectUrl = "";
+        previewVoiceId = "";
+      }
+
+      function updateVoicePreviewProgress() {
+        window.cancelAnimationFrame(previewProgressFrame);
+        const preview = voiceList.querySelector(".voice-preview.is-playing");
+        const duration = voicePreviewPlayer.duration;
+        if (preview && Number.isFinite(duration) && duration > 0) {
+          previewDurations.set(previewVoiceId, duration);
+          const progress = Math.max(0, Math.min(1, voicePreviewPlayer.currentTime / duration));
+          preview.style.setProperty("--preview-progress", `${progress * 360}deg`);
+          const durationText = formatAudioDuration(duration);
+          const activeVoice = availableVoices.find(
+            (voice) => String(voice?.voice_id || "") === previewVoiceId,
+          );
+          const activeVoiceName = String(activeVoice?.name || "voice");
+          preview.title = `Pause · ${durationText}`;
+          preview.setAttribute("aria-label", `Pause ${activeVoiceName} · ${durationText}`);
+        }
+        if (previewVoiceId && !voicePreviewPlayer.paused && !voicePreviewPlayer.ended) {
+          previewProgressFrame = window.requestAnimationFrame(updateVoicePreviewProgress);
+        }
+      }
+
+      function formatAudioDuration(seconds) {
+        const total = Math.max(0, Math.round(Number(seconds) || 0));
+        const minutes = Math.floor(total / 60);
+        return `${minutes}:${String(total % 60).padStart(2, "0")}`;
       }
 
       function clampNumber(value, min, max, fallback) {
@@ -2835,13 +3547,13 @@
       function getVadSettings() {
         return {
           silenceSecs: clampNumber(
-            sessionStorage.getItem("os1.vadSilenceSecs") ?? vadSilenceSlider.value,
+            vadSilenceSlider.value,
             VAD_SILENCE_MIN,
             VAD_SILENCE_MAX,
             VAD_SILENCE_DEFAULT,
           ),
           threshold: clampNumber(
-            sessionStorage.getItem("os1.vadThreshold") ?? vadThresholdSlider.value,
+            vadThresholdSlider.value,
             VAD_THRESHOLD_MIN,
             VAD_THRESHOLD_MAX,
             VAD_THRESHOLD_DEFAULT,
@@ -2873,61 +3585,30 @@
         vadThresholdValue.textContent = threshold.toFixed(2);
       }
 
-      function persistVadSettings() {
-        const silence = clampNumber(
-          vadSilenceSlider.value,
-          VAD_SILENCE_MIN,
-          VAD_SILENCE_MAX,
-          VAD_SILENCE_DEFAULT,
-        );
-        const threshold = clampNumber(
-          vadThresholdSlider.value,
-          VAD_THRESHOLD_MIN,
-          VAD_THRESHOLD_MAX,
-          VAD_THRESHOLD_DEFAULT,
-        );
-        sessionStorage.setItem("os1.vadSilenceSecs", String(silence));
-        sessionStorage.setItem("os1.vadThreshold", String(threshold));
-      }
-
-      async function saveApiKeys() {
-        const brain = brainKeyInput.value.trim();
-        const voice = voiceKeyInput.value.trim();
-        if (!brain || !voice) {
-          settingsError.textContent = "Both API keys are required.";
-          return;
+      async function saveVoiceSettings() {
+        const vad = getVadSettings();
+        saveVoiceButton.disabled = true;
+        voiceError.textContent = "Saving to .env…";
+        try {
+          const response = await fetch("/api/settings/voice-profile", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              vad_silence_threshold_secs: vad.silenceSecs,
+              vad_threshold: vad.threshold,
+            }),
+          });
+          if (!response.ok) throw new Error(await apiErrorMessage(response));
+          const payload = await response.json();
+          vadSilenceSlider.value = String(payload.vad_silence_threshold_secs);
+          vadThresholdSlider.value = String(payload.vad_threshold);
+          updateVadSliderLabels();
+          closeSidebar();
+        } catch (error) {
+          voiceError.textContent = error?.message || "Could not save voice settings.";
+        } finally {
+          saveVoiceButton.disabled = false;
         }
-        sessionStorage.setItem("os1.brainProvider", "xai");
-        sessionStorage.setItem("os1.voiceProvider", voiceProviderSelect.value || "elevenlabs");
-        sessionStorage.setItem("os1.brainApiKey", brain);
-        sessionStorage.setItem("os1.voiceApiKey", voice);
-        serverHasBrainKey = true;
-        serverHasVoiceKey = true;
-        closeSettingsModal();
-        await refreshConnectivity();
-      }
-
-      function clearApiKeys() {
-        for (const key of [
-          "os1.brainProvider",
-          "os1.voiceProvider",
-          "os1.brainApiKey",
-          "os1.voiceApiKey",
-        ]) {
-          sessionStorage.removeItem(key);
-          localStorage.removeItem(key);
-        }
-        brainKeyInput.value = "";
-        voiceKeyInput.value = "";
-        providersReady = false;
-        connectivityChecking = false;
-        connectivityRetryable = false;
-        connectivityCheckId += 1;
-        window.clearTimeout(connectivityRetryTimer);
-        connectivityRetryTimer = 0;
-        settingsError.textContent = "Browser-stored keys cleared.";
-        updateKeyState();
-        void refreshConnectivity();
       }
     </script>
   </body>

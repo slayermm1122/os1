@@ -10,22 +10,17 @@ from .api.realtime import create_realtime_router
 from .api.routes import create_router
 from .config import settings
 from .core.connectivity import ConnectivityService
+from .core.local_settings import LocalSettingsService
 from .core.orchestrator import TurnOrchestrator
 from .core.rate_limit import SlidingWindowRateLimiter
 from .core.security import is_allowed_websocket, is_local_http_request
 from .core.sessions import KVConversationStore
 from .gateways.connectivity import ElevenLabsConnectivityProbe, XAIConnectivityProbe
-from .gateways.knowledge import (
-    KnowledgeBrowser,
-    KnowledgeSearchCoordinator,
-    LLMSearch,
-    LexSearch,
-    SQLiteFTSKnowledgeGateway,
-    WikiCatalog,
-)
+from .gateways.elevenlabs_account import ElevenLabsAccountGateway
 from .gateways.ai import XAIGateway
 from .gateways.stt import ElevenLabsSTTGateway
 from .gateways.tts import ElevenLabsTTSGateway, TTSAdapter
+from .gateways.tts.elevenlabs_catalog import ElevenLabsVoiceCatalog
 from .services import ApplicationServices
 from .telemetry import SQLiteTelemetryRecorder
 from .version import APP_VERSION
@@ -40,27 +35,8 @@ telemetry = SQLiteTelemetryRecorder(
         == (settings.root_dir / "data").resolve()
     ),
 )
-knowledge_index = SQLiteFTSKnowledgeGateway(settings)
 answer_ai = XAIGateway(settings)
-selector_ai = XAIGateway(
-    settings,
-    model=settings.knowledge_selector_model,
-    reasoning_effort=settings.knowledge_selector_reasoning_effort,
-)
-knowledge = KnowledgeSearchCoordinator(
-    settings,
-    knowledge_index,
-    [
-        LexSearch(knowledge_index),
-        LLMSearch(
-            selector_ai,
-            WikiCatalog(settings.knowledge_root_dir / "wiki"),
-            telemetry,
-            limit=settings.knowledge_wiki_limit,
-        ),
-    ],
-    telemetry=telemetry,
-)
+local_settings = LocalSettingsService(settings, settings.root_dir / ".env")
 tts = TTSAdapter(
     [ElevenLabsTTSGateway(settings)],
     default_provider=settings.default_tts_provider,
@@ -70,9 +46,7 @@ orchestrator = TurnOrchestrator(
     llm=answer_ai,
     stt=ElevenLabsSTTGateway(settings),
     tts=tts,
-    knowledge=knowledge,
     sessions=KVConversationStore(
-        max_turns=settings.max_history_turns,
         max_sessions=settings.max_sessions,
         ttl_seconds=settings.session_ttl_seconds,
     ),
@@ -81,7 +55,6 @@ orchestrator = TurnOrchestrator(
 services = ApplicationServices(
     settings=settings,
     orchestrator=orchestrator,
-    knowledge=knowledge,
     telemetry=telemetry,
     rate_limiter=SlidingWindowRateLimiter(
         requests=settings.rate_limit_requests,
@@ -93,14 +66,15 @@ services = ApplicationServices(
         tts=[ElevenLabsConnectivityProbe(settings, capabilities=("tts_websocket",))],
         default_tts_provider=settings.default_tts_provider,
     ),
-    knowledge_browser=KnowledgeBrowser(settings.knowledge_root_dir),
+    voice_catalog=ElevenLabsVoiceCatalog(settings),
+    account=ElevenLabsAccountGateway(settings),
+    local_settings=local_settings,
 )
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     await telemetry.start()
-    await _initialize_knowledge()
     try:
         yield
     finally:
@@ -175,9 +149,3 @@ def _secured_response(response):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
     return response
-
-
-async def _initialize_knowledge() -> None:
-    import asyncio
-
-    await asyncio.to_thread(knowledge.ensure_index)

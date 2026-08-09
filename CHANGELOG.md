@@ -27,21 +27,6 @@ Timestamp-synchronized live captions.
 - Preserved a graceful timing fallback when alignment metadata is unavailable.
 - Added SOCKS proxy support and timing parser, protocol, and multi-chunk alignment coverage.
 
-## v0.03.01 - 2026-07-13
-
-Document knowledge and cache-aware conversation context.
-
-- Added a dedicated read-only Knowledge Base page for inspecting wiki pages and canonical chunks; upload and rebuild controls remain disabled while ingestion is designed separately.
-- Validated the knowledge pipeline with a hand-compiled local Attention Is All You Need corpus; all raw documents and derived knowledge remain git-ignored user data.
-- Added parallel local lexical search and Grok 4.5 low-reasoning wiki selection with a configurable, fail-open deadline, currently 5 seconds.
-- Added provider-neutral streaming-text and structured-object AI gateway operations with xAI cache routing.
-- Added KV Conversation storage for the exact enriched user messages sent to the answer model.
-- Moved dynamic knowledge context from the system message to the latest user message.
-- Added deterministic corpus hashing, JSONL validation, atomic index replacement, weighted BM25, and per-purpose AI telemetry.
-- Enabled local telemetry by default and added per-provider knowledge outcomes for normal hits, misses, timeouts, cancellations, and failures.
-- Added an expandable, collapsible, and hideable Ref panel showing the exact wiki pages and chunks selected for each answer.
-- Added a per-document retrieval golden set and search-only self-verification loop with Recall@5, precision, MRR, nDCG@5, and SQLite run history.
-
 ## v0.02.03 - 2026-07-11
 
 Restricted-key readiness and provider error clarity.
@@ -67,7 +52,7 @@ Provider readiness and response-state feedback.
 Backend modularization and observability release.
 
 - Split HTTP and WebSocket transport, turn orchestration, provider gateways, session history, errors, and telemetry into independent modules.
-- Added replaceable Protocol boundaries for LLM, STT, TTS, and knowledge providers.
+- Added replaceable Protocol boundaries for LLM, STT, and TTS providers.
 - Added opt-in SQLite telemetry for turns, stage events, provider calls, latency, usage, cache behavior, cost metadata, and structured errors.
 - Added canonical `turn_id` and per-provider `call_id` correlation across the voice pipeline.
 - Added explicit success, failure, partial failure, and cancellation states.

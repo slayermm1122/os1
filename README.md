@@ -37,11 +37,12 @@ This is still deliberately small, inspectable, and easy to change.
 - AudioContext playback for streamed PCM audio chunks
 - Mic-reactive orb bars while you speak; restrained motion while OS1 replies
 - Chat bubbles in the center panel: you on the right, OS1 on the left
-- Soft voice UI with a quieter Keys / Voice settings language
-- Optional English assistant name in Voice settings
-- Male / female voice selection and optional custom ElevenLabs voice IDs
-- API key dialog in the UI
-- Optional server-side `.env` fallback for local testing
+- Overlaying OS1 sidebar with Persona, Voice, and API-key status views
+- Persona settings for the AI name, user name, and default / concise / conversational response style
+- ElevenLabs My Voices plus two default voices, language filters, timed previews, and `.env`-backed selection
+- Automatic English or Simplified Chinese response instructions based on the active voice language
+- API keys and persistent settings read only from the local `.env`
+- ElevenLabs account name and remaining credits in the sidebar
 - Capability-specific LLM, STT, and TTS gateways
 - Per-turn latency, usage, cost, cache, and error telemetry in local SQLite
 - Startup readiness checks for the configured xAI model and ElevenLabs voice path
@@ -66,7 +67,7 @@ Browser PCM
 
 Transcription runs while you speak, so the wait after you pause stays short.
 
-Conversation history is currently short-lived and intentionally simple. The backend keeps the most recent eight turns in memory for one hour by default, and loses them when the process restarts. Telemetry persists individual turns by default unless explicitly disabled, but it is not a memory system and there is no persisted conversation entity above `turn_id` yet.
+Conversation history is currently short-lived and intentionally simple. The backend keeps every turn for the lifetime of the local session, expires an idle session after one hour by default, and loses it when the process restarts. Telemetry persists individual turns by default unless explicitly disabled, but it is not a memory system and there is no persisted conversation entity above `turn_id` yet.
 
 The startup readiness gate uses authenticated provider capability endpoints and does not generate text or audio. It verifies the current network path, key acceptance, and required realtime STT/TTS permissions; the live streaming request can still fail later if a provider changes state or the account runs out of credits.
 
@@ -108,10 +109,15 @@ The default backend settings use:
 
 ## Quick Start
 
+> [!IMPORTANT]
+> Provider authentication is configured only by editing the local `.env` file. The browser and sidebar do not accept API keys. Copy `.env.example` to `.env`, enter the keys there, and restart OS1 after changing a provider key.
+
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env
+# Edit .env and set LLM_API_KEY (or XAI_API_KEY) and ELEVENLABS_API_KEY.
 uvicorn backend.app:app --reload --host 127.0.0.1 --port 8000
 ```
 
@@ -121,16 +127,20 @@ Then open:
 http://127.0.0.1:8000
 ```
 
-On first use, OS1 will ask for:
+OS1 reads these secrets only from the local `.env` file:
 
-- xAI API key
-- ElevenLabs API key
+- `LLM_API_KEY` or `XAI_API_KEY`
+- `ELEVENLABS_API_KEY`
 
-These are stored in browser `sessionStorage`, survive a page refresh, and are cleared when the tab session ends. They are sent only to your local backend for the request that needs them.
+The API Key sidebar page is status-only: it reports whether the backend loaded each key, but it cannot add or change credentials. After editing either provider key in `.env`, restart the server so authentication is checked again.
 
-## Optional `.env`
+The ElevenLabs key needs the TTS/STT capabilities used by OS1, plus `voices_read` for My Voices and `user_read` for the account name and remaining-credit display. Provider keys are never returned to frontend code, accepted through browser request headers, or stored in browser storage.
 
-For local development, you can also use `.env` as a server-side fallback.
+Persona and voice settings are local too. The sidebar writes `ASSISTANT_NAME`, `USER_NAME`, `ASSISTANT_PERSONA`, `ELEVENLABS_VOICE_ID`, and `ELEVENLABS_VOICE_LANGUAGE` to `.env`. Persona changes update the running system prompt immediately, and selecting an English or Chinese voice changes both the homepage prompt and the required response language. No browser storage is used.
+
+## Local `.env`
+
+`.env` is OS1's only persistent configuration source. API keys must be edited there manually. Voice selection, Persona, and listening controls update their corresponding local `.env` values through the loopback-only backend.
 
 ```bash
 cp .env.example .env
@@ -158,7 +168,7 @@ The provider menus are already present in the UI. Future versions will add more 
 
 Continuous memory for a single-window AI.
 
-OS1 will remain one continuous interface rather than becoming a list of separate chat threads. This release will introduce deliberate memory maintenance instead of sending an ever-growing transcript back to the model. The current state and design boundary are recorded in the [memory plan](docs/memory-plan.md); the retrieval, consolidation, forgetting, and correction rules remain open for the dedicated design phase.
+OS1 will remain one continuous interface rather than becoming a list of separate chat threads. This release will introduce deliberate memory maintenance instead of sending an ever-growing transcript back to the model. The current state and design boundary are recorded in the [memory plan](docs/memory-plan.md); consolidation, forgetting, and correction rules remain open for the dedicated design phase.
 
 ## Project Shape
 

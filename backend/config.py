@@ -46,7 +46,7 @@ def _string_env(name: str, default: str) -> str:
     return value.strip() if value and value.strip() else default
 
 
-@dataclass(frozen=True)
+@dataclass
 class Settings:
     root_dir: Path = ROOT_DIR
     frontend_dir: Path = ROOT_DIR / "frontend"
@@ -58,6 +58,7 @@ class Settings:
 
     elevenlabs_api_key: str = os.getenv("ELEVENLABS_API_KEY", "")
     elevenlabs_voice_id: str = os.getenv("ELEVENLABS_VOICE_ID", DEFAULT_MALE_VOICE_ID)
+    elevenlabs_voice_language: str = _string_env("ELEVENLABS_VOICE_LANGUAGE", "en").lower()
     elevenlabs_male_voice_id: str = os.getenv("ELEVENLABS_MALE_VOICE_ID", DEFAULT_MALE_VOICE_ID)
     elevenlabs_female_voice_id: str = os.getenv("ELEVENLABS_FEMALE_VOICE_ID", DEFAULT_FEMALE_VOICE_ID)
     elevenlabs_stt_model: str = os.getenv("ELEVENLABS_STT_MODEL", "scribe_v2")
@@ -96,6 +97,9 @@ class Settings:
     elevenlabs_stt_language_code: str = os.getenv("ELEVENLABS_STT_LANGUAGE_CODE", "")
     elevenlabs_enable_logging: bool = _bool_env("ELEVENLABS_ENABLE_LOGGING", True)
     default_tts_provider: str = os.getenv("TTS_PROVIDER", "elevenlabs")
+    assistant_name: str = _string_env("ASSISTANT_NAME", "")
+    user_name: str = _string_env("USER_NAME", "")
+    assistant_persona: str = _string_env("ASSISTANT_PERSONA", "default").lower()
 
     llm_api_key: str = (
         os.getenv("LLM_API_KEY")
@@ -115,33 +119,23 @@ class Settings:
     system_prompt: str = os.getenv(
         "SYSTEM_PROMPT",
         (
-            "You are a concise, natural, and accurate voice assistant in a live chat. "
-            "Keep replies short and clear—this is conversation, not a presentation or monologue. "
-            "Your words are spoken aloud by text-to-speech, so use plain spoken language only: "
-            "no emojis, markdown, bullets, special symbols, or decorative punctuation."
+            "You are OS1, a concise voice assistant in a live voice conversation.\n"
+            "Every response is sent directly to text-to-speech. Write only the words that should "
+            "be spoken aloud.\n"
+            "Answer the user directly in the required conversational language. Start with the answer. "
+            "Use short, complete sentences and ordinary punctuation. Most replies should be one "
+            "to three sentences unless the user asks for detail.\n"
+            "Before responding, rewrite anything that would sound awkward when read aloud. Spell "
+            "out numbers, ordinals, dates, times, currencies, percentages, measurements, "
+            "abbreviations, keyboard shortcuts, symbols, and URLs in natural spoken form. Expand "
+            "ambiguous abbreviations. Prefer familiar words and contractions.\n"
+            "Use periods, commas, and question marks to create a calm natural rhythm. Avoid "
+            "excessive ellipses, repeated punctuation, and all-caps emphasis.\n"
+            "Never output markdown, headings, bullet points, numbered lists, tables, code blocks, "
+            "raw code, XML, SSML, audio tags, stage directions, emojis, citations, or decorative "
+            "symbols. Do not describe how the response should sound. Do not include any text that "
+            "is not meant to be spoken."
         ),
-    )
-    max_history_turns: int = _int_env(
-        "KV_CONVERSATION_MAX_TURNS",
-        _int_env("MAX_HISTORY_TURNS", 8),
-    )
-
-    knowledge_enabled: bool = _bool_env("KNOWLEDGE_ENABLED", True)
-    # When false, hide Knowledge from the product menu / knowledge-page controls.
-    knowledge_ui_enabled: bool = _bool_env("KNOWLEDGE_UI_ENABLED", False)
-    knowledge_root_dir: Path = ROOT_DIR / os.getenv("KNOWLEDGE_ROOT_DIR", "knowledge")
-    knowledge_docs_dir: Path = ROOT_DIR / os.getenv("KNOWLEDGE_DOCS_DIR", "knowledge/raw")
-    knowledge_db_path: Path = ROOT_DIR / os.getenv("KNOWLEDGE_DB_PATH", "data/knowledge.sqlite")
-    knowledge_limit: int = _int_env("KNOWLEDGE_LIMIT", 4)
-    knowledge_wiki_limit: int = _int_env("KNOWLEDGE_WIKI_LIMIT", 2)
-    knowledge_context_max_chars: int = _int_env("KNOWLEDGE_CONTEXT_MAX_CHARS", 12000)
-    knowledge_search_timeout_seconds: float = min(
-        max(_float_env("KNOWLEDGE_SEARCH_TIMEOUT_SECONDS", 5.0), 0.05),
-        5.0,
-    )
-    knowledge_selector_model: str = _string_env("KNOWLEDGE_SELECTOR_MODEL", "grok-4.5")
-    knowledge_selector_reasoning_effort: str = _string_env(
-        "KNOWLEDGE_SELECTOR_REASONING_EFFORT", "low"
     )
 
     max_upload_bytes: int = _int_env("MAX_UPLOAD_BYTES", 25 * 1024 * 1024)

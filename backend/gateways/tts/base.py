@@ -4,12 +4,12 @@ from collections.abc import AsyncIterable, AsyncIterator, Iterable
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
+from ...core.captions import CaptionAlignment
 
-@dataclass(frozen=True)
-class TTSAlignment:
-    chars: tuple[str, ...]
-    char_start_times_ms: tuple[float, ...]
-    char_durations_ms: tuple[float, ...]
+
+# Compatibility name for gateway implementations and callers. Caption timing
+# itself now lives outside the TTS provider layer.
+TTSAlignment = CaptionAlignment
 
 
 @dataclass(frozen=True)

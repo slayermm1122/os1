@@ -4,9 +4,11 @@ from dataclasses import dataclass
 
 from .config import Settings
 from .core.connectivity import ConnectivityService
+from .core.local_settings import LocalSettingsService
 from .core.orchestrator import TurnOrchestrator
 from .core.rate_limit import SlidingWindowRateLimiter
-from .gateways.knowledge import KnowledgeBrowser, KnowledgeGateway
+from .gateways.account import AccountGateway
+from .gateways.tts.catalog import VoiceCatalog
 from .telemetry import SQLiteTelemetryRecorder
 
 
@@ -14,8 +16,9 @@ from .telemetry import SQLiteTelemetryRecorder
 class ApplicationServices:
     settings: Settings
     orchestrator: TurnOrchestrator
-    knowledge: KnowledgeGateway
     telemetry: SQLiteTelemetryRecorder
     rate_limiter: SlidingWindowRateLimiter
     connectivity: ConnectivityService | None = None
-    knowledge_browser: KnowledgeBrowser | None = None
+    voice_catalog: VoiceCatalog | None = None
+    account: AccountGateway | None = None
+    local_settings: LocalSettingsService | None = None

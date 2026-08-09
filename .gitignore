@@ -10,9 +10,5 @@ AGENTS.md
 data/*.sqlite
 data/*.sqlite-*
 
-# User-owned knowledge content. Only knowledge/README.md is repository source.
-knowledge/.status/
-knowledge/raw/
-knowledge/chunks/
-knowledge/wiki/
-knowledge/evals/
+# Retired local corpus files are not part of the application or repository.
+knowledge/

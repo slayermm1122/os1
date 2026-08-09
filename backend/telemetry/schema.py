@@ -101,22 +101,6 @@ CREATE TABLE IF NOT EXISTS tts_calls (
     error_id TEXT
 );
 
-CREATE TABLE IF NOT EXISTS knowledge_calls (
-    call_id TEXT PRIMARY KEY,
-    turn_id TEXT NOT NULL REFERENCES turns(turn_id) ON DELETE CASCADE,
-    provider TEXT NOT NULL,
-    enabled INTEGER NOT NULL,
-    status TEXT NOT NULL,
-    started_at TEXT NOT NULL,
-    completed_at TEXT,
-    duration_ms REAL,
-    query_text TEXT NOT NULL,
-    outcome TEXT NOT NULL,
-    hit_count INTEGER NOT NULL DEFAULT 0,
-    results_json TEXT NOT NULL DEFAULT '[]',
-    error_id TEXT
-);
-
 CREATE TABLE IF NOT EXISTS errors (
     error_id TEXT PRIMARY KEY,
     turn_id TEXT NOT NULL REFERENCES turns(turn_id) ON DELETE CASCADE,
@@ -141,6 +125,5 @@ CREATE INDEX IF NOT EXISTS idx_events_turn_name ON turn_events(turn_id, name);
 CREATE INDEX IF NOT EXISTS idx_llm_turn ON llm_calls(turn_id);
 CREATE INDEX IF NOT EXISTS idx_stt_turn ON stt_calls(turn_id);
 CREATE INDEX IF NOT EXISTS idx_tts_turn ON tts_calls(turn_id);
-CREATE INDEX IF NOT EXISTS idx_knowledge_turn ON knowledge_calls(turn_id);
 CREATE INDEX IF NOT EXISTS idx_errors_turn_stage ON errors(turn_id, stage);
 """

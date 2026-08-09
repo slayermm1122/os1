@@ -9,19 +9,17 @@ OS1 is an early local-first prototype. Treat it as research software unless you 
 - `.env` is ignored by git, but `.gitignore` does not protect you if you upload files manually through the GitHub web UI.
 - If a key is ever committed, shared, logged, or pasted into an untrusted place, revoke it in the provider dashboard and create a new one.
 
-The web UI stores user-provided xAI and ElevenLabs keys in browser `sessionStorage`. They survive refreshes but are cleared when the tab session ends. Browser extensions and same-origin script execution can still access them.
+Provider keys are read only by the local backend from `.env`. The frontend has no API-key input, does not accept provider credentials through request headers, and does not use browser storage. The homepage also sends `Clear-Site-Data: "storage"` to remove values left by older OS1 versions.
 
-Use the API Keys dialog to clear browser-stored keys when you are done testing. This does not remove keys from a local `.env` fallback file.
+Voice selection and the small Voice profile settings are written to `.env` only through the loopback-only backend. The UI never receives the contents of `.env` or any provider key.
 
 ## Telemetry And Privacy
 
-Telemetry is enabled by default for this local research project. It is stored in `data/telemetry.sqlite` and includes full user transcripts, AI responses, model request snapshots such as prompts and conversation history, and any knowledge snippets used for an answer. It does not intentionally store API keys, request headers, or raw audio. Set `TELEMETRY_ENABLED=false` when full-content local recording is not acceptable.
+Telemetry is enabled by default for this local research project. It is stored in `data/telemetry.sqlite` and includes full user transcripts, AI responses, and model request snapshots such as prompts and conversation history. It does not intentionally store API keys, request headers, or raw audio. Set `TELEMETRY_ENABLED=false` when full-content local recording is not acceptable.
 
 The database is ignored by git, but it still contains private conversation content. Do not publish, attach, or share it. To clear telemetry, stop OS1 and delete `data/telemetry.sqlite`, `data/telemetry.sqlite-wal`, and `data/telemetry.sqlite-shm`.
 
 On POSIX systems, OS1 enforces mode `0700` on the telemetry directory and `0600` on the database and SQLite sidecars. This protects against other local accounts but is not encryption at rest.
-
-Document upload and compilation are not implemented in v0.03. Local raw documents, chunks, wiki pages, golden evaluation sets, ingest status, and generated SQLite indexes are ignored by git. Their deletion lifecycle must be finalized before upload is enabled.
 
 Provider retention is separate from OS1 telemetry. ElevenLabs logging remains enabled for compatibility with ordinary accounts unless an Enterprise Zero Retention account sets `ELEVENLABS_ENABLE_LOGGING=false`. xAI ZDR is enabled at the team level for eligible Enterprise accounts.
 
@@ -47,8 +45,6 @@ The prototype includes basic limits:
 - Security response headers and disabled API documentation endpoints
 - Upstream request timeouts
 - Redacted user-facing upstream errors
-- No public or local UI/API route for document upload or manual reindexing
-- A fixed system instruction treating retrieved document content as untrusted data, not instructions
 
 These are not a complete security boundary. They are intended to reduce accidental misuse during local development.
 

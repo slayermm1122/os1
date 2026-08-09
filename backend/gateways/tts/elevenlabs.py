@@ -44,7 +44,7 @@ class ElevenLabsTTSGateway:
             return self.settings.elevenlabs_female_voice_id
         if gender == "male":
             return self.settings.elevenlabs_male_voice_id
-        return None
+        return self.settings.elevenlabs_voice_id
 
     def _require_api_key(self, api_key: str | None) -> str:
         resolved = (api_key or self.settings.elevenlabs_api_key).strip()

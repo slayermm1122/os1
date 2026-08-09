@@ -15,27 +15,23 @@ This file tracks security work that is intentionally deferred beyond the local-o
 | P1.1 | Reject non-local Host/client and cross-origin browser requests; reject WebSockets before `accept()`. |
 | P1.4 | Telemetry storage is private, ignored by git, documented as full-content, and can be explicitly disabled. |
 | P1.5 | Telemetry directory is `0700`; database, WAL, and SHM are `0600` on POSIX. |
-| P2.1 | API keys moved from `localStorage` to tab-scoped `sessionStorage`; legacy keys are migrated and removed. |
+| P2.1 | API keys are read only by the backend from the ignored local `.env` file. |
 | P2.3 | Playback events require the active `turn_id` and prior server audio. |
 | P2.4 | Redaction covers generic Bearer/Authorization credentials and JSON header forms. |
 | P2.5 | Session IDs have 128-character limits; JSON fields and declared HTTP body size are bounded. |
 | P2.6 | Expired rate-limit clients are pruned and in-memory client cardinality is capped. |
 | P2.7 | Security headers added; FastAPI docs/OpenAPI disabled; health output reduced. |
 | P2.9 | `.env.*` is ignored while `.env.example` remains tracked. |
-| P2.10 | Default knowledge index and document directories use private POSIX permissions. |
 | P2.11 | Custom telemetry paths secure OS1 files without changing an existing parent directory. |
 | P3.1 | Telemetry dynamic updates use per-table column allowlists. |
 | P3.2 | Non-object WebSocket JSON is rejected as a protocol error. |
 | P3.4 | Security boundary regression tests added. |
 
-## Completed In v0.03.01
+## Completed In Current Main
 
 | Finding | Resolution |
 | --- | --- |
-| K1 | PDF upload and manual reindex routes are not exposed while the ingestion architecture is under design. |
-| K2 | Reserved future raw-upload files and ingest status are ignored by git; default storage uses private permissions. |
-| K3 | Retrieved text is appended as delimited data under a stable system instruction that rejects document instructions. |
-| K4 | JSONL validation completes before an FTS database is atomically published as the active index. |
+| P2.1 follow-up | Removed all browser storage and client API-key transport. Provider keys now come only from ignored local `.env`; the homepage clears storage left by older builds. |
 
 ## Required Before Public Deployment
 
@@ -44,7 +40,7 @@ This file tracks security work that is intentionally deferred beyond the local-o
 Design one authentication model that works for HTTP, SSE, and WebSocket before allowing non-loopback traffic. It must include:
 
 - Per-user or per-installation authentication, not one shared URL token.
-- Separate admin authorization for knowledge reindex and future telemetry deletion.
+- Separate admin authorization for future telemetry deletion.
 - CSRF/origin handling appropriate to the selected credential transport.
 - Per-principal quotas and auditable key ownership.
 - Reverse-proxy-aware trusted proxy configuration.
@@ -97,7 +93,7 @@ The local limiter now prunes and caps state. Public or multi-process deployment 
 
 ### Custom Storage Paths
 
-OS1 only manages directory permissions for its default `data/` and `knowledge/` locations, or for a dedicated directory it creates itself. Users who point telemetry or knowledge settings at an existing custom directory are responsible for making that directory private. OS1 still applies `0600` to SQLite files it owns on POSIX.
+OS1 only manages directory permissions for its default `data/` location, or for a dedicated directory it creates itself. Users who point telemetry settings at an existing custom directory are responsible for making that directory private. OS1 still applies `0600` to SQLite files it owns on POSIX.
 
 ### P3.3 Developer Tooling
 
@@ -109,7 +105,6 @@ Re-run the security review before any of these changes:
 
 - Binding outside loopback.
 - Adding authentication or a reverse proxy.
-- Implementing any document upload or automatic compilation workflow.
 - Adding a telemetry dashboard or deletion API.
 - Adding a new LLM, STT, or TTS provider.
 - Deploying for multiple users or processing regulated data.

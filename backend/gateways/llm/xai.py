@@ -3,13 +3,12 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncIterator
-from typing import Any
 
 import httpx
 
 from ...config import Settings
 from ...core.errors import GatewayError, parse_provider_error
-from .base import AIObjectResult, LLMRequest, LLMStreamEvent, LLMUsage
+from .base import LLMRequest, LLMStreamEvent, LLMUsage
 
 
 class XAILLMGateway:
@@ -151,83 +150,6 @@ class XAILLMGateway:
 
     def stream(self, request: LLMRequest) -> AsyncIterator[LLMStreamEvent]:
         return self.stream_text(request)
-
-    async def generate_object(
-        self,
-        request: LLMRequest,
-        *,
-        schema_name: str,
-        schema: dict[str, Any],
-    ) -> AIObjectResult:
-        api_key = self._require_api_key(request.api_key)
-        payload = {
-            "model": self.model,
-            "messages": request.messages,
-            "temperature": 0,
-            "max_tokens": 128,
-            "reasoning_effort": self.reasoning_effort,
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {"name": schema_name, "schema": schema, "strict": True},
-            },
-            "stream": False,
-        }
-        request_id: str | None = None
-        try:
-            async with httpx.AsyncClient(timeout=self._timeout()) as client:
-                response = await client.post(
-                    self.settings.llm_chat_url,
-                    headers=self._headers(api_key, request.cache_key),
-                    json=payload,
-                )
-                response.raise_for_status()
-                request_id = response.headers.get("x-request-id") or response.headers.get("request-id")
-                body = response.json()
-                raw_text = str(body["choices"][0]["message"]["content"] or "")
-        except httpx.HTTPStatusError as exc:
-            status = exc.response.status_code
-            raise GatewayError(
-                stage="knowledge", provider=self.provider, code=_http_code(status),
-                public_message="The knowledge selector rejected the request.", technical_message=str(exc),
-                retryable=status >= 500 or status == 429, upstream_status=status,
-                request_id=exc.response.headers.get("x-request-id") or exc.response.headers.get("request-id"),
-                provider_detail=parse_provider_error(exc.response),
-            ) from exc
-        except (httpx.TimeoutException, TimeoutError, asyncio.TimeoutError) as exc:
-            raise GatewayError(
-                stage="knowledge", provider=self.provider, code="timeout",
-                public_message="The knowledge selector timed out.", technical_message=str(exc),
-                retryable=True, request_id=request_id,
-            ) from exc
-        except (httpx.HTTPError, json.JSONDecodeError, KeyError, IndexError, TypeError) as exc:
-            raise GatewayError(
-                stage="knowledge", provider=self.provider, code="invalid_response",
-                public_message="The knowledge selector returned an invalid response.",
-                technical_message=str(exc), retryable=True, request_id=request_id,
-            ) from exc
-
-        try:
-            value = json.loads(raw_text)
-        except json.JSONDecodeError as exc:
-            raise GatewayError(
-                stage="knowledge", provider=self.provider, code="invalid_object",
-                public_message="The knowledge selector returned invalid JSON.",
-                technical_message=str(exc), request_id=str(body.get("id") or request_id or "") or None,
-            ) from exc
-        if not isinstance(value, dict):
-            raise GatewayError(
-                stage="knowledge", provider=self.provider, code="invalid_object",
-                public_message="The knowledge selector returned an invalid object.",
-            )
-        return AIObjectResult(
-            value=value,
-            raw_text=raw_text,
-            usage=_parse_usage(body["usage"]) if body.get("usage") else None,
-            finish_reason=str(body["choices"][0].get("finish_reason") or "") or None,
-            request_id=str(body.get("id") or request_id or "") or None,
-            system_fingerprint=str(body.get("system_fingerprint") or "") or None,
-            service_tier=str(body.get("service_tier") or "") or None,
-        )
 
     def _headers(self, api_key: str, cache_key: str | None) -> dict[str, str]:
         headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
