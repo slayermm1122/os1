@@ -4,7 +4,7 @@
 
 OS1 replaces the usual chat box with a single live voice surface. Start once, speak naturally, pause when you are done, and hear the reply as it is generated. The interface stays deliberately quiet so the conversation—not the machinery—remains the focus.
 
-![OS1 live voice interface](docs/assets/os1-home.jpg)
+![OS1 live voice interface](https://cdn.jsdelivr.net/gh/slayermm1122/os1@dd887547917f109d9877d37298281f88beb11045/docs/assets/os1-home.jpg)
 
 ## Why OS1
 
@@ -15,7 +15,7 @@ OS1 replaces the usual chat box with a single live voice surface. Start once, sp
 - **Choose its look.** Pick from eight responsive orb motions, each giving your AI a different visual character.
 - **Local control.** Provider keys and core settings stay on your machine; secrets are never returned to the browser.
 
-![OS1 motion selection](https://cdn.jsdelivr.net/gh/slayermm1122/os1@fbbe23dc4d473375c16030a58b39516b8e72643b/docs/assets/os1-motion.jpg)
+![OS1 motion selection](https://cdn.jsdelivr.net/gh/slayermm1122/os1@dd887547917f109d9877d37298281f88beb11045/docs/assets/os1-motion.jpg)
 
 ## Quick start
 
@@ -74,7 +74,7 @@ SQLite needs no separate installation or setup. Python includes the driver, and 
 
 ## How it works
 
-![How OS1 turns speech into a live voice response](docs/assets/os1-flow.svg)
+![How OS1 turns speech into a live voice response](https://cdn.jsdelivr.net/gh/slayermm1122/os1@dd887547917f109d9877d37298281f88beb11045/docs/assets/os1-flow.svg)
 
 One browser-to-backend WebSocket carries the live session. Scribe remains connected across turns, the selected language model streams its response, and a preconnected multi-context TTS socket begins playback before the full answer is complete.
 
