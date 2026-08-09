@@ -4,7 +4,7 @@
 
 OS1 replaces the usual chat box with a single live voice surface. Start once, speak naturally, pause when you are done, and hear the reply as it is generated. The interface stays deliberately quiet so the conversation—not the machinery—remains the focus.
 
-![OS1 live voice interface](https://cdn.jsdelivr.net/gh/slayermm1122/os1@dd887547917f109d9877d37298281f88beb11045/docs/assets/os1-home.jpg)
+![OS1 live voice interface](https://cdn.jsdelivr.net/gh/slayermm1122/os1@4a681937965e1e941a65e26b46305b6a6d87f294/docs/assets/os1-home.jpg)
 
 ## Why OS1
 
