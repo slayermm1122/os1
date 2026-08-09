@@ -67,7 +67,7 @@ SQLite needs no separate installation or setup. Python includes the driver, and 
 | --- | --- |
 | Brain | Grok `grok-4.5`, DeepSeek `deepseek-v4-flash`, Gemini `gemini-3.5-flash-lite` |
 | Listening | ElevenLabs Scribe realtime STT, VAD turn detection, keyterms, English and Chinese detection |
-| Speaking | ElevenLabs streaming TTS, My Voices, previews, pronunciation aliases, timestamp alignment |
+| Speaking | ElevenLabs Flash v2.5 streaming TTS for a faster, more natural realtime experience, plus My Voices, previews, pronunciation aliases, and timestamp alignment |
 | Conversation | Persistent live session, per-session context, barge-in, synchronized captions |
 | Personalization | Assistant and user names, three response styles, language selection, eight motion styles |
 | Observability | Per-provider latency, token, audio, character, cache, status, and error metrics in an auto-created local SQLite database |
