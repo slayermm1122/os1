@@ -40,6 +40,15 @@ class LocalSettingsService:
             self._set("ASSISTANT_RESPONSE_LANGUAGE", selected)
             self.settings.assistant_response_language = selected
 
+    def update_brain_provider(self, provider: str) -> str:
+        selected = str(provider or "").strip().lower()
+        if selected not in {"xai", "deepseek", "google"}:
+            raise ValueError("Brain provider must be xai, deepseek, or google.")
+        with self._lock:
+            self._set("LLM_PROVIDER", selected)
+            self.settings.llm_provider = selected
+        return selected
+
     def update_stt_keyterms(self, keyterms: list[str]) -> tuple[str, ...]:
         cleaned: list[str] = []
         seen: set[str] = set()

@@ -33,9 +33,18 @@ from backend.core.orchestrator import TurnOrchestrator
 from backend.core.rate_limit import SlidingWindowRateLimiter
 from backend.core.security import is_allowed_websocket, is_local_http_request
 from backend.core.sessions import SessionStore
-from backend.gateways.connectivity import ElevenLabsConnectivityProbe, XAIConnectivityProbe
-from backend.gateways.llm import LLMRequest, LLMStreamEvent, LLMUsage
-from backend.gateways.llm.xai import _parse_usage
+from backend.gateways.connectivity import (
+    DeepSeekConnectivityProbe,
+    ElevenLabsConnectivityProbe,
+    GeminiConnectivityProbe,
+    XAIConnectivityProbe,
+)
+from backend.gateways.llm import AIAdapter, LLMRequest, LLMStreamEvent, LLMUsage
+from backend.gateways.llm.deepseek import DeepSeekLLMGateway
+from backend.gateways.llm.deepseek import _parse_usage as parse_deepseek_usage
+from backend.gateways.llm.gemini import GeminiLLMGateway, _interaction_input
+from backend.gateways.llm.gemini import _parse_usage as parse_gemini_usage
+from backend.gateways.llm.xai import _parse_usage as parse_xai_usage
 from backend.gateways.stt import STTEvent, STTResult, STTWordTiming
 from backend.gateways.stt.elevenlabs import (
     _gateway_error as stt_gateway_error,
@@ -76,6 +85,7 @@ class FakeLLM:
             request_id="llm-request",
             system_fingerprint="fingerprint",
             service_tier="default",
+            response_model="fake-returned",
         )
 
 
@@ -319,6 +329,88 @@ class TTSAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(raised.exception.code, "unsupported_provider")
 
 
+class LLMGatewayContractTests(unittest.TestCase):
+    def test_adapter_selects_provider_and_reports_model_configuration(self) -> None:
+        settings = Settings(
+            llm_api_key="xai-key",
+            deepseek_api_key="deepseek-key",
+            gemini_api_key="gemini-key",
+        )
+        xai = FakeLLM()
+        xai.provider = "xai"
+        xai.api_key_configured = True
+        xai.reasoning_setting = "low"
+        deepseek = DeepSeekLLMGateway(settings)
+        gemini = GeminiLLMGateway(settings)
+        adapter = AIAdapter([xai, deepseek, gemini], default_provider="xai")
+
+        self.assertIs(adapter.resolve(), xai)
+        adapter.select("deepseek")
+        self.assertIs(adapter.resolve(), deepseek)
+        self.assertEqual([item["provider"] for item in adapter.catalog()], ["xai", "deepseek", "google"])
+        self.assertEqual(adapter.catalog()[1]["reasoning_setting"], "disabled")
+        self.assertEqual(adapter.catalog()[2]["reasoning_setting"], "minimal")
+
+    def test_deepseek_request_and_usage_follow_v4_contract(self) -> None:
+        gateway = DeepSeekLLMGateway(Settings(deepseek_api_key="key"))
+        request = LLMRequest(
+            messages=[{"role": "user", "content": "Hello"}],
+            cache_key="session/one",
+        )
+        payload = gateway.request_snapshot(request)
+
+        self.assertEqual(payload["model"], "deepseek-v4-flash")
+        self.assertEqual(payload["thinking"], {"type": "disabled"})
+        self.assertEqual(payload["stream_options"], {"include_usage": True})
+        self.assertEqual(payload["user_id"], "session_one")
+        usage = parse_deepseek_usage({
+            "prompt_tokens": 120,
+            "prompt_cache_hit_tokens": 90,
+            "prompt_cache_miss_tokens": 30,
+            "completion_tokens": 14,
+            "total_tokens": 134,
+            "completion_tokens_details": {"reasoning_tokens": 0},
+        })
+        self.assertEqual(usage.prompt_tokens, 120)
+        self.assertEqual(usage.cached_tokens, 90)
+        self.assertEqual(usage.reasoning_tokens, 0)
+        self.assertEqual(usage.cache_status, "partial")
+
+    def test_gemini_interactions_request_and_usage_follow_latest_contract(self) -> None:
+        gateway = GeminiLLMGateway(Settings(gemini_api_key="key"))
+        request = LLMRequest(messages=[
+            {"role": "system", "content": "Speak briefly."},
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": "Hi."},
+            {"role": "user", "content": "Continue"},
+        ])
+        payload = gateway.request_snapshot(request)
+
+        self.assertEqual(payload["model"], "gemini-3.5-flash-lite")
+        self.assertEqual(payload["generation_config"]["thinking_level"], "minimal")
+        self.assertNotIn("temperature", payload["generation_config"])
+        self.assertEqual(payload["system_instruction"], "Speak briefly.")
+        self.assertEqual(
+            [step["type"] for step in payload["input"]],
+            ["user_input", "model_output", "user_input"],
+        )
+        system, steps = _interaction_input(request.messages)
+        self.assertEqual(system, "Speak briefly.")
+        self.assertEqual(steps, payload["input"])
+        usage = parse_gemini_usage({
+            "total_input_tokens": 75,
+            "total_cached_tokens": 50,
+            "total_output_tokens": 18,
+            "total_thought_tokens": 3,
+            "total_tokens": 96,
+        })
+        self.assertEqual(usage.prompt_tokens, 75)
+        self.assertEqual(usage.cached_tokens, 50)
+        self.assertEqual(usage.completion_tokens, 18)
+        self.assertEqual(usage.reasoning_tokens, 3)
+        self.assertEqual(usage.total_tokens, 96)
+
+
 class OrchestratorTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -380,7 +472,7 @@ class OrchestratorTests(unittest.IsolatedAsyncioTestCase):
             ).fetchone()
             llm = conn.execute(
                 "SELECT cached_tokens, reasoning_tokens, cache_status, cost_usd_ticks, request_json, "
-                "first_token_ms "
+                "first_token_ms, requested_model, requested_reasoning_setting, response_model, model "
                 "FROM llm_calls WHERE turn_id = ?",
                 (trace.turn_id,),
             ).fetchone()
@@ -405,6 +497,7 @@ class OrchestratorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(turn, ("success", None, None, None, None))
         self.assertEqual(llm[:4], (10, 2, "partial", 1234))
         self.assertIsNotNone(llm[5])
+        self.assertEqual(llm[6:], ("fake-fast", "low", "fake-returned", "fake-returned"))
         self.assertIn("stt.committed", event_offsets)
         self.assertIn("llm.first_token", event_offsets)
         self.assertGreaterEqual(
@@ -667,7 +760,7 @@ class OrchestratorTests(unittest.IsolatedAsyncioTestCase):
 
 class ContractTests(unittest.TestCase):
     def test_xai_usage_fields_and_cache_status(self) -> None:
-        usage = _parse_usage(
+        usage = parse_xai_usage(
             {
                 "prompt_tokens": 100,
                 "completion_tokens": 30,
@@ -757,6 +850,31 @@ class ConnectivityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(stt.calls, [("stt-key", None)])
         self.assertEqual(tts.calls, [("tts-key", "voice-id")])
 
+    async def test_selected_brain_probe_is_used(self) -> None:
+        xai = FakeProbe("xai")
+        deepseek = FakeProbe("deepseek")
+        stt = FakeProbe("elevenlabs")
+        tts = FakeProbe("fake_tts")
+        service = ConnectivityService(
+            brain=[xai, deepseek],
+            default_brain_provider="xai",
+            stt=stt,
+            tts=tts,
+        )
+
+        report = await service.check(
+            brain_api_key=None,
+            brain_provider="deepseek",
+            stt_api_key=None,
+            tts_api_key=None,
+            tts_voice_id=None,
+        )
+
+        self.assertTrue(report["ready"])
+        self.assertEqual(report["brain"]["provider"], "deepseek")
+        self.assertEqual(xai.calls, [])
+        self.assertEqual(deepseek.calls, [(None, None)])
+
     async def test_connectivity_endpoint_ignores_browser_provider_credentials(self) -> None:
         brain = FakeProbe("xai")
         stt_probe = FakeProbe("elevenlabs")
@@ -823,6 +941,33 @@ class ConnectivityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(success.code, "ok")
         self.assertFalse(rejected.ok)
         self.assertEqual(rejected.code, "authentication_failed")
+
+    async def test_deepseek_probe_requires_configured_model(self) -> None:
+        settings = Settings(deepseek_model="deepseek-v4-flash")
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            self.assertEqual(request.url.path, "/models")
+            self.assertEqual(request.headers.get("authorization"), "Bearer valid-key")
+            return httpx.Response(200, json={"data": [{"id": "deepseek-v4-flash"}]})
+
+        probe = DeepSeekConnectivityProbe(settings, transport=httpx.MockTransport(handler))
+        result = await probe.check(api_key="valid-key")
+        self.assertTrue(result.ok)
+
+    async def test_gemini_probe_uses_google_api_key_header(self) -> None:
+        settings = Settings(
+            gemini_base_url="https://generativelanguage.googleapis.com/v1beta",
+            gemini_model="gemini-3.5-flash-lite",
+        )
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            self.assertEqual(request.url.path, "/v1beta/models/gemini-3.5-flash-lite")
+            self.assertEqual(request.headers.get("x-goog-api-key"), "valid-key")
+            return httpx.Response(200, json={"name": "models/gemini-3.5-flash-lite"})
+
+        probe = GeminiConnectivityProbe(settings, transport=httpx.MockTransport(handler))
+        result = await probe.check(api_key="valid-key")
+        self.assertTrue(result.ok)
 
     async def test_elevenlabs_probe_validates_realtime_capabilities(self) -> None:
         settings = Settings(elevenlabs_api_key="server-key")
@@ -944,7 +1089,7 @@ class TelemetryStoreTests(unittest.IsolatedAsyncioTestCase):
             await second_recorder.close()
 
             with closing(sqlite3.connect(db_path)) as conn:
-                self.assertEqual(conn.execute("PRAGMA user_version").fetchone()[0], 3)
+                self.assertEqual(conn.execute("PRAGMA user_version").fetchone()[0], 4)
                 self.assertEqual(
                     conn.execute("SELECT status FROM turns WHERE turn_id = ?", (trace.turn_id,)).fetchone()[0],
                     "success",
@@ -984,10 +1129,14 @@ class TelemetryStoreTests(unittest.IsolatedAsyncioTestCase):
             with closing(sqlite3.connect(db_path)) as conn:
                 columns = {row[1] for row in conn.execute("PRAGMA table_info(turns)")}
                 llm_columns = {row[1] for row in conn.execute("PRAGMA table_info(llm_calls)")}
-                self.assertEqual(conn.execute("PRAGMA user_version").fetchone()[0], 3)
+                self.assertEqual(conn.execute("PRAGMA user_version").fetchone()[0], 4)
                 self.assertIn("failed_stage", columns)
                 self.assertIn("error_id", columns)
                 self.assertIn("purpose", llm_columns)
+                self.assertIn("requested_model", llm_columns)
+                self.assertIn("requested_reasoning_setting", llm_columns)
+                self.assertIn("response_model", llm_columns)
+                self.assertIn("response_reasoning_setting", llm_columns)
                 self.assertEqual(
                     conn.execute("SELECT status FROM turns WHERE turn_id='old-turn'").fetchone()[0],
                     "success",
@@ -1031,11 +1180,45 @@ class TelemetryStoreTests(unittest.IsolatedAsyncioTestCase):
                 "usage-llm",
                 status="success",
                 duration_ms=1250,
+                first_token_ms=650,
                 response_text="private model response",
                 prompt_tokens=100,
                 cached_tokens=60,
                 reasoning_tokens=12,
                 completion_tokens=25,
+                response_model="grok-returned",
+                model="grok-returned",
+            )
+            recorder.start_llm_call(
+                trace,
+                call_id="usage-llm-second-sample",
+                provider="xai",
+                model="grok-test",
+                reasoning_effort="low",
+                request={"model": "grok-test"},
+            )
+            recorder.finish_llm_call(
+                "usage-llm-second-sample",
+                status="success",
+                duration_ms=900,
+                first_token_ms=1250,
+                response_model="grok-returned",
+                model="grok-returned",
+            )
+            recorder.start_llm_call(
+                trace,
+                call_id="usage-llm-without-ttft",
+                provider="xai",
+                model="grok-test",
+                reasoning_effort="low",
+                request={"model": "grok-test"},
+            )
+            recorder.finish_llm_call(
+                "usage-llm-without-ttft",
+                status="success",
+                duration_ms=700,
+                response_model="grok-returned",
+                model="grok-returned",
             )
             recorder.start_stt_call(
                 trace,
@@ -1078,6 +1261,11 @@ class TelemetryStoreTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(summary["totals"]["llm"]["cache_miss_tokens"], 40)
             self.assertEqual(summary["totals"]["llm"]["reasoning_tokens"], 12)
             self.assertEqual(summary["totals"]["llm"]["output_tokens"], 25)
+            self.assertEqual(summary["totals"]["llm"]["ttft_sample_count"], 2)
+            self.assertEqual(summary["totals"]["llm"]["ttft_p50_ms"], 650.0)
+            self.assertEqual(summary["totals"]["llm"]["ttft_p95_ms"], 1250.0)
+            self.assertEqual(summary["models"]["llm"][0]["model"], "grok-returned")
+            self.assertEqual(summary["models"]["llm"][0]["calls"], 3)
             self.assertEqual(summary["totals"]["elevenlabs"]["calls"], 2)
             self.assertEqual(summary["totals"]["elevenlabs"]["tts_characters"], 40)
             with closing(sqlite3.connect(db_path)) as conn:
@@ -1086,7 +1274,9 @@ class TelemetryStoreTests(unittest.IsolatedAsyncioTestCase):
                     (trace.turn_id,),
                 ).fetchone()
                 llm = conn.execute(
-                    "SELECT request_json, response_text FROM llm_calls WHERE call_id = 'usage-llm'"
+                    "SELECT request_json, response_text, requested_model, "
+                    "requested_reasoning_setting, response_model, model "
+                    "FROM llm_calls WHERE call_id = 'usage-llm'"
                 ).fetchone()
                 stt_text = conn.execute(
                     "SELECT transcript_text FROM stt_calls WHERE call_id = 'usage-stt'"
@@ -1097,6 +1287,7 @@ class TelemetryStoreTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(turn, (None, None))
             self.assertNotIn("messages", json.loads(llm[0]))
             self.assertIsNone(llm[1])
+            self.assertEqual(llm[2:], ("grok-test", "low", "grok-returned", "grok-returned"))
             self.assertIsNone(stt_text)
             self.assertEqual(tts_text, "")
 

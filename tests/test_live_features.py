@@ -176,7 +176,7 @@ class FakeMultiContextWebSocket:
 
 
 class MultiContextTests(unittest.IsolatedAsyncioTestCase):
-    async def test_reuses_one_socket_routes_context_and_closes_it(self) -> None:
+    async def test_first_audio_arrives_before_later_text_and_socket_is_reused(self) -> None:
         websocket = FakeMultiContextWebSocket()
         connect = AsyncMock(return_value=websocket)
         settings = Settings(
@@ -185,12 +185,21 @@ class MultiContextTests(unittest.IsolatedAsyncioTestCase):
         )
         session = ElevenLabsMultiContextSession(settings, "voice-id")
 
+        allow_second_chunk = asyncio.Event()
+        first_audio_received = asyncio.Event()
+
         async def chunks():
             yield "First sentence."
+            await allow_second_chunk.wait()
             yield "Second sentence."
 
         async def consume():
-            return [event async for event in session.stream_context(chunks(), context_id="turn-one")]
+            events = []
+            async for event in session.stream_context(chunks(), context_id="turn-one"):
+                events.append(event)
+                if event.kind == "audio":
+                    first_audio_received.set()
+            return events
 
         with patch("backend.gateways.tts.elevenlabs_live.websockets.connect", connect):
             task = asyncio.create_task(consume())
@@ -200,14 +209,31 @@ class MultiContextTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.sleep(0)
             await websocket.incoming.put(json.dumps({
                 "contextId": "turn-one",
-                "audio": base64.b64encode(b"pcm").decode("ascii"),
+                "audio": base64.b64encode(b"first-pcm").decode("ascii"),
+            }))
+            await asyncio.wait_for(first_audio_received.wait(), timeout=1)
+            turn_messages = [item for item in websocket.sent if item.get("context_id") == "turn-one"]
+            self.assertEqual(len(turn_messages), 1)
+
+            allow_second_chunk.set()
+            for _ in range(20):
+                turn_messages = [item for item in websocket.sent if item.get("context_id") == "turn-one"]
+                if len(turn_messages) >= 2:
+                    break
+                await asyncio.sleep(0)
+            await websocket.incoming.put(json.dumps({
+                "contextId": "turn-one",
+                "audio": base64.b64encode(b"second-pcm").decode("ascii"),
             }))
             await websocket.incoming.put(json.dumps({"contextId": "turn-one", "isFinal": True}))
             events = await asyncio.wait_for(task, timeout=1)
             await session.close()
 
         self.assertEqual(connect.await_count, 1)
-        self.assertEqual(events[0].audio, b"pcm")
+        self.assertEqual([event.audio for event in events if event.kind == "audio"], [
+            b"first-pcm",
+            b"second-pcm",
+        ])
         turn_messages = [item for item in websocket.sent if item.get("context_id") == "turn-one"]
         self.assertEqual([item.get("flush") for item in turn_messages[:2]], [True, True])
         self.assertTrue(turn_messages[-1].get("close_context"))

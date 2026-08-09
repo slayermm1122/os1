@@ -131,10 +131,10 @@ class Settings:
 
     llm_api_key: str = (
         os.getenv("LLM_API_KEY")
-        or os.getenv("DEEPSEEK_API_KEY")
         or os.getenv("XAI_API_KEY")
         or ""
     )
+    llm_provider: str = _string_env("LLM_PROVIDER", "xai").lower()
     llm_base_url: str = os.getenv(
         "LLM_BASE_URL",
         "https://api.x.ai/v1",
@@ -143,6 +143,21 @@ class Settings:
     llm_reasoning_effort: str = os.getenv("LLM_REASONING_EFFORT", "low")
     llm_temperature: float = _float_env("LLM_TEMPERATURE", 0.4)
     llm_max_tokens: int = _int_env("LLM_MAX_TOKENS", 700)
+
+    deepseek_api_key: str = os.getenv("DEEPSEEK_API_KEY", "")
+    deepseek_base_url: str = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+    deepseek_model: str = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")
+    deepseek_thinking: str = _string_env("DEEPSEEK_THINKING", "disabled").lower()
+
+    gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
+    gemini_base_url: str = os.getenv(
+        "GEMINI_BASE_URL",
+        "https://generativelanguage.googleapis.com/v1beta",
+    )
+    gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+    gemini_thinking_level: str = _string_env("GEMINI_THINKING_LEVEL", "minimal").lower()
+    google_ai_project: str = os.getenv("GOOGLE_AI_PROJECT", "")
+    google_ai_project_number: str = os.getenv("GOOGLE_AI_PROJECT_NUMBER", "")
 
     system_prompt: str = os.getenv(
         "SYSTEM_PROMPT",
@@ -184,5 +199,13 @@ class Settings:
     @property
     def llm_chat_url(self) -> str:
         return f"{self.llm_base_url.rstrip('/')}/chat/completions"
+
+    @property
+    def deepseek_chat_url(self) -> str:
+        return f"{self.deepseek_base_url.rstrip('/')}/chat/completions"
+
+    @property
+    def gemini_interactions_url(self) -> str:
+        return f"{self.gemini_base_url.rstrip('/')}/interactions"
 
 settings = Settings()

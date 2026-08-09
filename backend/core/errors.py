@@ -17,8 +17,10 @@ _SECRET_PATTERNS = (
     re.compile(r"xai-[A-Za-z0-9_-]{12,}"),
     re.compile(r"sk_[A-Za-z0-9_-]{12,}"),
     re.compile(r"sk-[A-Za-z0-9_-]{12,}"),
+    re.compile(r"AQ\.[A-Za-z0-9_-]{12,}"),
+    re.compile(r"AIza[A-Za-z0-9_-]{20,}"),
     re.compile(
-        r"(?i)[\"']?(xi-api-key|api[_-]?key)[\"']?\s*[:=]\s*"
+        r"(?i)[\"']?(xi-api-key|x-goog-api-key|api[_-]?key)[\"']?\s*[:=]\s*"
         r"[\"']?[^\s,;\"'}]+[\"']?"
     ),
 )
@@ -161,7 +163,7 @@ def parse_provider_error(response: httpx.Response) -> dict[str, str]:
         return {}
     if not isinstance(payload, dict):
         return {}
-    detail = payload.get("detail", payload)
+    detail = payload.get("detail", payload.get("error", payload))
     if isinstance(detail, str):
         return {"message": redact(detail)}
     if not isinstance(detail, dict):

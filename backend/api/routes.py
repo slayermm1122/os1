@@ -37,6 +37,10 @@ class LanguageRequest(BaseModel):
     mode: str = Field(pattern=r"^(auto|en|zh)$")
 
 
+class BrainSelectionRequest(BaseModel):
+    provider: str = Field(pattern=r"^(xai|deepseek|google)$")
+
+
 class KeytermsRequest(BaseModel):
     keyterms: list[str] = Field(default_factory=list, max_length=50)
 
@@ -73,6 +77,15 @@ def create_router(services: ApplicationServices) -> APIRouter:
 
     @router.get("/api/health")
     async def health() -> dict[str, object]:
+        brain = orchestrator.llm.resolve() if hasattr(orchestrator.llm, "resolve") else orchestrator.llm
+        brain_catalog = orchestrator.llm.catalog() if hasattr(orchestrator.llm, "catalog") else [{
+            "provider": brain.provider,
+            "label": brain.provider,
+            "model": brain.model,
+            "reasoning_setting": getattr(brain, "reasoning_setting", getattr(brain, "reasoning_effort", None)),
+            "configured": bool(getattr(brain, "api_key_configured", settings.llm_api_key)),
+            "selected": True,
+        }]
         return {
             "ok": True,
             "version": APP_VERSION,
@@ -93,8 +106,11 @@ def create_router(services: ApplicationServices) -> APIRouter:
             "assistant_persona": settings.assistant_persona,
             "vad_silence_threshold_secs": settings.elevenlabs_stt_vad_silence_threshold_secs,
             "vad_threshold": settings.elevenlabs_stt_vad_threshold,
-            "has_llm_key": bool(settings.llm_api_key),
-            "brain_model": settings.llm_model,
+            "has_llm_key": bool(getattr(brain, "api_key_configured", settings.llm_api_key)),
+            "brain_provider": brain.provider,
+            "brain_model": brain.model,
+            "brain_reasoning_setting": getattr(brain, "reasoning_setting", getattr(brain, "reasoning_effort", None)),
+            "brain_providers": brain_catalog,
             "default_male_voice_id": settings.elevenlabs_male_voice_id,
             "default_female_voice_id": settings.elevenlabs_female_voice_id,
             "default_voices": [
@@ -124,7 +140,11 @@ def create_router(services: ApplicationServices) -> APIRouter:
         if period not in {"7d", "30d", "all"}:
             raise HTTPException(status_code=400, detail="Usage range must be 7d, 30d, or all.")
         try:
-            return await services.telemetry.usage_summary(period)
+            summary = await services.telemetry.usage_summary(period)
+            summary["brain_models"] = (
+                orchestrator.llm.catalog() if hasattr(orchestrator.llm, "catalog") else []
+            )
+            return summary
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except Exception as exc:
@@ -141,10 +161,30 @@ def create_router(services: ApplicationServices) -> APIRouter:
                 stt_api_key=None,
                 tts_api_key=None,
                 tts_voice_id=selected_voice,
+                brain_provider=settings.llm_provider,
                 tts_provider=None,
             )
         except Exception as exc:
             raise _http_error(exc) from exc
+
+    @router.post("/api/settings/brain")
+    async def select_brain(request: BrainSelectionRequest) -> dict[str, object]:
+        if services.local_settings is None or not hasattr(orchestrator.llm, "select"):
+            raise HTTPException(status_code=503, detail="Brain selection is unavailable.")
+        try:
+            selected = services.local_settings.update_brain_provider(request.provider)
+            orchestrator.llm.select(selected)
+            if services.connectivity is not None:
+                services.connectivity.default_brain_provider = selected
+            gateway = orchestrator.llm.resolve(selected)
+            return {
+                "provider": selected,
+                "model": gateway.model,
+                "reasoning_setting": gateway.reasoning_setting,
+                "configured": gateway.api_key_configured,
+            }
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @router.get("/api/tts/voices")
     async def tts_voices() -> dict[str, object]:

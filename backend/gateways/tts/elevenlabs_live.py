@@ -13,6 +13,9 @@ from ...core.errors import GatewayError
 from .base import TTSEvent
 
 
+_TEXT_SENDER_DONE = object()
+
+
 class ElevenLabsMultiContextSession:
     """One voice-specific ElevenLabs socket shared by all turns in a live tab."""
 
@@ -28,7 +31,7 @@ class ElevenLabsMultiContextSession:
         self._keepalive_task: asyncio.Task[None] | None = None
         self._send_lock = asyncio.Lock()
         self._context_lock = asyncio.Lock()
-        self._contexts: dict[str, asyncio.Queue[TTSEvent | BaseException | None]] = {}
+        self._contexts: dict[str, asyncio.Queue[TTSEvent | BaseException | object | None]] = {}
         self._closed = False
 
     async def connect(self) -> None:
@@ -104,7 +107,7 @@ class ElevenLabsMultiContextSession:
         context_id: str,
     ) -> AsyncIterator[TTSEvent]:
         await self.connect()
-        queue: asyncio.Queue[TTSEvent | BaseException | None] = asyncio.Queue()
+        queue: asyncio.Queue[TTSEvent | BaseException | object | None] = asyncio.Queue()
         async with self._context_lock:
             if len(self._contexts) >= 4:
                 raise GatewayError(
@@ -115,41 +118,82 @@ class ElevenLabsMultiContextSession:
                 )
             self._contexts[context_id] = queue
 
-        sent_text = False
+        sent_chunks = 0
+        sender_done = asyncio.Event()
+        remote_close_sent = False
+        final_event: TTSEvent | None = None
+
+        async def send_text() -> None:
+            nonlocal sent_chunks, remote_close_sent
+            try:
+                async for chunk in text_chunks:
+                    text = chunk.strip()
+                    if not text:
+                        continue
+                    payload: dict[str, object] = {
+                        "context_id": context_id,
+                        "text": f"{text} ",
+                        "flush": True,
+                    }
+                    if sent_chunks == 0:
+                        payload.update(self._initial_context_options())
+                    sent_chunks += 1
+                    await self._send(payload)
+                if sent_chunks:
+                    await self._send({"context_id": context_id, "close_context": True})
+                    remote_close_sent = True
+            except BaseException as exc:
+                queue.put_nowait(exc)
+                if isinstance(exc, asyncio.CancelledError):
+                    raise
+            finally:
+                sender_done.set()
+                queue.put_nowait(_TEXT_SENDER_DONE)
+
+        sender_task = asyncio.create_task(
+            send_text(),
+            name=f"elevenlabs-context-send-{context_id}",
+        )
         try:
-            async for chunk in text_chunks:
-                text = chunk.strip()
-                if not text:
-                    continue
-                payload: dict[str, object] = {
-                    "context_id": context_id,
-                    "text": f"{text} ",
-                    "flush": True,
-                }
-                if not sent_text:
-                    payload.update(self._initial_context_options())
-                sent_text = True
-                await self._send(payload)
-            if not sent_text:
-                return
             while True:
                 item = await queue.get()
+                if item is _TEXT_SENDER_DONE:
+                    if sent_chunks == 0:
+                        return
+                    if final_event is not None:
+                        yield final_event
+                        break
+                    continue
                 if item is None:
                     break
                 if isinstance(item, BaseException):
                     raise item
-                yield item
                 if item.kind == "complete":
-                    break
+                    final_event = item
+                    if sender_done.is_set():
+                        yield item
+                        break
+                    continue
+                yield item
         finally:
-            await self.close_context(context_id)
+            if not sender_task.done():
+                sender_task.cancel()
+            await asyncio.gather(sender_task, return_exceptions=True)
+            if remote_close_sent or sent_chunks == 0:
+                await self._release_context(context_id)
+            else:
+                await self.close_context(context_id)
 
-    async def close_context(self, context_id: str) -> None:
+    async def _release_context(self, context_id: str) -> bool:
         async with self._context_lock:
             queue = self._contexts.pop(context_id, None)
         if queue is not None:
             queue.put_nowait(None)
-        if queue is not None and self.websocket is not None and not self._closed:
+        return queue is not None
+
+    async def close_context(self, context_id: str) -> None:
+        released = await self._release_context(context_id)
+        if released and self.websocket is not None and not self._closed:
             try:
                 await self._send({"context_id": context_id, "close_context": True})
             except Exception:

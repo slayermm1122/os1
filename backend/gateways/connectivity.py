@@ -75,6 +75,84 @@ class XAIConnectivityProbe:
             )
 
 
+class DeepSeekConnectivityProbe:
+    provider = "deepseek"
+
+    def __init__(self, settings: Settings, *, transport: httpx.AsyncBaseTransport | None = None) -> None:
+        self.settings = settings
+        self.transport = transport
+
+    async def check(self, *, api_key: str | None, resource_id: str | None = None) -> ProviderStatus:
+        del resource_id
+        key = (api_key or self.settings.deepseek_api_key).strip()
+        if not key:
+            return _result(self.provider, False, 0, "api_key_missing", "DeepSeek API key is required.")
+        started = time.perf_counter_ns()
+        try:
+            async with httpx.AsyncClient(
+                timeout=self.settings.provider_check_timeout_seconds,
+                transport=self.transport,
+            ) as client:
+                response = await client.get(
+                    f"{self.settings.deepseek_base_url.rstrip('/')}/models",
+                    headers={"Authorization": f"Bearer {key}"},
+                )
+            if response.status_code >= 400:
+                return _http_failure(self.provider, response, started, "DeepSeek")
+            payload = response.json()
+            models = payload.get("data") if isinstance(payload, dict) else None
+            if not isinstance(models, list) or self.settings.deepseek_model not in {
+                str(model.get("id") or "") for model in models if isinstance(model, dict)
+            }:
+                return _result(
+                    self.provider, False, _elapsed_ms(started), "resource_unavailable",
+                    "The configured DeepSeek model is unavailable.",
+                )
+            return _result(self.provider, True, _elapsed_ms(started), "ok", "DeepSeek is ready.")
+        except (httpx.TimeoutException, asyncio.TimeoutError):
+            return _result(self.provider, False, _elapsed_ms(started), "timeout", "DeepSeek check timed out.")
+        except (httpx.HTTPError, ValueError):
+            return _result(self.provider, False, _elapsed_ms(started), "transport_error", "DeepSeek is unavailable.")
+
+
+class GeminiConnectivityProbe:
+    provider = "google"
+
+    def __init__(self, settings: Settings, *, transport: httpx.AsyncBaseTransport | None = None) -> None:
+        self.settings = settings
+        self.transport = transport
+
+    async def check(self, *, api_key: str | None, resource_id: str | None = None) -> ProviderStatus:
+        del resource_id
+        key = (api_key or self.settings.gemini_api_key).strip()
+        if not key:
+            return _result(self.provider, False, 0, "api_key_missing", "Gemini API key is required.")
+        started = time.perf_counter_ns()
+        try:
+            async with httpx.AsyncClient(
+                timeout=self.settings.provider_check_timeout_seconds,
+                transport=self.transport,
+            ) as client:
+                response = await client.get(
+                    f"{self.settings.gemini_base_url.rstrip('/')}/models/{quote(self.settings.gemini_model, safe='')}",
+                    headers={"x-goog-api-key": key},
+                )
+            if response.status_code >= 400:
+                return _http_failure(self.provider, response, started, "Gemini")
+            payload = response.json()
+            model_name = str(payload.get("name") or "") if isinstance(payload, dict) else ""
+            if model_name.rsplit("/", 1)[-1] != self.settings.gemini_model:
+                return _result(
+                    self.provider, False, _elapsed_ms(started), "resource_unavailable",
+                    "The configured Gemini model is unavailable.",
+                )
+            return _result(self.provider, True, _elapsed_ms(started), "ok", "Gemini is ready.")
+        except (httpx.TimeoutException, asyncio.TimeoutError):
+            return _result(self.provider, False, _elapsed_ms(started), "timeout", "Gemini check timed out.")
+        except (httpx.HTTPError, ValueError):
+            return _result(self.provider, False, _elapsed_ms(started), "transport_error", "Gemini is unavailable.")
+
+
 class ElevenLabsConnectivityProbe:
     provider = "elevenlabs"
     base_url = "https://api.elevenlabs.io/v1"

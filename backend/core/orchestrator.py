@@ -8,7 +8,7 @@ from collections.abc import AsyncIterable, AsyncIterator
 from dataclasses import dataclass
 
 from ..config import Settings
-from ..gateways.ai import AIGateway, AIRequest, AIStreamEvent
+from ..gateways.ai import AIAdapter, AIGateway, AIRequest, AIStreamEvent
 from ..gateways.stt import STTEvent, STTGateway, STTResult
 from ..gateways.tts import TTSAdapter, TTSEvent, TTSGateway
 from ..telemetry.sqlite_store import SQLiteTelemetryRecorder, TurnTrace, utc_now
@@ -48,7 +48,7 @@ class TurnOrchestrator:
         self,
         *,
         settings: Settings,
-        llm: AIGateway,
+        llm: AIGateway | AIAdapter,
         stt: STTGateway,
         tts: TTSAdapter,
         sessions: KVConversationStore,
@@ -803,6 +803,7 @@ class TurnOrchestrator:
         *,
         api_key: str | None,
     ) -> AsyncIterator[AIStreamEvent]:
+        llm = self.llm.resolve() if isinstance(self.llm, AIAdapter) else self.llm
         call_id = uuid.uuid4().hex
         call_start = trace.offset_ms()
         first_token_ms: float | None = None
@@ -817,19 +818,15 @@ class TurnOrchestrator:
         self.telemetry.start_llm_call(
             trace,
             call_id=call_id,
-            provider=self.llm.provider,
-            model=self.llm.model,
-            reasoning_effort=self.llm.reasoning_effort,
+            provider=llm.provider,
+            model=llm.model,
+            reasoning_effort=_reasoning_setting(llm),
             purpose=request.purpose,
-            request=self.llm.request_snapshot(request),
+            request=llm.request_snapshot(request),
         )
         trace.event("llm.requested", stage="llm", metadata={"call_id": call_id})
         try:
-            stream = (
-                self.llm.stream_text(request)
-                if hasattr(self.llm, "stream_text")
-                else self.llm.stream(request)
-            )
+            stream = llm.stream_text(request) if hasattr(llm, "stream_text") else llm.stream(request)
             async for event in stream:
                 if event.kind == "delta":
                     if first_token_ms is None:
@@ -869,7 +866,7 @@ class TurnOrchestrator:
             info = error_info(
                 GatewayError(
                     stage="llm",
-                    provider=self.llm.provider,
+                    provider=llm.provider,
                     code="empty_response",
                     public_message="The language model returned an empty response.",
                     technical_message="LLM stream completed without text deltas.",
@@ -878,6 +875,8 @@ class TurnOrchestrator:
                 )
             )
             self.telemetry.record_error(trace, info, call_id=call_id)
+            canonical_model = completion.response_model or llm.model
+            canonical_reasoning = completion.response_reasoning_setting or _reasoning_setting(llm)
             self.telemetry.finish_llm_call(
                 call_id,
                 status="failed",
@@ -896,9 +895,15 @@ class TurnOrchestrator:
                 provider_request_id=completion.request_id,
                 system_fingerprint=completion.system_fingerprint,
                 service_tier=completion.service_tier,
+                model=canonical_model,
+                reasoning_effort=canonical_reasoning,
+                response_model=completion.response_model,
+                response_reasoning_setting=completion.response_reasoning_setting,
                 error_id=info.error_id,
             )
             raise ObservedError(info)
+        canonical_model = completion.response_model or llm.model
+        canonical_reasoning = completion.response_reasoning_setting or _reasoning_setting(llm)
         self.telemetry.finish_llm_call(
             call_id,
             status="success",
@@ -917,6 +922,10 @@ class TurnOrchestrator:
             provider_request_id=completion.request_id,
             system_fingerprint=completion.system_fingerprint,
             service_tier=completion.service_tier,
+            model=canonical_model,
+            reasoning_effort=canonical_reasoning,
+            response_model=completion.response_model,
+            response_reasoning_setting=completion.response_reasoning_setting,
         )
         trace.event("llm.completed", stage="llm", metadata={"call_id": call_id})
         yield completion
@@ -1286,3 +1295,10 @@ def _observed_info(exc: Exception, *, default_stage: str) -> ErrorInfo:
     if isinstance(exc, ObservedError):
         return exc.info
     return error_info(exc, default_stage=default_stage)
+
+
+def _reasoning_setting(llm: AIGateway) -> str | None:
+    value = getattr(llm, "reasoning_setting", None)
+    if value is None:
+        value = getattr(llm, "reasoning_effort", None)
+    return str(value).strip() if value is not None and str(value).strip() else None

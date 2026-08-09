@@ -1,7 +1,9 @@
-from .base import AIGateway, LLMGateway, LLMRequest, LLMStreamEvent, LLMUsage
+from .base import AIAdapter, AIGateway, LLMGateway, LLMRequest, LLMStreamEvent, LLMUsage
+from .deepseek import DeepSeekLLMGateway
+from .gemini import GeminiLLMGateway
 from .xai import XAILLMGateway
 
 __all__ = [
-    "AIGateway", "LLMGateway", "LLMRequest", "LLMStreamEvent",
-    "LLMUsage", "XAILLMGateway",
+    "AIAdapter", "AIGateway", "LLMGateway", "LLMRequest", "LLMStreamEvent",
+    "LLMUsage", "DeepSeekLLMGateway", "GeminiLLMGateway", "XAILLMGateway",
 ]

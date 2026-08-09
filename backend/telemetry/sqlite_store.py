@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import sqlite3
 import time
 import uuid
@@ -22,6 +23,7 @@ logger = logging.getLogger("os1.telemetry")
 _UPDATE_COLUMNS = {
     "llm_calls": {
         "status", "completed_at", "duration_ms", "first_token_ms", "response_text",
+        "model", "reasoning_effort", "response_model", "response_reasoning_setting",
         "prompt_tokens", "completion_tokens", "total_tokens", "cached_tokens",
         "reasoning_tokens", "cache_status", "cost_usd_ticks", "finish_reason",
         "provider_request_id", "system_fingerprint", "service_tier", "error_id",
@@ -261,16 +263,18 @@ class SQLiteTelemetryRecorder:
         call_id: str,
         provider: str,
         model: str,
-        reasoning_effort: str,
+        reasoning_effort: str | None,
         request: dict[str, object],
         purpose: str = "answer",
     ) -> None:
         self._enqueue(
-            "INSERT INTO llm_calls(call_id, turn_id, provider, model, reasoning_effort, purpose, "
-            "status, started_at, request_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO llm_calls(call_id, turn_id, provider, model, reasoning_effort, "
+            "requested_model, requested_reasoning_setting, purpose, status, started_at, request_json) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
-                call_id, trace.turn_id, provider, model, reasoning_effort, purpose,
-                "running", utc_now(), json_text(_without_content(request)),
+                call_id, trace.turn_id, provider, model, reasoning_effort,
+                model, reasoning_effort, purpose, "running", utc_now(),
+                json_text(_without_content(request)),
             ),
         )
 
@@ -409,6 +413,18 @@ class SQLiteTelemetryRecorder:
             }
             if "purpose" not in llm_columns:
                 conn.execute("ALTER TABLE llm_calls ADD COLUMN purpose TEXT NOT NULL DEFAULT 'answer'")
+            for column in (
+                "requested_model",
+                "requested_reasoning_setting",
+                "response_model",
+                "response_reasoning_setting",
+            ):
+                if column not in llm_columns:
+                    conn.execute(f"ALTER TABLE llm_calls ADD COLUMN {column} TEXT")  # nosec B608
+            conn.execute(
+                "UPDATE llm_calls SET requested_model = COALESCE(requested_model, model), "
+                "requested_reasoning_setting = COALESCE(requested_reasoning_setting, reasoning_effort)"
+            )
             conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
             conn.commit()
             self._secure_storage_paths()
@@ -462,11 +478,14 @@ class SQLiteTelemetryRecorder:
             llm_models = _usage_rows(conn, "llm", cutoff, group="model")
             stt_models = _usage_rows(conn, "stt", cutoff, group="model")
             tts_models = _usage_rows(conn, "tts", cutoff, group="model")
+            ttft_samples = _llm_ttft_samples(conn, cutoff)
             day_rows = {
                 "llm": _usage_rows(conn, "llm", cutoff, group="day"),
                 "stt": _usage_rows(conn, "stt", cutoff, group="day"),
                 "tts": _usage_rows(conn, "tts", cutoff, group="day"),
             }
+
+        _attach_ttft(llm_total, llm_models, ttft_samples)
 
         days: dict[str, dict[str, object]] = {}
         for service, rows in day_rows.items():
@@ -532,14 +551,19 @@ def _usage_rows(
         ),
     }
     table, usage_columns = definitions[service]
+    llm_model = "COALESCE(response_model, requested_model, model)"
     identity = {
         "total": "",
-        "model": "provider, model, ",
+        "model": f"provider, {llm_model} AS model, " if service == "llm" else "provider, model, ",
         "day": "date(started_at) AS day, ",
     }[group]
     group_by = {
         "total": "",
-        "model": " GROUP BY provider, model ORDER BY calls DESC, provider, model",
+        "model": (
+            f" GROUP BY provider, {llm_model} ORDER BY calls DESC, provider, model"
+            if service == "llm"
+            else " GROUP BY provider, model ORDER BY calls DESC, provider, model"
+        ),
         "day": " GROUP BY date(started_at) ORDER BY day DESC",
     }[group]
     where = " WHERE started_at >= ?" if cutoff else ""
@@ -557,6 +581,52 @@ def _usage_rows(
     if group == "total" and not rows:
         rows = [{}]
     return [_normalize_usage_row(row, service) for row in rows]
+
+
+def _llm_ttft_samples(
+    conn: sqlite3.Connection,
+    cutoff: str | None,
+) -> list[tuple[str, str, float]]:
+    where = " WHERE first_token_ms IS NOT NULL"
+    params: tuple[object, ...] = ()
+    if cutoff:
+        where += " AND started_at >= ?"
+        params = (cutoff,)
+    return [
+        (str(row[0]), str(row[1]), float(row[2]))
+        for row in conn.execute(
+            "SELECT provider, COALESCE(response_model, requested_model, model), first_token_ms "
+            f"FROM llm_calls{where}",  # nosec B608
+            params,
+        ).fetchall()
+    ]
+
+
+def _attach_ttft(
+    total: dict[str, object],
+    models: list[dict[str, object]],
+    samples: list[tuple[str, str, float]],
+) -> None:
+    values = [sample[2] for sample in samples]
+    total["ttft_sample_count"] = len(values)
+    total["ttft_p50_ms"] = _nearest_rank_percentile(values, 0.50)
+    total["ttft_p95_ms"] = _nearest_rank_percentile(values, 0.95)
+    by_model: dict[tuple[str, str], list[float]] = {}
+    for provider, model, value in samples:
+        by_model.setdefault((provider, model), []).append(value)
+    for row in models:
+        model_values = by_model.get((str(row.get("provider") or ""), str(row.get("model") or "")), [])
+        row["ttft_sample_count"] = len(model_values)
+        row["ttft_p50_ms"] = _nearest_rank_percentile(model_values, 0.50)
+        row["ttft_p95_ms"] = _nearest_rank_percentile(model_values, 0.95)
+
+
+def _nearest_rank_percentile(values: list[float], percentile: float) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    index = max(0, math.ceil(percentile * len(ordered)) - 1)
+    return round(ordered[index], 1)
 
 
 def _normalize_usage_row(row: dict[str, object], service: str) -> dict[str, object]:
@@ -592,6 +662,9 @@ def _combine_usage(stt: dict[str, object], tts: dict[str, object]) -> dict[str, 
 
 def _empty_usage_summary(period: str, *, enabled: bool) -> dict[str, object]:
     llm = _normalize_usage_row({}, "llm")
+    llm["ttft_sample_count"] = 0
+    llm["ttft_p50_ms"] = None
+    llm["ttft_p95_ms"] = None
     stt = _normalize_usage_row({}, "stt")
     tts = _normalize_usage_row({}, "tts")
     return {

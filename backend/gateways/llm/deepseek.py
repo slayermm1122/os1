@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from collections.abc import AsyncIterator
 
 import httpx
@@ -11,74 +12,61 @@ from ...core.errors import GatewayError, parse_provider_error
 from .base import LLMRequest, LLMStreamEvent, LLMUsage
 
 
-class XAILLMGateway:
-    provider = "xai"
+class DeepSeekLLMGateway:
+    provider = "deepseek"
 
-    def __init__(
-        self,
-        settings: Settings,
-        *,
-        model: str | None = None,
-        reasoning_effort: str | None = None,
-    ) -> None:
+    def __init__(self, settings: Settings) -> None:
         self.settings = settings
-        self.model = model or settings.llm_model
-        self.reasoning_effort = reasoning_effort or settings.llm_reasoning_effort
-
-    @property
-    def reasoning_setting(self) -> str:
-        return self.reasoning_effort
+        self.model = settings.deepseek_model
+        self.reasoning_setting = settings.deepseek_thinking
 
     @property
     def api_key_configured(self) -> bool:
-        return bool(self.settings.llm_api_key.strip())
+        return bool(self.settings.deepseek_api_key.strip())
 
-    def _require_api_key(self, api_key: str | None) -> str:
-        resolved = (api_key or self.settings.llm_api_key).strip()
-        if not resolved:
+    def request_snapshot(self, request: LLMRequest) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "model": self.model,
+            "messages": request.messages,
+            "thinking": {"type": self.reasoning_setting},
+            "temperature": self.settings.llm_temperature,
+            "max_tokens": self.settings.llm_max_tokens,
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        }
+        if request.cache_key:
+            payload["user_id"] = _user_id(request.cache_key)
+        return payload
+
+    async def stream_text(self, request: LLMRequest) -> AsyncIterator[LLMStreamEvent]:
+        api_key = self.settings.deepseek_api_key.strip()
+        if not api_key:
             raise GatewayError(
                 stage="llm",
                 provider=self.provider,
                 code="api_key_missing",
-                public_message="LLM API key is required.",
-                technical_message="LLM_API_KEY or XAI_API_KEY is not configured.",
+                public_message="DeepSeek API key is required.",
+                technical_message="DEEPSEEK_API_KEY is not configured.",
             )
-        return resolved
 
-    def request_snapshot(self, request: LLMRequest) -> dict[str, object]:
-        return {
-            "model": self.model,
-            "messages": request.messages,
-            "temperature": self.settings.llm_temperature,
-            "max_tokens": self.settings.llm_max_tokens,
-            "reasoning_effort": self.reasoning_effort,
-            "stream": True,
-            "stream_options": {"include_usage": True},
-        }
-
-    async def stream_text(self, request: LLMRequest) -> AsyncIterator[LLMStreamEvent]:
-        api_key = self._require_api_key(request.api_key)
-        payload = self.request_snapshot(request)
-        timeout = httpx.Timeout(
-            connect=self.settings.upstream_connect_timeout_seconds,
-            read=self.settings.upstream_read_timeout_seconds,
-            write=self.settings.upstream_write_timeout_seconds,
-            pool=self.settings.upstream_pool_timeout_seconds,
-        )
         usage: LLMUsage | None = None
         request_id: str | None = None
+        response_model: str | None = None
         fingerprint: str | None = None
         service_tier: str | None = None
-        response_model: str | None = None
         finish_reason: str | None = None
+        timeout = _timeout(self.settings)
 
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
                 async with client.stream(
                     "POST",
-                    self.settings.llm_chat_url,
-                    headers=self._headers(api_key, request.cache_key),
-                    json=payload,
+                    self.settings.deepseek_chat_url,
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json=self.request_snapshot(request),
                 ) as response:
                     response.raise_for_status()
                     header_request_id = response.headers.get("x-request-id") or response.headers.get("request-id")
@@ -94,46 +82,33 @@ class XAILLMGateway:
                                 event = json.loads(data)
                             except json.JSONDecodeError:
                                 continue
-
-                            request_id = str(event.get("id") or request_id or header_request_id or "") or None
+                            if not isinstance(event, dict):
+                                continue
+                            request_id = str(event.get("id") or request_id or "") or None
                             response_model = str(event.get("model") or response_model or "") or None
                             fingerprint = str(event.get("system_fingerprint") or fingerprint or "") or None
                             service_tier = str(event.get("service_tier") or service_tier or "") or None
-                            if event.get("usage"):
+                            if isinstance(event.get("usage"), dict):
                                 usage = _parse_usage(event["usage"])
-                            for choice in event.get("choices", []):
+                            for choice in event.get("choices") or []:
+                                if not isinstance(choice, dict):
+                                    continue
                                 if choice.get("finish_reason"):
                                     finish_reason = str(choice["finish_reason"])
                                 delta = choice.get("delta") or {}
+                                if not isinstance(delta, dict):
+                                    continue
                                 content = delta.get("content")
                                 if content:
                                     yield LLMStreamEvent(kind="delta", text=str(content))
-        except GatewayError:
-            raise
         except httpx.HTTPStatusError as exc:
-            status = exc.response.status_code
-            provider_detail = parse_provider_error(exc.response)
-            raise GatewayError(
-                stage="llm",
-                provider=self.provider,
-                code=_http_code(status),
-                public_message="The language model rejected the request.",
-                technical_message=(
-                    f"{exc}; provider: {provider_detail.get('message')}"
-                    if provider_detail.get("message")
-                    else str(exc)
-                ),
-                retryable=status >= 500 or status == 429,
-                upstream_status=status,
-                request_id=exc.response.headers.get("x-request-id") or exc.response.headers.get("request-id"),
-                provider_detail=provider_detail,
-            ) from exc
+            raise _status_error(exc, request_id) from exc
         except (httpx.TimeoutException, TimeoutError, asyncio.TimeoutError) as exc:
             raise GatewayError(
                 stage="llm",
                 provider=self.provider,
                 code="timeout",
-                public_message="The language model timed out.",
+                public_message="DeepSeek timed out.",
                 technical_message=str(exc),
                 retryable=True,
                 request_id=request_id,
@@ -143,7 +118,7 @@ class XAILLMGateway:
                 stage="llm",
                 provider=self.provider,
                 code="transport_error",
-                public_message="The language model is unavailable.",
+                public_message="DeepSeek is unavailable.",
                 technical_message=str(exc),
                 retryable=True,
                 request_id=request_id,
@@ -159,39 +134,25 @@ class XAILLMGateway:
             response_model=response_model,
         )
 
-    def stream(self, request: LLMRequest) -> AsyncIterator[LLMStreamEvent]:
-        return self.stream_text(request)
-
-    def _headers(self, api_key: str, cache_key: str | None) -> dict[str, str]:
-        headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-        if cache_key:
-            headers["x-grok-conv-id"] = cache_key[:256]
-        return headers
-
-    def _timeout(self) -> httpx.Timeout:
-        return httpx.Timeout(
-            connect=self.settings.upstream_connect_timeout_seconds,
-            read=self.settings.upstream_read_timeout_seconds,
-            write=self.settings.upstream_write_timeout_seconds,
-            pool=self.settings.upstream_pool_timeout_seconds,
-        )
-
 
 def _parse_usage(payload: dict[str, object]) -> LLMUsage:
-    prompt_details = payload.get("prompt_tokens_details") or {}
     completion_details = payload.get("completion_tokens_details") or {}
     return LLMUsage(
         prompt_tokens=_integer(payload.get("prompt_tokens")),
         completion_tokens=_integer(payload.get("completion_tokens")),
         total_tokens=_integer(payload.get("total_tokens")),
-        cached_tokens=_integer(prompt_details.get("cached_tokens")) if isinstance(prompt_details, dict) else None,
+        cached_tokens=_integer(payload.get("prompt_cache_hit_tokens")),
         reasoning_tokens=(
             _integer(completion_details.get("reasoning_tokens"))
             if isinstance(completion_details, dict)
             else None
         ),
-        cost_usd_ticks=_integer(payload.get("cost_in_usd_ticks")),
     )
+
+
+def _user_id(value: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9_-]", "_", value)[:512]
+    return cleaned or "os1"
 
 
 def _integer(value: object) -> int | None:
@@ -201,11 +162,27 @@ def _integer(value: object) -> int | None:
         return None
 
 
-def _http_code(status: int) -> str:
-    if status in {401, 403}:
-        return "authentication_failed"
-    if status == 402:
-        return "payment_required"
-    if status == 429:
-        return "rate_limited"
-    return "upstream_rejected"
+def _timeout(settings: Settings) -> httpx.Timeout:
+    return httpx.Timeout(
+        connect=settings.upstream_connect_timeout_seconds,
+        read=settings.upstream_read_timeout_seconds,
+        write=settings.upstream_write_timeout_seconds,
+        pool=settings.upstream_pool_timeout_seconds,
+    )
+
+
+def _status_error(exc: httpx.HTTPStatusError, request_id: str | None) -> GatewayError:
+    status = exc.response.status_code
+    detail = parse_provider_error(exc.response)
+    code = "authentication_failed" if status in {401, 403} else "rate_limited" if status == 429 else "upstream_rejected"
+    return GatewayError(
+        stage="llm",
+        provider="deepseek",
+        code=code,
+        public_message="DeepSeek rejected the request.",
+        technical_message=detail.get("message") or str(exc),
+        retryable=status >= 500 or status == 429,
+        upstream_status=status,
+        request_id=exc.response.headers.get("x-request-id") or request_id,
+        provider_detail=detail,
+    )

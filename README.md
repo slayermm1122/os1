@@ -30,8 +30,8 @@ This is still deliberately small, inspectable, and easy to change.
 - One-click Live voice mode with browser PCM streaming
 - One continuous ElevenLabs Scribe connection across multiple turns
 - **VAD auto end-of-speech**: pause briefly to finish; no 15-second hard stop or countdown
-- xAI Grok text generation, currently defaulting to `grok-4.5`
-- `reasoning_effort=low` for faster responses
+- Sidebar-selectable Grok `grok-4.5`, DeepSeek `deepseek-v4-flash`, and Gemini `gemini-3.5-flash-lite`
+- Provider-specific fast settings: Grok `low`, DeepSeek thinking disabled, and Gemini `minimal`
 - Streaming LLM output from the backend
 - One preconnected ElevenLabs Multi-Context TTS WebSocket (`eleven_flash_v2_5`)
 - Full-duplex barge-in that stops queued speech and preserves only its audible prefix
@@ -62,7 +62,7 @@ The current flow is:
 Browser PCM
   -> persistent backend session WebSocket
   -> persistent ElevenLabs realtime STT (repeated VAD commits)
-  -> Grok streaming response
+  -> selected provider's streaming response
   -> per-turn context on one ElevenLabs Multi-Context TTS WebSocket
   -> browser AudioContext playback
 ```
@@ -98,7 +98,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the history of each release.
 You need:
 
 - Python 3.11+
-- An xAI API key
+- An API key for each brain model you want to select (xAI, DeepSeek, or Google AI Studio)
 - An ElevenLabs API key
 - A browser with microphone permission
 
@@ -119,7 +119,7 @@ python3 -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-# Edit .env and set LLM_API_KEY (or XAI_API_KEY) and ELEVENLABS_API_KEY.
+# Edit .env and set one or more brain keys plus ELEVENLABS_API_KEY.
 uvicorn backend.app:app --reload --host 127.0.0.1 --port 8000
 ```
 
@@ -129,16 +129,38 @@ Then open:
 http://127.0.0.1:8000
 ```
 
+### Keep OS1 running with PM2
+
+The FastAPI process serves the frontend, API, WebSockets, and local SQLite access together, so
+OS1 only needs one process. Start it without the development reloader and save the PM2 process
+list so the existing PM2 LaunchAgent can restore it after login:
+
+```bash
+pm2 start ecosystem.config.cjs
+pm2 save
+```
+
+Useful commands:
+
+```bash
+pm2 status os1
+pm2 logs os1
+pm2 restart os1
+pm2 stop os1
+```
+
 OS1 reads these secrets only from the local `.env` file:
 
-- `LLM_API_KEY` or `XAI_API_KEY`
+- `LLM_API_KEY` or `XAI_API_KEY` for Grok
+- `DEEPSEEK_API_KEY`
+- `GEMINI_API_KEY`
 - `ELEVENLABS_API_KEY`
 
 The API Key sidebar page is status-only: it reports whether the backend loaded each key, but it cannot add or change credentials. After editing either provider key in `.env`, restart the server so authentication is checked again.
 
 The ElevenLabs key needs the TTS/STT capabilities used by OS1, plus `voices_read` for My Voices and `user_read` for the account name and remaining-credit display. Provider keys are never returned to frontend code, accepted through browser request headers, or stored in browser storage.
 
-Persona, voice, language, and pronunciation settings are local too. The sidebar writes `ASSISTANT_NAME`, `USER_NAME`, `ASSISTANT_PERSONA`, `ELEVENLABS_VOICE_ID`, `ASSISTANT_RESPONSE_LANGUAGE`, and Scribe keyterms to `.env`. Alias rules are managed through the ElevenLabs API; only the dictionary and current version locators are persisted locally. Selecting a voice never changes the reply language. No browser storage is used.
+Persona, brain, voice, language, and pronunciation settings are local too. The sidebar writes `LLM_PROVIDER`, `ASSISTANT_NAME`, `USER_NAME`, `ASSISTANT_PERSONA`, `ELEVENLABS_VOICE_ID`, `ASSISTANT_RESPONSE_LANGUAGE`, and Scribe keyterms to `.env`. Alias rules are managed through the ElevenLabs API; only the dictionary and current version locators are persisted locally. Selecting a voice never changes the reply language. No browser storage is used.
 
 ## Local `.env`
 
@@ -156,15 +178,13 @@ Telemetry is enabled for local development so every turn and provider stage can 
 
 OS1 is local-first research software. Read [SECURITY.md](SECURITY.md) before publishing, deploying, or sharing a hosted instance.
 
-OS1 v0.03.03 accepts loopback traffic only and is not a public deployment. Telemetry is enabled by default and stores usage metrics—tokens, cache hits and misses, reasoning/output counts, audio duration, TTS characters, latency, model, and status—in the ignored local file `data/telemetry.sqlite`. New telemetry records do not store transcripts, prompts, or AI response content. The Usage sidebar summarizes 7 days, 30 days, or the complete local history. Existing databases created by older OS1 versions may still contain historical content until those rows are explicitly removed. Set `TELEMETRY_ENABLED=false` to stop new usage records.
+OS1 v0.03.03 accepts loopback traffic only and is not a public deployment. Telemetry is enabled by default and stores usage metrics—tokens, cache hits and misses, reasoning/output counts, audio duration, TTS characters, latency, requested and returned model identifiers, and status—in the ignored local file `data/telemetry.sqlite`. New telemetry records do not store transcripts, prompts, or AI response content. The Usage sidebar summarizes each brain separately over 7 days, 30 days, or the complete local history. Existing databases created by older OS1 versions may still contain historical content until those rows are explicitly removed. Set `TELEMETRY_ENABLED=false` to stop new usage records.
 
 ## Roadmap
 
 ### v0.04
 
-More model choices.
-
-The provider menus are already present in the UI. Future versions will add more brain and voice providers beyond xAI and ElevenLabs.
+More voice-provider choices and deeper model comparison telemetry.
 
 ### v0.05
 

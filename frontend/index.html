@@ -980,6 +980,62 @@
         line-height: 1.45;
       }
 
+      .brain-options {
+        display: grid;
+      }
+
+      .brain-choice {
+        appearance: none;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 6px 14px;
+        width: 100%;
+        padding: 14px 0;
+        border: 0;
+        border-bottom: 1px solid rgba(255, 246, 236, 0.065);
+        background: transparent;
+        color: inherit;
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .brain-choice:last-child {
+        border-bottom: 0;
+      }
+
+      .brain-choice-name {
+        color: rgba(255, 246, 236, 0.62);
+        font-size: 15px;
+        transition: color 160ms ease;
+      }
+
+      .brain-choice-model,
+      .brain-choice-setting,
+      .brain-choice-status {
+        color: rgba(255, 246, 236, 0.34);
+        font-size: 11px;
+      }
+
+      .brain-choice-setting,
+      .brain-choice-status {
+        text-align: right;
+      }
+
+      .brain-choice:hover .brain-choice-name,
+      .brain-choice:focus-visible .brain-choice-name,
+      .brain-choice.is-selected .brain-choice-name {
+        color: rgba(255, 246, 236, 0.94);
+      }
+
+      .brain-choice:focus-visible {
+        outline: 1px solid rgba(255, 232, 156, 0.42);
+        outline-offset: 4px;
+      }
+
+      .brain-choice.is-selected .brain-choice-status {
+        color: rgba(255, 232, 156, 0.72);
+      }
+
       .pronunciation-copy {
         margin: 0 0 12px;
         color: rgba(255, 246, 236, 0.38);
@@ -1847,6 +1903,7 @@
 
       <nav id="brandMenu" class="brand-menu" aria-label="Settings">
         <button id="menuPersona" class="menu-item" type="button">Persona</button>
+        <button id="menuBrain" class="menu-item" type="button">Brain</button>
         <button id="menuVoice" class="menu-item" type="button">Voice</button>
         <button id="menuMotion" class="menu-item" type="button">Motion</button>
         <button id="menuPronunciation" class="menu-item" type="button">Pronunciation</button>
@@ -1934,6 +1991,32 @@
         </div>
       </section>
 
+      <section id="brainModal" class="settings-modal sidebar-view" hidden aria-labelledby="brainTitle">
+        <div class="sidebar-view-header">
+          <button id="brainClose" class="sidebar-back" type="button" aria-label="Back to settings">←</button>
+          <h2 id="brainTitle" class="modal-title">Brain</h2>
+        </div>
+        <section class="provider-section">
+          <div class="provider-title">Model</div>
+          <div id="brainOptions" class="brain-options" role="radiogroup" aria-label="Language model">
+            <button class="brain-choice is-selected" type="button" role="radio" aria-checked="true" data-provider="xai">
+              <span class="brain-choice-name">Grok</span><span class="brain-choice-status">checking</span>
+              <span class="brain-choice-model">grok-4.5</span><span class="brain-choice-setting">low</span>
+            </button>
+            <button class="brain-choice" type="button" role="radio" aria-checked="false" data-provider="deepseek">
+              <span class="brain-choice-name">DeepSeek</span><span class="brain-choice-status">checking</span>
+              <span class="brain-choice-model">deepseek-v4-flash</span><span class="brain-choice-setting">thinking off</span>
+            </button>
+            <button class="brain-choice" type="button" role="radio" aria-checked="false" data-provider="google">
+              <span class="brain-choice-name">Gemini</span><span class="brain-choice-status">checking</span>
+              <span class="brain-choice-model">gemini-3.5-flash-lite</span><span class="brain-choice-setting">minimal</span>
+            </button>
+          </div>
+          <div class="persona-description">A change applies to the next response.</div>
+        </section>
+        <div id="brainError" class="settings-error"></div>
+      </section>
+
       <section id="settingsModal" class="settings-modal sidebar-view" hidden aria-labelledby="settingsTitle">
         <div class="sidebar-view-header">
           <button id="settingsClose" class="sidebar-back" type="button" aria-label="Back to settings">←</button>
@@ -1958,7 +2041,7 @@
           </select>
         </section>
 
-        <div class="environment-note">Set LLM_API_KEY and ELEVENLABS_API_KEY in .env, then restart OS1.</div>
+        <div class="environment-note">Provider keys are read only from the local .env file.</div>
       </section>
 
       <section id="voiceModal" class="settings-modal sidebar-view" hidden aria-labelledby="voiceTitle">
@@ -2108,6 +2191,7 @@
       const sidebarHome = document.querySelector("#sidebarHome");
       const sidebarClose = document.querySelector("#sidebarClose");
       const menuPersona = document.querySelector("#menuPersona");
+      const menuBrain = document.querySelector("#menuBrain");
       const menuApiKey = document.querySelector("#menuApiKey");
       const menuVoice = document.querySelector("#menuVoice");
       const menuMotion = document.querySelector("#menuMotion");
@@ -2120,6 +2204,10 @@
       const settingsClose = document.querySelector("#settingsClose");
       const personaModal = document.querySelector("#personaModal");
       const personaClose = document.querySelector("#personaClose");
+      const brainModal = document.querySelector("#brainModal");
+      const brainClose = document.querySelector("#brainClose");
+      const brainChoices = Array.from(document.querySelectorAll(".brain-choice"));
+      const brainError = document.querySelector("#brainError");
       const userNameInput = document.querySelector("#userName");
       const currentVoiceHint = document.querySelector("#currentVoiceHint");
       const personaChoices = Array.from(document.querySelectorAll(".persona-choice"));
@@ -2140,6 +2228,7 @@
       const assistantNameInput = document.querySelector("#assistantName");
       const voiceProviderSelect = document.querySelector("#voiceProvider");
       const voiceProviderLabel = document.querySelector("#voiceProviderLabel");
+      const brainProviderLabel = document.querySelector("#brainProviderLabel");
       const brainEnvStatus = document.querySelector("#brainEnvStatus");
       const voiceEnvStatus = document.querySelector("#voiceEnvStatus");
       const voiceError = document.querySelector("#voiceError");
@@ -2225,6 +2314,8 @@
       let connectivityRetryTimer = 0;
       let connectivityCheckId = 0;
       let sidebarCloseTimer = 0;
+      let selectedBrainProvider = "xai";
+      let brainCatalog = [];
 
       let selectedVoiceId = "";
       let responseLanguageMode = "auto";
@@ -2272,6 +2363,9 @@
       menuPersona.addEventListener("click", () => {
         openPersonaModal();
       });
+      menuBrain.addEventListener("click", () => {
+        openBrainModal();
+      });
       menuApiKey.addEventListener("click", () => {
         openSettingsModal();
       });
@@ -2300,6 +2394,9 @@
       for (const choice of personaChoices) {
         choice.addEventListener("click", () => setPersonaChoice(choice.dataset.persona));
       }
+      for (const choice of brainChoices) {
+        choice.addEventListener("click", () => void selectBrain(choice.dataset.provider));
+      }
       for (const choice of voiceLanguageChoices) {
         choice.addEventListener("click", () => void setResponseLanguage(choice.dataset.language));
       }
@@ -2308,6 +2405,7 @@
       }
       settingsClose.addEventListener("click", closeSettingsModal);
       personaClose.addEventListener("click", closePersonaModal);
+      brainClose.addEventListener("click", closeBrainModal);
       voiceClose.addEventListener("click", closeVoiceModal);
       motionClose.addEventListener("click", closeMotionModal);
       pronunciationClose.addEventListener("click", closePronunciationModal);
@@ -4869,6 +4967,9 @@
           if (response.ok) {
             const health = await response.json();
             serverHasBrainKey = Boolean(health.has_llm_key);
+            selectedBrainProvider = String(health.brain_provider || "xai").toLowerCase();
+            brainCatalog = Array.isArray(health.brain_providers) ? health.brain_providers : [];
+            syncBrainChoices();
             const providers = Array.isArray(health.tts_providers) ? health.tts_providers : [];
             if (providers.length) {
               const selectedProvider = health.default_tts_provider || providers[0];
@@ -4893,6 +4994,10 @@
             voiceEnvStatus.classList.toggle("is-ready", serverHasVoiceKey);
             if (voiceProviderLabel) {
               voiceProviderLabel.textContent = getVoiceProvider() || "ElevenLabs";
+            }
+            if (brainProviderLabel) {
+              const selectedBrain = brainCatalog.find((item) => item.provider === selectedBrainProvider);
+              brainProviderLabel.textContent = selectedBrain?.label || selectedBrainProvider;
             }
             defaultVoices = Array.isArray(health.default_voices) ? health.default_voices : [];
             availableVoices = mergeVoiceCatalog(defaultVoices, libraryVoices);
@@ -5078,6 +5183,7 @@
       function openSidebar(view = "home") {
         revealSidebar();
         if (view === "persona") openPersonaModal();
+        else if (view === "brain") openBrainModal();
         else if (view === "keys") openSettingsModal();
         else if (view === "voice") openVoiceModal();
         else if (view === "motion") openMotionModal();
@@ -5112,6 +5218,7 @@
           os1Sidebar.classList.remove("is-closing");
           os1SidebarBackdrop.classList.remove("is-closing");
           personaModal.hidden = true;
+          brainModal.hidden = true;
           settingsModal.hidden = true;
           voiceModal.hidden = true;
           motionModal.hidden = true;
@@ -5126,6 +5233,7 @@
       function showSidebarHome() {
         os1Sidebar.scrollTo({ top: 0 });
         personaModal.hidden = true;
+        brainModal.hidden = true;
         settingsModal.hidden = true;
         voiceModal.hidden = true;
         motionModal.hidden = true;
@@ -5142,6 +5250,7 @@
         revealSidebar();
         brandMenu.hidden = true;
         settingsModal.hidden = true;
+        brainModal.hidden = true;
         voiceModal.hidden = true;
         motionModal.hidden = true;
         pronunciationModal.hidden = true;
@@ -5156,10 +5265,79 @@
         brandMenu.hidden = false;
       }
 
+      function openBrainModal() {
+        revealSidebar();
+        brandMenu.hidden = true;
+        personaModal.hidden = true;
+        settingsModal.hidden = true;
+        voiceModal.hidden = true;
+        motionModal.hidden = true;
+        pronunciationModal.hidden = true;
+        usageModal.hidden = true;
+        brainModal.hidden = false;
+        brainError.textContent = "";
+        syncBrainChoices();
+        os1Sidebar.scrollTo({ top: 0 });
+      }
+
+      function closeBrainModal() {
+        brainModal.hidden = true;
+        brandMenu.hidden = false;
+      }
+
+      function syncBrainChoices() {
+        for (const choice of brainChoices) {
+          const provider = String(choice.dataset.provider || "");
+          const item = brainCatalog.find((entry) => entry.provider === provider);
+          const selected = provider === selectedBrainProvider;
+          choice.classList.toggle("is-selected", selected);
+          choice.setAttribute("aria-checked", String(selected));
+          const model = choice.querySelector(".brain-choice-model");
+          const setting = choice.querySelector(".brain-choice-setting");
+          const status = choice.querySelector(".brain-choice-status");
+          if (model && item?.model) model.textContent = String(item.model);
+          if (setting && item?.reasoning_setting) {
+            setting.textContent = item.reasoning_setting === "disabled"
+              ? "thinking off"
+              : String(item.reasoning_setting);
+          }
+          if (status) status.textContent = item?.configured ? (selected ? "selected" : "ready") : "key missing";
+        }
+      }
+
+      async function selectBrain(provider) {
+        const selected = String(provider || "").toLowerCase();
+        if (!selected || selected === selectedBrainProvider) return;
+        brainError.textContent = "";
+        for (const choice of brainChoices) choice.disabled = true;
+        try {
+          const response = await fetch("/api/settings/brain", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ provider: selected }),
+          });
+          if (!response.ok) throw new Error(await apiErrorMessage(response));
+          selectedBrainProvider = selected;
+          const updated = await response.json();
+          brainCatalog = brainCatalog.map((item) => ({
+            ...item,
+            selected: item.provider === selected,
+            ...(item.provider === selected ? updated : {}),
+          }));
+          syncBrainChoices();
+          await refreshConnectivity();
+        } catch (error) {
+          brainError.textContent = error?.message || "Could not change the brain model.";
+        } finally {
+          for (const choice of brainChoices) choice.disabled = false;
+        }
+      }
+
       function openMotionModal() {
         revealSidebar();
         brandMenu.hidden = true;
         personaModal.hidden = true;
+        brainModal.hidden = true;
         settingsModal.hidden = true;
         voiceModal.hidden = true;
         pronunciationModal.hidden = true;
@@ -5334,6 +5512,7 @@
         revealSidebar();
         brandMenu.hidden = true;
         personaModal.hidden = true;
+        brainModal.hidden = true;
         voiceModal.hidden = true;
         motionModal.hidden = true;
         pronunciationModal.hidden = true;
@@ -5354,6 +5533,7 @@
         revealSidebar();
         brandMenu.hidden = true;
         personaModal.hidden = true;
+        brainModal.hidden = true;
         settingsModal.hidden = true;
         motionModal.hidden = true;
         pronunciationModal.hidden = true;
@@ -5373,6 +5553,7 @@
         revealSidebar();
         brandMenu.hidden = true;
         personaModal.hidden = true;
+        brainModal.hidden = true;
         settingsModal.hidden = true;
         voiceModal.hidden = true;
         motionModal.hidden = true;
@@ -5391,6 +5572,7 @@
         revealSidebar();
         brandMenu.hidden = true;
         personaModal.hidden = true;
+        brainModal.hidden = true;
         settingsModal.hidden = true;
         voiceModal.hidden = true;
         motionModal.hidden = true;
@@ -5435,25 +5617,35 @@
       }
 
       function renderUsage(payload) {
-        const llm = payload?.totals?.llm || {};
         const eleven = payload?.totals?.elevenlabs || {};
         const models = payload?.models || {};
         const days = Array.isArray(payload?.days) ? payload.days : [];
         const fragments = [];
 
-        const llmSection = usageSection("LLM");
-        llmSection.append(
-          usageLine("Requests", formatInteger(llm.calls)),
-          usageLine("Successful", usageSuccess(llm)),
-          usageLine("Failed · cancelled", `${formatInteger(llm.failed)} · ${formatInteger(llm.cancelled)}`),
-          usageLine("Input · cache hit", formatInteger(llm.cache_hit_tokens)),
-          usageLine("Input · cache miss", formatInteger(llm.cache_miss_tokens)),
-          usageLine("Reasoning", formatInteger(llm.reasoning_tokens)),
-          usageLine("Output", formatInteger(llm.output_tokens)),
-          usageLine("Average response", formatElapsed(llm.average_duration_ms))
-        );
-        appendUsageModels(llmSection, models.llm, "Brain");
-        fragments.push(llmSection);
+        const catalog = Array.isArray(payload?.brain_models) && payload.brain_models.length
+          ? payload.brain_models
+          : brainCatalog;
+        const llmRows = Array.isArray(models.llm) ? models.llm : [];
+        const knownModels = new Set();
+        for (const brain of catalog) {
+          const provider = String(brain.provider || "");
+          const model = String(brain.model || "Unknown model");
+          const metrics = llmRows.find((row) => (
+            String(row.provider || "") === provider && String(row.model || "") === model
+          )) || {};
+          knownModels.add(`${provider}:${model}`);
+          fragments.push(usageBrainSection(brain.label || provider || "LLM", model, brain.reasoning_setting, metrics));
+        }
+        for (const metrics of llmRows) {
+          const identity = `${String(metrics.provider || "")}:${String(metrics.model || "")}`;
+          if (knownModels.has(identity)) continue;
+          fragments.push(usageBrainSection(
+            String(metrics.provider || "Historical model"),
+            String(metrics.model || "Unknown model"),
+            null,
+            metrics
+          ));
+        }
 
         const elevenSection = usageSection("ElevenLabs");
         elevenSection.append(
@@ -5482,6 +5674,26 @@
         ledgerSection.append(ledger);
         fragments.push(ledgerSection);
         usageReport.replaceChildren(...fragments);
+      }
+
+      function usageBrainSection(label, model, reasoningSetting, metrics) {
+        const section = usageSection(String(label));
+        const thinking = reasoningSetting === "disabled" ? "off" : (reasoningSetting || "—");
+        section.append(
+          usageLine("Model", model),
+          usageLine("Thinking", thinking),
+          usageLine("Requests", formatInteger(metrics.calls)),
+          usageLine("Successful", usageSuccess(metrics)),
+          usageLine("Failed · cancelled", `${formatInteger(metrics.failed)} · ${formatInteger(metrics.cancelled)}`),
+          usageLine("Input · cache hit", formatInteger(metrics.cache_hit_tokens)),
+          usageLine("Input · cache miss", formatInteger(metrics.cache_miss_tokens)),
+          usageLine("Reasoning", formatInteger(metrics.reasoning_tokens)),
+          usageLine("Output", formatInteger(metrics.output_tokens)),
+          usageLine("First token · P50", formatElapsed(metrics.ttft_p50_ms)),
+          usageLine("First token · P95", formatElapsed(metrics.ttft_p95_ms)),
+          usageLine("Average response", formatElapsed(metrics.average_duration_ms))
+        );
+        return section;
       }
 
       function usageSection(title) {

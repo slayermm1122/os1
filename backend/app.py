@@ -16,10 +16,15 @@ from .core.orchestrator import TurnOrchestrator
 from .core.rate_limit import SlidingWindowRateLimiter
 from .core.security import is_allowed_websocket, is_local_http_request
 from .core.sessions import KVConversationStore
-from .gateways.connectivity import ElevenLabsConnectivityProbe, XAIConnectivityProbe
+from .gateways.connectivity import (
+    DeepSeekConnectivityProbe,
+    ElevenLabsConnectivityProbe,
+    GeminiConnectivityProbe,
+    XAIConnectivityProbe,
+)
 from .gateways.elevenlabs_account import ElevenLabsAccountGateway
 from .gateways.pronunciation import ElevenLabsPronunciationGateway
-from .gateways.ai import XAIGateway
+from .gateways.ai import AIAdapter, DeepSeekGateway, GeminiGateway, XAIGateway
 from .gateways.stt import ElevenLabsSTTGateway
 from .gateways.tts import ElevenLabsTTSGateway, TTSAdapter
 from .gateways.tts.elevenlabs_catalog import ElevenLabsVoiceCatalog
@@ -37,7 +42,10 @@ telemetry = SQLiteTelemetryRecorder(
         == (settings.root_dir / "data").resolve()
     ),
 )
-answer_ai = XAIGateway(settings)
+answer_ai = AIAdapter(
+    [XAIGateway(settings), DeepSeekGateway(settings), GeminiGateway(settings)],
+    default_provider=settings.llm_provider,
+)
 local_settings = LocalSettingsService(settings, settings.root_dir / ".env")
 live_sessions = LiveSessionRegistry()
 tts = TTSAdapter(
@@ -64,7 +72,12 @@ services = ApplicationServices(
         window_seconds=settings.rate_limit_window_seconds,
     ),
     connectivity=ConnectivityService(
-        brain=XAIConnectivityProbe(settings),
+        brain=[
+            XAIConnectivityProbe(settings),
+            DeepSeekConnectivityProbe(settings),
+            GeminiConnectivityProbe(settings),
+        ],
+        default_brain_provider=settings.llm_provider,
         stt=ElevenLabsConnectivityProbe(settings, capabilities=("realtime_scribe",)),
         tts=[ElevenLabsConnectivityProbe(settings, capabilities=("tts_websocket",))],
         default_tts_provider=settings.default_tts_provider,
