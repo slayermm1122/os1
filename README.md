@@ -4,16 +4,15 @@
 
 OS1 replaces the usual chat box with a single live voice surface. Start once, speak naturally, pause when you are done, and hear the reply as it is generated. The interface stays deliberately quiet so the conversation—not the machinery—remains the focus.
 
-![OS1 live voice interface](https://cdn.jsdelivr.net/gh/slayermm1122/os1@fbbe23dc4d473375c16030a58b39516b8e72643b/docs/assets/os1-home.jpg)
+![OS1 live voice interface](docs/assets/os1-home.jpg)
 
 ## Why OS1
 
-- **One continuous conversation.** Voice activity detection closes each turn automatically while the realtime session stays open for the next one.
-- **Low-latency speech.** Transcription, model output, and speech are streamed end to end instead of waiting for a complete response at every stage.
-- **Natural interruption.** Full-duplex barge-in stops queued speech and keeps only the part of the reply that was actually heard.
+- **Natural conversation.** OS1 keeps one live session open, detects when you finish speaking, streams each reply end to end, and lets you interrupt naturally.
 - **A choice of brains.** Switch between Grok, DeepSeek, and Gemini from the interface; the next response uses the newly selected model.
+- **Name your own AI.** Give your assistant a name, tell it yours, and choose a default, concise, or conversational response style.
 - **A voice you can shape.** Choose from ElevenLabs voices, set the reply language, tune listening sensitivity, and teach OS1 uncommon terms or spoken aliases.
-- **A presence, not a dashboard.** Eight responsive motion systems, synchronized captions, conversation bubbles, and restrained state changes make the assistant feel alive without making it loud.
+- **Choose its look.** Pick from eight responsive orb motions, each giving your AI a different visual character.
 - **Local control.** Provider keys and core settings stay on your machine; secrets are never returned to the browser.
 
 ![OS1 motion selection](https://cdn.jsdelivr.net/gh/slayermm1122/os1@fbbe23dc4d473375c16030a58b39516b8e72643b/docs/assets/os1-motion.jpg)
@@ -75,16 +74,7 @@ SQLite needs no separate installation or setup. Python includes the driver, and 
 
 ## How it works
 
-```mermaid
-flowchart LR
-    A["Browser microphone"] -->|"PCM over WebSocket"| B["Realtime Scribe STT"]
-    B --> C["Grok · DeepSeek · Gemini"]
-    C -->|"streaming text"| D["ElevenLabs TTS"]
-    D -->|"PCM + alignment"| E["Audio playback and captions"]
-    B -.-> F[("Local SQLite metrics")]
-    C -.-> F
-    D -.-> F
-```
+![How OS1 turns speech into a live voice response](docs/assets/os1-flow.svg)
 
 One browser-to-backend WebSocket carries the live session. Scribe remains connected across turns, the selected language model streams its response, and a preconnected multi-context TTS socket begins playback before the full answer is complete.
 

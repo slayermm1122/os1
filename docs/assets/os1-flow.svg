@@ -1,0 +1,81 @@
+<svg width="1280" height="720" viewBox="0 0 1280 720" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title description">
+  <title id="title">How OS1 works</title>
+  <desc id="description">A live voice pipeline from the browser microphone through realtime transcription, a selected language model, streaming speech, and synchronized playback, with local SQLite metrics.</desc>
+
+  <defs>
+    <linearGradient id="room" x1="80" y1="60" x2="1200" y2="680" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5F1710"/>
+      <stop offset="0.48" stop-color="#B53220"/>
+      <stop offset="1" stop-color="#FB6A3D"/>
+    </linearGradient>
+    <radialGradient id="sunset" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(644 358) rotate(90) scale(330 520)">
+      <stop stop-color="#FFD99C" stop-opacity="0.16"/>
+      <stop offset="0.62" stop-color="#FBC49A" stop-opacity="0.04"/>
+      <stop offset="1" stop-color="#5F1710" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="softGlow" x="-30%" y="-50%" width="160%" height="200%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="12"/>
+    </filter>
+    <filter id="nodeDepth" x="-20%" y="-30%" width="140%" height="160%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="14" stdDeviation="22" flood-color="#3B0805" flood-opacity="0.16"/>
+    </filter>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+      <path d="M1 1L7 4L1 7" stroke="#FFF6EC" stroke-opacity="0.52" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <rect width="1280" height="720" rx="18" fill="url(#room)"/>
+  <rect width="1280" height="720" rx="18" fill="url(#sunset)"/>
+
+  <text x="70" y="74" fill="#FFF6EC" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="20" font-weight="600">OS1</text>
+  <text x="1210" y="73" fill="#FFF6EC" fill-opacity="0.56" text-anchor="end" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="13">one live session</text>
+
+  <path d="M240 342H292" stroke="#FFF6EC" stroke-opacity="0.36" stroke-width="1.25" marker-end="url(#arrow)"/>
+  <path d="M476 342H528" stroke="#FFF6EC" stroke-opacity="0.36" stroke-width="1.25" marker-end="url(#arrow)"/>
+  <path d="M752 342H804" stroke="#FFF6EC" stroke-opacity="0.36" stroke-width="1.25" marker-end="url(#arrow)"/>
+  <path d="M988 342H1040" stroke="#FFF6EC" stroke-opacity="0.36" stroke-width="1.25" marker-end="url(#arrow)"/>
+
+  <g filter="url(#nodeDepth)">
+    <rect x="56" y="264" width="184" height="156" rx="12" fill="#FFF6EC" fill-opacity="0.055" stroke="#FFF6EC" stroke-opacity="0.18"/>
+    <rect x="292" y="264" width="184" height="156" rx="12" fill="#FFF6EC" fill-opacity="0.055" stroke="#FFF6EC" stroke-opacity="0.18"/>
+    <rect x="528" y="250" width="224" height="184" rx="14" fill="#FFF6EC" fill-opacity="0.075" stroke="#FFE49C" stroke-opacity="0.32"/>
+    <rect x="804" y="264" width="184" height="156" rx="12" fill="#FFF6EC" fill-opacity="0.055" stroke="#FFF6EC" stroke-opacity="0.18"/>
+    <rect x="1040" y="264" width="184" height="156" rx="12" fill="#FFF6EC" fill-opacity="0.055" stroke="#FFF6EC" stroke-opacity="0.18"/>
+  </g>
+
+  <circle cx="148" cy="303" r="4" fill="#A3FFE4" fill-opacity="0.82"/>
+  <text x="148" y="341" fill="#FFF6EC" text-anchor="middle" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="17" font-weight="500">Your voice</text>
+  <text x="148" y="369" fill="#FFF6EC" fill-opacity="0.5" text-anchor="middle" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12">Browser microphone</text>
+  <text x="148" y="389" fill="#FFF6EC" fill-opacity="0.38" text-anchor="middle" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="11">PCM · WebSocket</text>
+
+  <circle cx="384" cy="303" r="4" fill="#A3FFE4" fill-opacity="0.68"/>
+  <text x="384" y="341" fill="#FFF6EC" text-anchor="middle" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="17" font-weight="500">Scribe</text>
+  <text x="384" y="369" fill="#FFF6EC" fill-opacity="0.5" text-anchor="middle" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12">Realtime speech to text</text>
+  <text x="384" y="389" fill="#FFF6EC" fill-opacity="0.38" text-anchor="middle" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="11">VAD · word timing</text>
+
+  <circle cx="640" cy="295" r="34" fill="#FFE49C" fill-opacity="0.03" stroke="#FFE49C" stroke-opacity="0.18"/>
+  <circle cx="640" cy="295" r="5" fill="#FFE49C" fill-opacity="0.88"/>
+  <circle cx="640" cy="295" r="18" fill="#FFE49C" fill-opacity="0.12" filter="url(#softGlow)"/>
+  <text x="640" y="352" fill="#FFF6EC" text-anchor="middle" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="19" font-weight="500">The brain you choose</text>
+  <text x="640" y="383" fill="#FFF6EC" fill-opacity="0.56" text-anchor="middle" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12">Grok · DeepSeek · Gemini</text>
+  <text x="640" y="404" fill="#FFF6EC" fill-opacity="0.38" text-anchor="middle" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="11">streaming response</text>
+
+  <circle cx="896" cy="303" r="4" fill="#FFE49C" fill-opacity="0.72"/>
+  <text x="896" y="341" fill="#FFF6EC" text-anchor="middle" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="17" font-weight="500">ElevenLabs</text>
+  <text x="896" y="369" fill="#FFF6EC" fill-opacity="0.5" text-anchor="middle" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12">Streaming speech</text>
+  <text x="896" y="389" fill="#FFF6EC" fill-opacity="0.38" text-anchor="middle" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="11">PCM · alignment</text>
+
+  <circle cx="1132" cy="303" r="4" fill="#FFE49C" fill-opacity="0.82"/>
+  <text x="1132" y="341" fill="#FFF6EC" text-anchor="middle" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="17" font-weight="500">You hear it</text>
+  <text x="1132" y="369" fill="#FFF6EC" fill-opacity="0.5" text-anchor="middle" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12">Audio playback</text>
+  <text x="1132" y="389" fill="#FFF6EC" fill-opacity="0.38" text-anchor="middle" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="11">synchronized captions</text>
+
+  <path d="M384 420V515H896V420" stroke="#FFF6EC" stroke-opacity="0.14" stroke-width="1" stroke-dasharray="3 7"/>
+  <path d="M640 434V515" stroke="#FFF6EC" stroke-opacity="0.14" stroke-width="1" stroke-dasharray="3 7"/>
+  <rect x="508" y="494" width="264" height="56" rx="10" fill="#5F1710" fill-opacity="0.18" stroke="#FFF6EC" stroke-opacity="0.12"/>
+  <circle cx="538" cy="522" r="3" fill="#FFF6EC" fill-opacity="0.38"/>
+  <text x="557" y="519" fill="#FFF6EC" fill-opacity="0.64" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="13" font-weight="500">Local SQLite metrics</text>
+  <text x="557" y="538" fill="#FFF6EC" fill-opacity="0.34" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="10">latency · usage · status · errors</text>
+
+  <text x="640" y="640" fill="#FFF6EC" fill-opacity="0.36" text-anchor="middle" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12">Speech begins before the full answer is complete.</text>
+</svg>
