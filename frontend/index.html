@@ -218,6 +218,34 @@
         z-index: 1;
       }
 
+      .motion-canvas {
+        position: absolute;
+        inset: -25%;
+        width: 150%;
+        height: 150%;
+        display: none;
+        pointer-events: none;
+        z-index: 1;
+      }
+
+      body.has-orb-motion .orb::before {
+        opacity: 0;
+      }
+
+      body.has-orb-motion .orb .bars {
+        display: none;
+      }
+
+      body.has-orb-motion .motion-canvas {
+        display: block;
+      }
+
+      body.has-orb-motion .orb:not(:disabled):hover {
+        border-color: transparent;
+        background: transparent;
+        box-shadow: none;
+      }
+
       .orb:not(:disabled):hover {
         border-color: rgba(255, 246, 236, 0.34);
         background: rgba(255, 246, 236, 0.07);
@@ -239,6 +267,10 @@
 
       .orb:disabled {
         cursor: default;
+      }
+
+      .orb:focus {
+        outline: none;
       }
 
       body.keys-missing .orb,
@@ -292,14 +324,12 @@
           0 28px 100px rgba(72, 13, 8, 0.28);
       }
 
-      body.is-thinking .orb {
-        border-color: rgba(255, 246, 236, 0.28);
-        --orb-glow-opacity: 0.7;
-        box-shadow:
-          inset 0 0 96px rgba(255, 246, 236, 0.12),
-          0 0 32px rgba(255, 246, 236, 0.08),
-          0 0 72px rgba(255, 220, 180, 0.04),
-          0 28px 100px rgba(72, 13, 8, 0.26);
+      /* Canvas concepts own their silhouette. This must follow every orb state
+         rule so recording/speaking cannot restore the original button shell. */
+      body.has-orb-motion .orb {
+        border-color: transparent;
+        background: transparent;
+        box-shadow: none;
       }
 
       .bars {
@@ -335,12 +365,6 @@
         opacity: 0.9;
       }
 
-      body.is-thinking .bar {
-        animation: thinkingPulse 1500ms ease-in-out infinite;
-        background: rgba(255, 246, 236, 0.8);
-        opacity: 0.84;
-      }
-
       body.is-speaking .bar:nth-child(2) { animation-delay: 80ms; }
       body.is-speaking .bar:nth-child(3) { animation-delay: 160ms; }
       body.is-speaking .bar:nth-child(4) { animation-delay: 240ms; }
@@ -349,23 +373,10 @@
       body.is-speaking .bar:nth-child(7) { animation-delay: 480ms; }
       body.is-speaking .bar:nth-child(8) { animation-delay: 560ms; }
 
-      body.is-thinking .bar:nth-child(2) { animation-delay: 70ms; }
-      body.is-thinking .bar:nth-child(3) { animation-delay: 140ms; }
-      body.is-thinking .bar:nth-child(4) { animation-delay: 210ms; }
-      body.is-thinking .bar:nth-child(5) { animation-delay: 280ms; }
-      body.is-thinking .bar:nth-child(6) { animation-delay: 350ms; }
-      body.is-thinking .bar:nth-child(7) { animation-delay: 420ms; }
-      body.is-thinking .bar:nth-child(8) { animation-delay: 490ms; }
-
       /* Small, calm motion while the assistant is talking — not a full-height dance. */
       @keyframes speakPulse {
         0%, 100% { height: 16px; opacity: 0.72; }
         50% { height: 34px; opacity: 0.95; }
-      }
-
-      @keyframes thinkingPulse {
-        0%, 100% { height: 16px; opacity: 0.58; }
-        50% { height: 28px; opacity: 0.9; }
       }
 
       @media (prefers-reduced-motion: reduce) {
@@ -375,7 +386,6 @@
           transition: none;
         }
         body.is-speaking .bar,
-        body.is-thinking .bar,
         body.is-recording .bar {
           animation: none;
         }
@@ -383,20 +393,28 @@
 
       .hint-line {
         position: absolute;
-        bottom: 28px;
+        bottom: 0;
         left: 50%;
         width: calc(100% - 48px);
         transform: translateX(-50%);
         min-height: 20px;
-        color: rgba(255, 246, 236, 0.56);
+        color: rgba(255, 246, 236, 0.42);
         font-size: 13px;
+        line-height: 1.35;
         text-align: center;
         pointer-events: none;
       }
 
       .hint-line.is-personalized {
-        bottom: 34px;
-        line-height: 1.35;
+        bottom: 0;
+      }
+
+      .hint-line.is-session-active {
+        color: rgba(255, 246, 236, 0.3);
+      }
+
+      .orb:focus-visible .hint-line {
+        color: rgba(255, 246, 236, 0.52);
       }
 
       .conversation-panel {
@@ -1204,6 +1222,84 @@
         animation: sidebarContentIn 160ms ease both;
       }
 
+      .motion-options {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px 12px;
+        margin-top: 18px;
+        padding: 4px 2px 8px;
+      }
+
+      .motion-choice {
+        appearance: none;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 7px;
+        min-width: 0;
+        width: 100%;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: rgba(255, 246, 236, 0.46);
+        font: inherit;
+        text-align: center;
+        cursor: pointer;
+        transition: color 170ms ease, transform 170ms ease;
+      }
+
+      .motion-choice:hover,
+      .motion-choice:focus-visible {
+        color: rgba(255, 246, 236, 0.82);
+        transform: scale(1.025);
+        outline: none;
+      }
+
+      .motion-choice.is-selected {
+        color: rgba(255, 246, 236, 0.96);
+        transform: scale(1.055);
+      }
+
+      .motion-choice-name {
+        display: block;
+        max-width: 100%;
+        overflow: hidden;
+        font-size: 10px;
+        font-weight: 450;
+        line-height: 1.2;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .motion-thumbnail {
+        display: block;
+        width: 100%;
+        aspect-ratio: 1;
+        border: 1px solid rgba(255, 246, 236, 0.07);
+        border-radius: 8px;
+        background: rgba(73, 13, 9, 0.24);
+        box-shadow: inset 0 0 22px rgba(255, 205, 160, 0.025);
+        opacity: 0.64;
+        transition: opacity 170ms ease, border-color 170ms ease, box-shadow 170ms ease;
+      }
+
+      .motion-choice:hover .motion-thumbnail,
+      .motion-choice:focus-visible .motion-thumbnail {
+        border-color: rgba(255, 213, 170, 0.16);
+        box-shadow:
+          inset 0 0 24px rgba(255, 205, 160, 0.05),
+          0 0 18px rgba(255, 147, 90, 0.08);
+        opacity: 0.9;
+      }
+
+      .motion-choice.is-selected .motion-thumbnail {
+        border-color: rgba(255, 220, 180, 0.25);
+        box-shadow:
+          inset 0 0 26px rgba(255, 221, 180, 0.08),
+          0 0 22px rgba(255, 148, 88, 0.14);
+        opacity: 1;
+      }
+
       .sidebar-view-header {
         margin-bottom: 8px;
       }
@@ -1722,6 +1818,7 @@
           Configure API keys in .env
         </button>
         <button id="talkButton" class="orb" type="button" aria-label="开始录音">
+          <canvas id="motionCanvas" class="motion-canvas" aria-hidden="true"></canvas>
           <div class="bars" aria-hidden="true">
             <div class="bar"></div>
             <div class="bar"></div>
@@ -1751,10 +1848,55 @@
       <nav id="brandMenu" class="brand-menu" aria-label="Settings">
         <button id="menuPersona" class="menu-item" type="button">Persona</button>
         <button id="menuVoice" class="menu-item" type="button">Voice</button>
+        <button id="menuMotion" class="menu-item" type="button">Motion</button>
         <button id="menuPronunciation" class="menu-item" type="button">Pronunciation</button>
         <button id="menuUsage" class="menu-item" type="button">Usage</button>
         <button id="menuApiKey" class="menu-item" type="button">API Key</button>
       </nav>
+
+      <section id="motionModal" class="settings-modal sidebar-view" hidden aria-labelledby="motionTitle">
+        <div class="sidebar-view-header">
+          <button id="motionClose" class="sidebar-back" type="button" aria-label="Back to settings">←</button>
+          <h2 id="motionTitle" class="modal-title">Motion</h2>
+        </div>
+        <section class="provider-section">
+          <div class="provider-title">Presence</div>
+          <div id="motionOptions" class="motion-options" role="radiogroup" aria-label="Orb motion">
+            <button class="motion-choice is-selected" type="button" role="radio" aria-label="Wave" aria-checked="true" data-motion="wave">
+              <canvas class="motion-thumbnail" width="76" height="76" aria-hidden="true"></canvas>
+              <span class="motion-choice-name">Wave</span>
+            </button>
+            <button class="motion-choice" type="button" role="radio" aria-label="Plasma" aria-checked="false" data-motion="plasma">
+              <canvas class="motion-thumbnail" width="76" height="76" aria-hidden="true"></canvas>
+              <span class="motion-choice-name">Plasma</span>
+            </button>
+            <button class="motion-choice" type="button" role="radio" aria-label="Halo" aria-checked="false" data-motion="halo">
+              <canvas class="motion-thumbnail" width="76" height="76" aria-hidden="true"></canvas>
+              <span class="motion-choice-name">Halo</span>
+            </button>
+            <button class="motion-choice" type="button" role="radio" aria-label="Swarm" aria-checked="false" data-motion="swarm">
+              <canvas class="motion-thumbnail" width="76" height="76" aria-hidden="true"></canvas>
+              <span class="motion-choice-name">Swarm</span>
+            </button>
+            <button class="motion-choice" type="button" role="radio" aria-label="Flux" aria-checked="false" data-motion="flux">
+              <canvas class="motion-thumbnail" width="76" height="76" aria-hidden="true"></canvas>
+              <span class="motion-choice-name">Flux</span>
+            </button>
+            <button class="motion-choice" type="button" role="radio" aria-label="Prism" aria-checked="false" data-motion="prism">
+              <canvas class="motion-thumbnail" width="76" height="76" aria-hidden="true"></canvas>
+              <span class="motion-choice-name">Prism</span>
+            </button>
+            <button class="motion-choice" type="button" role="radio" aria-label="Tide" aria-checked="false" data-motion="tide">
+              <canvas class="motion-thumbnail" width="76" height="76" aria-hidden="true"></canvas>
+              <span class="motion-choice-name">Tide</span>
+            </button>
+            <button class="motion-choice" type="button" role="radio" aria-label="Resonance" aria-checked="false" data-motion="resonance">
+              <canvas class="motion-thumbnail" width="76" height="76" aria-hidden="true"></canvas>
+              <span class="motion-choice-name">Resonance</span>
+            </button>
+          </div>
+        </section>
+      </section>
 
       <section id="personaModal" class="settings-modal sidebar-view" hidden aria-labelledby="personaTitle">
         <div class="sidebar-view-header">
@@ -1968,9 +2110,11 @@
       const menuPersona = document.querySelector("#menuPersona");
       const menuApiKey = document.querySelector("#menuApiKey");
       const menuVoice = document.querySelector("#menuVoice");
+      const menuMotion = document.querySelector("#menuMotion");
       const menuPronunciation = document.querySelector("#menuPronunciation");
       const menuUsage = document.querySelector("#menuUsage");
       const talkButton = document.querySelector("#talkButton");
+      const motionCanvas = document.querySelector("#motionCanvas");
       const keyPrompt = document.querySelector("#keyPrompt");
       const settingsModal = document.querySelector("#settingsModal");
       const settingsClose = document.querySelector("#settingsClose");
@@ -1985,6 +2129,9 @@
       const savePersonaButton = document.querySelector("#savePersonaButton");
       const voiceModal = document.querySelector("#voiceModal");
       const voiceClose = document.querySelector("#voiceClose");
+      const motionModal = document.querySelector("#motionModal");
+      const motionClose = document.querySelector("#motionClose");
+      const motionChoices = Array.from(document.querySelectorAll(".motion-choice"));
       const saveVoiceButton = document.querySelector("#saveVoiceButton");
       const voiceList = document.querySelector("#voiceList");
       const voiceLibraryStatus = document.querySelector("#voiceLibraryStatus");
@@ -2023,6 +2170,7 @@
       const player = document.querySelector("#player");
       let userBubbleEl = null;
       let aiBubbleEl = null;
+      let selectedMotion = "wave";
       const vadSilenceSlider = document.querySelector("#vadSilenceSlider");
       const vadSilenceValue = document.querySelector("#vadSilenceValue");
       const vadThresholdSlider = document.querySelector("#vadThresholdSlider");
@@ -2037,6 +2185,16 @@
       const VAD_THRESHOLD_MIN = 0.1;
       const VAD_THRESHOLD_MAX = 0.9;
       const VAD_THRESHOLD_DEFAULT = 0.4;
+      const MOTION_CONCEPTS = [
+        "wave",
+        "plasma",
+        "halo",
+        "swarm",
+        "flux",
+        "prism",
+        "tide",
+        "resonance",
+      ];
 
       let recorder = null;
       let mediaStream = null;
@@ -2090,9 +2248,12 @@
       let usageRange = "7d";
       let usageRequestId = 0;
       const voicePreviewPlayer = new Audio();
+      const orbMotion = createOrbMotion(motionCanvas);
+      const motionPreviews = createMotionPreviews(motionChoices);
 
       loadVadSettingsIntoUi();
       loadVoiceSettingsIntoUi();
+      loadMotionPreference();
       setHint("idle");
       void refreshConnectivity();
 
@@ -2117,6 +2278,9 @@
       menuVoice.addEventListener("click", () => {
         openVoiceModal();
       });
+      menuMotion.addEventListener("click", () => {
+        openMotionModal();
+      });
       menuPronunciation.addEventListener("click", () => {
         void openPronunciationModal();
       });
@@ -2139,9 +2303,13 @@
       for (const choice of voiceLanguageChoices) {
         choice.addEventListener("click", () => void setResponseLanguage(choice.dataset.language));
       }
+      for (const choice of motionChoices) {
+        choice.addEventListener("click", () => setMotion(choice.dataset.motion));
+      }
       settingsClose.addEventListener("click", closeSettingsModal);
       personaClose.addEventListener("click", closePersonaModal);
       voiceClose.addEventListener("click", closeVoiceModal);
+      motionClose.addEventListener("click", closeMotionModal);
       pronunciationClose.addEventListener("click", closePronunciationModal);
       usageClose.addEventListener("click", closeUsageModal);
       saveKeytermsButton.addEventListener("click", () => void saveKeyterms());
@@ -2839,6 +3007,11 @@
         }
 
         const audioContext = new AudioContextCtor();
+        const outputAnalyser = audioContext.createAnalyser();
+        outputAnalyser.fftSize = 256;
+        outputAnalyser.smoothingTimeConstant = 0.62;
+        outputAnalyser.connect(audioContext.destination);
+        orbMotion.setOutputAnalyser(outputAnalyser);
         let nextStartTime = 0;
         let captionStartTime = 0;
         let hasAudio = false;
@@ -2866,7 +3039,7 @@
           sources.add(source);
           source.addEventListener("ended", () => sources.delete(source), { once: true });
           source.buffer = audioBuffer;
-          source.connect(audioContext.destination);
+          source.connect(outputAnalyser);
 
           const startAt = Math.max(audioContext.currentTime + 0.035, nextStartTime);
           if (!hasAudio) captionStartTime = startAt;
@@ -2884,6 +3057,7 @@
           if (playbackEnded) return;
           playbackEnded = true;
           captionTimeline.stop();
+          orbMotion.clearOutputAnalyser(outputAnalyser);
           onPlaybackEnded();
           setState(liveActive ? "recording" : "idle");
         }
@@ -2913,6 +3087,7 @@
             try { source.stop(); } catch (_) {}
           }
           sources.clear();
+          orbMotion.clearOutputAnalyser(outputAnalyser);
           try { await audioContext.close(); } catch (_) {}
         }
 
@@ -3429,12 +3604,14 @@
       }
 
       function setHint(next) {
-        if (next === "recording") {
-          hintEl.textContent = "Listening · tap to end";
+        if (liveActive) {
+          hintEl.textContent = "Tap to stop the session";
           hintEl.classList.remove("is-personalized");
+          hintEl.classList.add("is-session-active");
           hintEl.hidden = false;
           return;
         }
+        hintEl.classList.remove("is-session-active");
         if (["idle", "preconnected", "disconnected"].includes(next)) {
           const assistantName = String(savedPersona.assistantName || "").trim();
           const chineseVoice = responseLanguageMode === "zh";
@@ -3453,6 +3630,1190 @@
         }
         hintEl.classList.remove("is-personalized");
         hintEl.hidden = true;
+      }
+
+      function loadMotionPreference() {
+        let saved = "wave";
+        try {
+          saved = window.localStorage.getItem("os1.motion") || saved;
+        } catch (_) {
+          // Local storage can be unavailable in hardened browser modes.
+        }
+        // Preserve the original selection after Minimalism was renamed to Wave.
+        if (saved === "minimalism") saved = "wave";
+        setMotion(saved, { persist: false });
+      }
+
+      function setMotion(next, { persist = true } = {}) {
+        if (next === "minimalism") next = "wave";
+        selectedMotion = MOTION_CONCEPTS.includes(next) ? next : "wave";
+        document.body.classList.add("has-orb-motion");
+        document.body.dataset.motion = selectedMotion;
+        for (const choice of motionChoices) {
+          const selected = choice.dataset.motion === selectedMotion;
+          choice.classList.toggle("is-selected", selected);
+          choice.setAttribute("aria-checked", String(selected));
+        }
+        orbMotion.setConcept(selectedMotion);
+        orbMotion.setEnabled(true);
+        motionPreviews.refresh();
+        if (persist) {
+          try {
+            window.localStorage.setItem("os1.motion", selectedMotion);
+          } catch (_) {
+            // The selection still applies for this session.
+          }
+        }
+      }
+
+      function createOrbMotion(canvas) {
+        const mainContext = canvas.getContext("2d");
+        const renderCanvas = document.createElement("canvas");
+        const renderContext = renderCanvas.getContext("2d");
+        const transitionCanvas = document.createElement("canvas");
+        const transitionContext = transitionCanvas.getContext("2d");
+        let context = mainContext;
+        const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+        const PHASE_TRANSITION_MS = 420;
+        let enabled = false;
+        let concept = "halo";
+        let phase = "resting";
+        let inputLevel = 0;
+        let speechDetected = false;
+        let quietSince = 0;
+        let levelBins = null;
+        let outputAnalyser = null;
+        let outputBins = null;
+        let outputLevel = 0;
+        let phaseStartedAt = performance.now();
+        let frame = 0;
+        let lastFrameAt = performance.now();
+        let transitionStartedAt = -Infinity;
+        let transitionActive = false;
+        let width = 0;
+        let height = 0;
+        let pixelRatio = 1;
+
+        const clamp01 = (value) => Math.min(1, Math.max(0, value));
+        const resize = () => {
+          const bounds = canvas.getBoundingClientRect();
+          if (!bounds.width || !bounds.height) return false;
+          const nextRatio = Math.min(2, window.devicePixelRatio || 1);
+          const nextWidth = Math.round(bounds.width * nextRatio);
+          const nextHeight = Math.round(bounds.height * nextRatio);
+          if (canvas.width !== nextWidth || canvas.height !== nextHeight) {
+            canvas.width = nextWidth;
+            canvas.height = nextHeight;
+            renderCanvas.width = nextWidth;
+            renderCanvas.height = nextHeight;
+            transitionCanvas.width = nextWidth;
+            transitionCanvas.height = nextHeight;
+            transitionActive = false;
+          }
+          width = bounds.width;
+          height = bounds.height;
+          pixelRatio = nextRatio;
+          return true;
+        };
+
+        const readVisualPhase = (now, elapsed) => {
+          if (state === "speaking") return "ai_speaking";
+          if (state === "thinking" || state === "processing") {
+            speechDetected = false;
+            quietSince = 0;
+            const release = 1 - Math.pow(0.05, elapsed / 1000);
+            inputLevel += (0 - inputLevel) * release;
+            return "listening";
+          }
+          if (state !== "recording") {
+            speechDetected = false;
+            quietSince = 0;
+            inputLevel = 0;
+            return "resting";
+          }
+          let rawLevel = 0;
+          if (micAnalyser) {
+            if (!levelBins || levelBins.length !== micAnalyser.frequencyBinCount) {
+              levelBins = new Uint8Array(micAnalyser.frequencyBinCount);
+            }
+            micAnalyser.getByteFrequencyData(levelBins);
+            const firstBin = Math.min(3, levelBins.length);
+            for (let index = firstBin; index < levelBins.length; index += 1) {
+              rawLevel += levelBins[index];
+            }
+            rawLevel /= Math.max(1, levelBins.length - firstBin) * 255;
+          }
+          const targetLevel = clamp01((rawLevel - 0.025) * 4.6);
+          const response = 1 - Math.pow(0.001, elapsed / 1000);
+          inputLevel += (targetLevel - inputLevel) * response;
+          if (rawLevel >= 0.045) {
+            speechDetected = true;
+            quietSince = 0;
+          } else if (speechDetected) {
+            if (!quietSince) quietSince = now;
+            if (now - quietSince >= 320) {
+              speechDetected = false;
+              quietSince = 0;
+            }
+          }
+          return speechDetected ? "user_speaking" : "listening";
+        };
+
+        const readOutputLevel = (elapsed) => {
+          if (!outputAnalyser) {
+            outputLevel = 0;
+            return 0;
+          }
+          if (!outputBins || outputBins.length !== outputAnalyser.fftSize) {
+            outputBins = new Uint8Array(outputAnalyser.fftSize);
+          }
+          outputAnalyser.getByteTimeDomainData(outputBins);
+          let energy = 0;
+          for (const value of outputBins) {
+            const centered = (value - 128) / 128;
+            energy += centered * centered;
+          }
+          const rms = Math.sqrt(energy / Math.max(1, outputBins.length));
+          const target = clamp01((rms - 0.008) * 5.8);
+          const response = 1 - Math.pow(target > outputLevel ? 0.0004 : 0.035, elapsed / 1000);
+          outputLevel += (target - outputLevel) * response;
+          return outputLevel;
+        };
+
+        const drawWave = (centerX, centerY, radius, intensity, time) => {
+          const userSpeaking = phase === "user_speaking";
+          const aiSpeaking = phase === "ai_speaking";
+          const listening = phase === "listening";
+          const active = listening || userSpeaking || aiSpeaking;
+          const calmIntensity = userSpeaking
+            ? 0.16 + intensity * 0.5
+            : aiSpeaking
+              ? 0.14 + intensity * 0.38
+              : intensity;
+          const amplitude = radius * (
+            userSpeaking ? 0.035 + calmIntensity * 0.15
+              : aiSpeaking ? 0.026 + calmIntensity * 0.095
+                : listening ? 0.022 : 0.014
+          );
+          const speed = userSpeaking
+            ? 0.00072 + calmIntensity * 0.00042
+            : aiSpeaking
+              ? 0.00042 + calmIntensity * 0.00024
+              : listening ? 0.00028 : 0;
+          const reach = radius * 0.91;
+          const layerSpread = userSpeaking
+            ? 0.62 - calmIntensity * 0.12
+            : aiSpeaking ? 1.22 + calmIntensity * 0.28 : 1;
+          const layers = [
+            { offset: -0.13, scale: 0.54, alpha: 0.16, width: 0.58, phase: 2.6 },
+            { offset: -0.065, scale: 0.72, alpha: 0.3, width: 0.72, phase: 1.25 },
+            { offset: 0, scale: 1, alpha: 0.74, width: 1.12, phase: 0 },
+            { offset: 0.065, scale: 0.68, alpha: 0.28, width: 0.7, phase: -1.1 },
+            { offset: 0.13, scale: 0.5, alpha: 0.14, width: 0.56, phase: -2.4 },
+          ];
+
+          context.save();
+          context.globalCompositeOperation = "screen";
+          context.beginPath();
+          context.arc(centerX, centerY, radius * 0.93, 0, Math.PI * 2);
+          context.clip();
+          for (const layer of layers) {
+            context.beginPath();
+            const pointCount = 120;
+            for (let index = 0; index <= pointCount; index += 1) {
+              const progress = index / pointCount;
+              const x = centerX - reach + progress * reach * 2;
+              const envelope = Math.pow(Math.sin(progress * Math.PI), 1.7);
+              const drift = active ? time * speed : 0;
+              const sideDirection = progress < 0.5 ? 1 : -1;
+              const directedDrift = userSpeaking
+                ? drift * sideDirection
+                : aiSpeaking ? -drift * sideDirection : drift;
+              const primary = Math.sin(progress * Math.PI * 5 + directedDrift + layer.phase);
+              const detail = Math.sin(progress * Math.PI * 10.5 - directedDrift * 0.72 + layer.phase * 0.55) * 0.22;
+              const breath = listening ? Math.sin(time * 0.0009 + layer.phase) * radius * 0.004 : 0;
+              const verticalOffset = layer.offset * radius * layerSpread;
+              const y = centerY + verticalOffset + (primary + detail) * amplitude * layer.scale * envelope + breath;
+              if (index === 0) context.moveTo(x, y);
+              else context.lineTo(x, y);
+            }
+            context.shadowColor = "rgba(255, 174, 109, 0.58)";
+            context.shadowBlur = 3 + calmIntensity * 8;
+            context.strokeStyle = `rgba(255, 226, 190, ${layer.alpha + calmIntensity * 0.1})`;
+            context.lineWidth = layer.width + calmIntensity * 0.32;
+            context.stroke();
+          }
+          context.restore();
+
+          // This is Wave's own boundary, distinct from the larger button shell.
+          context.save();
+          context.strokeStyle = `rgba(255, 230, 199, ${0.25 + calmIntensity * 0.16})`;
+          context.lineWidth = 0.9;
+          context.shadowColor = "rgba(255, 157, 94, 0.55)";
+          context.shadowBlur = 7 + calmIntensity * 8;
+          context.beginPath();
+          context.arc(centerX, centerY, radius, 0, Math.PI * 2);
+          context.stroke();
+          context.restore();
+        };
+
+        const drawSphere = (centerX, centerY, radius, intensity, time) => {
+          const disabled = document.body.classList.contains("keys-missing")
+            || document.body.classList.contains("providers-unavailable");
+          const availability = disabled ? 0.42 : 1;
+          const activeLift = phase === "resting" ? 0 : 0.12 + intensity * 0.22;
+
+          context.save();
+          context.globalAlpha = availability;
+          const aura = context.createRadialGradient(
+            centerX,
+            centerY,
+            radius * 0.2,
+            centerX,
+            centerY,
+            radius * 1.8,
+          );
+          aura.addColorStop(0, `rgba(255, 222, 178, ${0.13 + activeLift})`);
+          aura.addColorStop(0.46, `rgba(255, 124, 76, ${0.08 + intensity * 0.1})`);
+          aura.addColorStop(1, "rgba(116, 25, 17, 0)");
+          context.fillStyle = aura;
+          context.beginPath();
+          context.arc(centerX, centerY, radius * 1.8, 0, Math.PI * 2);
+          context.fill();
+
+          const body = context.createRadialGradient(
+            centerX - radius * 0.28,
+            centerY - radius * 0.32,
+            radius * 0.08,
+            centerX,
+            centerY,
+            radius * 1.04,
+          );
+          body.addColorStop(0, `rgba(255, 241, 218, ${0.68 + intensity * 0.14})`);
+          body.addColorStop(0.16, `rgba(255, 184, 124, ${0.55 + intensity * 0.16})`);
+          body.addColorStop(0.56, `rgba(211, 75, 47, ${0.34 + intensity * 0.12})`);
+          body.addColorStop(0.84, "rgba(117, 27, 21, 0.28)");
+          body.addColorStop(1, "rgba(255, 199, 144, 0.5)");
+          context.fillStyle = body;
+          context.beginPath();
+          context.arc(centerX, centerY, radius, 0, Math.PI * 2);
+          context.fill();
+
+          const innerGlow = context.createRadialGradient(
+            centerX,
+            centerY,
+            0,
+            centerX,
+            centerY,
+            radius,
+          );
+          innerGlow.addColorStop(0, `rgba(255, 215, 164, ${0.07 + intensity * 0.2})`);
+          innerGlow.addColorStop(0.72, "rgba(255, 150, 98, 0.03)");
+          innerGlow.addColorStop(1, "rgba(255, 235, 208, 0.16)");
+          context.fillStyle = innerGlow;
+          context.beginPath();
+          context.arc(centerX, centerY, radius * 0.94, 0, Math.PI * 2);
+          context.fill();
+
+          context.shadowColor = `rgba(255, 196, 132, ${0.48 + intensity * 0.28})`;
+          context.shadowBlur = 14 + intensity * 16;
+          context.strokeStyle = `rgba(255, 229, 198, ${0.52 + intensity * 0.23})`;
+          context.lineWidth = 1.15 + intensity * 0.75;
+          context.beginPath();
+          context.arc(centerX, centerY, radius - 1, 0, Math.PI * 2);
+          context.stroke();
+
+          context.shadowBlur = 0;
+          context.strokeStyle = `rgba(255, 247, 232, ${0.22 + intensity * 0.17})`;
+          context.lineWidth = 0.75;
+          context.beginPath();
+          context.arc(
+            centerX - radius * 0.03,
+            centerY - radius * 0.02,
+            radius * 0.83,
+            Math.PI * 1.08,
+            Math.PI * 1.78,
+          );
+          context.stroke();
+
+          for (let index = 0; index < 9; index += 1) {
+            const angle = index * 2.399 + Math.sin(index * 4.7) * 0.2;
+            const distance = radius * (0.2 + ((index * 0.37) % 0.62));
+            const drift = phase === "resting" ? 0 : Math.sin(time * 0.00035 + index) * radius * 0.015;
+            const x = centerX + Math.cos(angle) * (distance + drift);
+            const y = centerY + Math.sin(angle) * (distance + drift);
+            context.fillStyle = `rgba(255, 224, 182, ${0.15 + (index % 3) * 0.06})`;
+            context.beginPath();
+            context.arc(x, y, index % 4 === 0 ? 1.2 : 0.7, 0, Math.PI * 2);
+            context.fill();
+          }
+          context.restore();
+        };
+
+        const drawWaves = (centerX, centerY, radius, intensity, time) => {
+          if (phase === "resting") return;
+          const inward = phase === "listening" || phase === "user_speaking";
+          const listening = phase === "listening";
+          const count = listening ? 4 : 6 + Math.round(intensity * 2);
+          const travel = radius * (listening ? 0.72 : 1.05 + intensity * 0.3);
+          const speed = listening ? 0.000085 : 0.00016 + intensity * 0.00012;
+          const fadeIn = clamp01((time - phaseStartedAt) / 340);
+          context.save();
+          context.globalCompositeOperation = "screen";
+          context.shadowColor = "rgba(255, 157, 94, 0.7)";
+          context.shadowBlur = 7 + intensity * 10;
+          for (let index = 0; index < count; index += 1) {
+            let progress = (time * speed + index / count) % 1;
+            if (reduceMotion.matches) progress = (index + 1) / (count + 1);
+            const radialProgress = inward ? 1 - progress : progress;
+            const waveRadius = radius * 1.08 + travel * radialProgress;
+            const life = Math.sin(progress * Math.PI);
+            const baseAlpha = listening ? 0.12 : 0.12 + intensity * 0.28;
+            context.strokeStyle = `rgba(255, 190, 126, ${baseAlpha * life * fadeIn})`;
+            context.lineWidth = 0.65 + intensity * 1.15;
+            context.beginPath();
+            context.ellipse(
+              centerX,
+              centerY,
+              waveRadius * (1 + intensity * 0.035),
+              waveRadius,
+              0,
+              0,
+              Math.PI * 2,
+            );
+            context.stroke();
+          }
+
+          const beamAlpha = (listening ? 0.08 : 0.1 + intensity * 0.2) * fadeIn;
+          const beamReach = radius + travel * 1.05;
+          const beam = context.createLinearGradient(
+            centerX - beamReach,
+            centerY,
+            centerX + beamReach,
+            centerY,
+          );
+          beam.addColorStop(0, "rgba(255, 174, 107, 0)");
+          beam.addColorStop(0.43, `rgba(255, 190, 126, ${beamAlpha})`);
+          beam.addColorStop(0.5, `rgba(255, 232, 196, ${beamAlpha * 1.45})`);
+          beam.addColorStop(0.57, `rgba(255, 190, 126, ${beamAlpha})`);
+          beam.addColorStop(1, "rgba(255, 174, 107, 0)");
+          context.strokeStyle = beam;
+          context.lineWidth = 0.8 + intensity * 1.2;
+          context.beginPath();
+          context.moveTo(centerX - beamReach, centerY);
+          context.lineTo(centerX + beamReach, centerY);
+          context.stroke();
+          context.restore();
+        };
+
+        const drawSimpleCore = (centerX, centerY, radius, intensity, alpha = 1) => {
+          context.save();
+          context.globalAlpha = alpha;
+          const glow = context.createRadialGradient(
+            centerX - radius * 0.22,
+            centerY - radius * 0.25,
+            0,
+            centerX,
+            centerY,
+            radius * 1.45,
+          );
+          glow.addColorStop(0, `rgba(255, 244, 222, ${0.76 + intensity * 0.16})`);
+          glow.addColorStop(0.2, `rgba(255, 177, 112, ${0.44 + intensity * 0.2})`);
+          glow.addColorStop(0.72, "rgba(176, 52, 36, 0.2)");
+          glow.addColorStop(1, "rgba(104, 20, 15, 0.02)");
+          context.fillStyle = glow;
+          context.beginPath();
+          context.arc(centerX, centerY, radius, 0, Math.PI * 2);
+          context.fill();
+          context.shadowColor = "rgba(255, 173, 104, 0.65)";
+          context.shadowBlur = 12 + intensity * 18;
+          context.strokeStyle = `rgba(255, 225, 190, ${0.42 + intensity * 0.3})`;
+          context.lineWidth = 1 + intensity;
+          context.stroke();
+          context.restore();
+        };
+
+        const drawPlasma = (centerX, centerY, radius, intensity, time) => {
+          const userSpeaking = phase === "user_speaking";
+          const aiSpeaking = phase === "ai_speaking";
+          const calmIntensity = userSpeaking
+            ? 0.12 + intensity * 0.5
+            : aiSpeaking ? 0.12 + intensity * 0.38 : intensity;
+          drawSphere(centerX, centerY, radius, calmIntensity, time);
+          const speed = phase === "resting" ? 0
+            : phase === "listening" ? 0.000075
+              : userSpeaking ? 0.00018 + calmIntensity * 0.00014
+                : 0.0001 + calmIntensity * 0.000075;
+          const orbitScale = userSpeaking
+            ? 0.72 - calmIntensity * 0.16
+            : aiSpeaking ? 1.03 + calmIntensity * 0.12 : phase === "listening" ? 0.9 : 1;
+          context.save();
+          context.beginPath();
+          context.arc(centerX, centerY, radius * 0.91, 0, Math.PI * 2);
+          context.clip();
+          context.globalCompositeOperation = "screen";
+          for (let index = 0; index < 8; index += 1) {
+            const angle = index * 2.13 + time * speed * (index % 2 ? 1 : -0.72);
+            const outwardDrift = aiSpeaking
+              ? Math.max(0, Math.sin(time * 0.0007 + index * 1.8)) * radius * calmIntensity * 0.08
+              : 0;
+            const orbit = radius * (0.18 + (index % 4) * 0.13) * orbitScale + outwardDrift;
+            const blobRadius = radius * (
+              0.19 + (index % 3) * 0.06
+              + (aiSpeaking ? calmIntensity * 0.035 : calmIntensity * 0.018)
+            );
+            const x = centerX + Math.cos(angle) * orbit;
+            const y = centerY + Math.sin(angle * 1.17) * orbit * 0.76;
+            const blob = context.createRadialGradient(x, y, 0, x, y, blobRadius);
+            blob.addColorStop(0, `rgba(255, 225, 188, ${0.22 + calmIntensity * 0.2})`);
+            blob.addColorStop(0.48, `rgba(255, 118, 81, ${0.18 + calmIntensity * 0.14})`);
+            blob.addColorStop(1, "rgba(157, 35, 31, 0)");
+            context.fillStyle = blob;
+            context.beginPath();
+            context.arc(x, y, blobRadius, 0, Math.PI * 2);
+            context.fill();
+          }
+          context.restore();
+        };
+
+        const drawSwarm = (centerX, centerY, radius, intensity, time) => {
+          const outward = phase === "ai_speaking";
+          const active = phase !== "resting";
+          const particleCount = 92;
+          const travelRate = phase === "user_speaking"
+            ? 0.000065 + intensity * 0.0001
+            : outward ? 0.000045 + intensity * 0.000075 : 0.000038;
+          context.save();
+          context.globalCompositeOperation = "screen";
+          for (let index = 0; index < particleCount; index += 1) {
+            const seed = ((index * 47) % 101) / 101;
+            const baseAngle = index * 2.399963;
+            let progress = active ? (time * travelRate + seed) % 1 : seed;
+            if (!outward && active) progress = 1 - progress;
+            const spread = radius * (0.12 + progress * (1.58 + intensity * 0.55));
+            const curl = active ? Math.sin(progress * Math.PI) * 0.34 : 0;
+            const angle = baseAngle + curl + (phase === "resting" ? 0 : time * 0.000035 * (index % 2 ? 1 : -1));
+            const x = centerX + Math.cos(angle) * spread;
+            const y = centerY + Math.sin(angle) * spread;
+            const life = active ? Math.sin(progress * Math.PI) : 0.62;
+            const size = (index % 11 === 0 ? 1.65 : 0.65 + (index % 4) * 0.18) * (1 + intensity * 0.35);
+            context.fillStyle = `rgba(255, ${168 + (index % 3) * 22}, ${105 + (index % 4) * 18}, ${0.14 + life * (0.32 + intensity * 0.32)})`;
+            context.beginPath();
+            context.arc(x, y, size, 0, Math.PI * 2);
+            context.fill();
+          }
+          context.restore();
+          drawSimpleCore(centerX, centerY, radius * 0.72, intensity, 0.62);
+          context.strokeStyle = "rgba(255, 222, 184, 0.2)";
+          context.lineWidth = 0.8;
+          context.beginPath();
+          context.arc(centerX, centerY, radius, 0, Math.PI * 2);
+          context.stroke();
+        };
+
+        const drawFlux = (centerX, centerY, radius, intensity, time) => {
+          const outward = phase === "ai_speaking";
+          const active = phase !== "resting";
+          const reach = radius * (1.55 + intensity * 0.45);
+          const compression = phase === "user_speaking" ? 0.74 - intensity * 0.16 : outward ? 1.12 + intensity * 0.16 : 0.92;
+          context.save();
+          context.globalCompositeOperation = "screen";
+          context.shadowColor = "rgba(255, 158, 91, 0.55)";
+          context.shadowBlur = 5 + intensity * 8;
+          for (let index = -4; index <= 4; index += 1) {
+            if (index === 0) continue;
+            const sign = Math.sign(index);
+            const lane = Math.abs(index) / 4;
+            const yOffset = sign * radius * (0.28 + lane * 0.52) * compression;
+            const sway = active ? Math.sin(time * 0.0007 + index * 1.8) * radius * 0.045 : 0;
+            context.strokeStyle = `rgba(255, 186, 120, ${0.09 + (1 - lane) * 0.12 + intensity * 0.18})`;
+            context.lineWidth = 0.65 + intensity * 0.75;
+            context.beginPath();
+            context.moveTo(centerX - reach, centerY + yOffset * 0.25);
+            context.bezierCurveTo(
+              centerX - radius * 1.08,
+              centerY + yOffset + sway,
+              centerX - radius * 0.75,
+              centerY + yOffset * 0.7,
+              centerX,
+              centerY + yOffset * 0.46,
+            );
+            context.bezierCurveTo(
+              centerX + radius * 0.75,
+              centerY + yOffset * 0.7,
+              centerX + radius * 1.08,
+              centerY + yOffset - sway,
+              centerX + reach,
+              centerY + yOffset * 0.25,
+            );
+            context.stroke();
+          }
+          if (active) {
+            for (let index = 0; index < 10; index += 1) {
+              const progress = (time * (0.00009 + intensity * 0.00008) + index / 10) % 1;
+              const radialProgress = outward ? progress : 1 - progress;
+              const side = index % 2 ? 1 : -1;
+              const x = centerX + side * radialProgress * reach;
+              const y = centerY + Math.sin(progress * Math.PI + index) * radius * 0.3 * radialProgress;
+              context.fillStyle = `rgba(255, 225, 184, ${0.22 + intensity * 0.42})`;
+              context.beginPath();
+              context.arc(x, y, 1 + intensity, 0, Math.PI * 2);
+              context.fill();
+            }
+          }
+          context.restore();
+          drawSimpleCore(centerX, centerY, radius * 0.72, intensity, 0.9);
+        };
+
+        const drawPrism = (centerX, centerY, radius, intensity, time) => {
+          context.save();
+          const active = phase !== "resting";
+          const speaking = phase === "ai_speaking";
+          const pull = phase === "user_speaking" ? 0.48 + intensity * 0.28 : phase === "listening" ? 0.3 : speaking ? -0.16 : 0.08;
+          const reach = radius * 2.05;
+
+          // A sparse light field makes the lensing legible: the lines remain
+          // straight in open space and visibly bend only while crossing the orb.
+          context.globalCompositeOperation = "screen";
+          for (let lane = -3; lane <= 3; lane += 1) {
+            const offset = lane * radius * 0.29;
+            const refractedOffset = offset * (1 - pull);
+            const shimmer = active ? Math.sin(time * 0.0008 + lane * 1.4) * radius * 0.018 : 0;
+            const rayColors = [
+              `rgba(255, 117, 89, ${0.07 + intensity * 0.1})`,
+              `rgba(255, 232, 202, ${0.1 + intensity * 0.14})`,
+            ];
+            for (let colorIndex = 0; colorIndex < rayColors.length; colorIndex += 1) {
+              const split = (colorIndex - 0.5) * (1.2 + intensity * 1.8);
+              context.strokeStyle = rayColors[colorIndex];
+              context.lineWidth = colorIndex ? 0.75 : 0.55;
+              context.beginPath();
+              context.moveTo(centerX - reach, centerY + offset + split);
+              context.lineTo(centerX - radius * 0.93, centerY + offset + split);
+              context.bezierCurveTo(
+                centerX - radius * 0.58,
+                centerY + refractedOffset + shimmer + split,
+                centerX - radius * 0.2,
+                centerY + refractedOffset * 0.72 - shimmer,
+                centerX,
+                centerY + refractedOffset * 0.64,
+              );
+              context.bezierCurveTo(
+                centerX + radius * 0.2,
+                centerY + refractedOffset * 0.72 + shimmer,
+                centerX + radius * 0.58,
+                centerY + refractedOffset - shimmer + split,
+                centerX + radius * 0.93,
+                centerY + offset + split,
+              );
+              context.lineTo(centerX + reach, centerY + offset + split);
+              context.stroke();
+            }
+          }
+
+          // The body is intentionally close to transparent. Unlike Halo it is
+          // perceived through edge refraction, not through a solid luminous fill.
+          const lens = context.createRadialGradient(
+            centerX - radius * 0.25,
+            centerY - radius * 0.28,
+            0,
+            centerX,
+            centerY,
+            radius * 1.08,
+          );
+          lens.addColorStop(0, `rgba(255, 244, 224, ${0.07 + intensity * 0.08})`);
+          lens.addColorStop(0.34, "rgba(255, 159, 112, 0.025)");
+          lens.addColorStop(0.72, "rgba(70, 14, 16, 0.11)");
+          lens.addColorStop(1, `rgba(255, 210, 171, ${0.08 + intensity * 0.12})`);
+          context.fillStyle = lens;
+          context.beginPath();
+          context.ellipse(
+            centerX,
+            centerY,
+            radius * (speaking ? 1 + intensity * 0.025 : 1),
+            radius * (phase === "user_speaking" ? 0.97 - intensity * 0.025 : 1),
+            0,
+            0,
+            Math.PI * 2,
+          );
+          context.fill();
+
+          // Offset warm edge colors create a restrained chromatic split.
+          const arcColors = [
+            `rgba(255, 239, 216, ${0.42 + intensity * 0.25})`,
+            `rgba(255, 126, 94, ${0.34 + intensity * 0.28})`,
+            `rgba(255, 196, 126, ${0.28 + intensity * 0.22})`,
+          ];
+          for (let index = 0; index < 3; index += 1) {
+            context.shadowColor = arcColors[index];
+            context.shadowBlur = 8 + intensity * 13;
+            context.strokeStyle = arcColors[index];
+            context.lineWidth = 0.8 + intensity * 0.75;
+            context.beginPath();
+            context.arc(
+              centerX + (index - 1) * (1.5 + intensity * 1.5),
+              centerY + (1 - index) * 0.8,
+              radius - index * 1.5,
+              Math.PI * (0.16 + index * 0.44 + (active ? Math.sin(time * 0.0005 + index) * 0.035 : 0)),
+              Math.PI * (0.78 + index * 0.45 + (active ? Math.sin(time * 0.0005 + index) * 0.035 : 0)),
+            );
+            context.stroke();
+          }
+
+          // Listening resolves to a tight focal point. Speaking opens that
+          // point into a brief portal-like aperture and releases side caustics,
+          // never a stack of full concentric rings.
+          const aperturePulse = speaking ? 0.82 + Math.sin(time * 0.006) * 0.18 : 0.34;
+          const apertureRadius = radius * (speaking ? 0.1 + intensity * 0.13 * aperturePulse : 0.025 + intensity * 0.035);
+          const aperture = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, Math.max(2, apertureRadius * 2.8));
+          aperture.addColorStop(0, `rgba(255, 250, 231, ${speaking ? 0.78 : 0.35 + intensity * 0.3})`);
+          aperture.addColorStop(0.32, `rgba(255, 172, 107, ${speaking ? 0.42 + intensity * 0.25 : 0.18})`);
+          aperture.addColorStop(1, "rgba(255, 102, 76, 0)");
+          context.fillStyle = aperture;
+          context.beginPath();
+          context.arc(centerX, centerY, Math.max(2.5, apertureRadius * 2.8), 0, Math.PI * 2);
+          context.fill();
+
+          if (speaking) {
+            for (let index = 0; index < 3; index += 1) {
+              const progress = (time * (0.0002 + intensity * 0.00018) + index / 3) % 1;
+              const waveRadius = radius * (1.02 + progress * (0.88 + intensity * 0.48));
+              const alpha = Math.sin(progress * Math.PI) * (0.09 + intensity * 0.2);
+              context.strokeStyle = `rgba(255, 204, 158, ${alpha})`;
+              context.lineWidth = 0.9 + intensity * 0.7;
+              context.beginPath();
+              context.arc(centerX, centerY, waveRadius, -0.42, 0.42);
+              context.moveTo(centerX - Math.cos(0.42) * waveRadius, centerY + Math.sin(0.42) * waveRadius);
+              context.arc(centerX, centerY, waveRadius, Math.PI - 0.42, Math.PI + 0.42);
+              context.stroke();
+            }
+          }
+          context.restore();
+        };
+
+        const traceBlobPath = (centerX, centerY, radius, amount, time) => {
+          const points = [];
+          const pointCount = 44;
+          for (let index = 0; index < pointCount; index += 1) {
+            const angle = (index / pointCount) * Math.PI * 2;
+            const deformation = amount * (
+              Math.sin(angle * 2 + time * 0.0011) * 0.5
+              + Math.sin(angle * 3 - time * 0.00072 + 1.3) * 0.3
+              + Math.sin(angle * 5 + time * 0.00039) * 0.2
+            );
+            const localRadius = radius * (1 + deformation);
+            points.push({
+              x: centerX + Math.cos(angle) * localRadius,
+              y: centerY + Math.sin(angle) * localRadius,
+            });
+          }
+          context.beginPath();
+          for (let index = 0; index < points.length; index += 1) {
+            const current = points[index];
+            const next = points[(index + 1) % points.length];
+            const midX = (current.x + next.x) / 2;
+            const midY = (current.y + next.y) / 2;
+            if (index === 0) context.moveTo(midX, midY);
+            context.quadraticCurveTo(next.x, next.y, (next.x + points[(index + 2) % points.length].x) / 2, (next.y + points[(index + 2) % points.length].y) / 2);
+          }
+          context.closePath();
+        };
+
+        const drawTide = (centerX, centerY, radius, intensity, time) => {
+          const amount = phase === "resting" ? 0.008 : phase === "listening" ? 0.018 : phase === "user_speaking" ? 0.035 + intensity * 0.035 : 0.07 + intensity * 0.08;
+          context.save();
+          context.translate(centerX, centerY);
+          if (phase === "user_speaking") {
+            context.scale(0.96 - intensity * 0.055, 1 + intensity * 0.018);
+          } else if (phase === "ai_speaking") {
+            context.scale(1.08 + intensity * 0.14, 0.97 - intensity * 0.025);
+          }
+          context.translate(-centerX, -centerY);
+          traceBlobPath(centerX, centerY, radius * 1.02, amount, time);
+          const body = context.createRadialGradient(
+            centerX - radius * 0.28,
+            centerY - radius * 0.3,
+            0,
+            centerX,
+            centerY,
+            radius * 1.2,
+          );
+          body.addColorStop(0, `rgba(255, 239, 210, ${0.72 + intensity * 0.16})`);
+          body.addColorStop(0.24, `rgba(255, 157, 102, ${0.54 + intensity * 0.18})`);
+          body.addColorStop(0.72, "rgba(184, 54, 43, 0.42)");
+          body.addColorStop(1, "rgba(106, 25, 23, 0.32)");
+          context.fillStyle = body;
+          context.shadowColor = "rgba(255, 145, 88, 0.6)";
+          context.shadowBlur = 18 + intensity * 20;
+          context.fill();
+          context.strokeStyle = `rgba(255, 231, 199, ${0.45 + intensity * 0.28})`;
+          context.lineWidth = 1.2 + intensity;
+          context.stroke();
+          context.clip();
+          context.globalCompositeOperation = "screen";
+          for (let index = 0; index < 6; index += 1) {
+            const angle = index * 1.47 + time * (phase === "resting" ? 0 : 0.00028);
+            const x = centerX + Math.cos(angle) * radius * 0.45;
+            const y = centerY + Math.sin(angle * 1.22) * radius * 0.38;
+            const glow = context.createRadialGradient(x, y, 0, x, y, radius * 0.32);
+            glow.addColorStop(0, `rgba(255, 223, 180, ${0.14 + intensity * 0.2})`);
+            glow.addColorStop(1, "rgba(255, 106, 78, 0)");
+            context.fillStyle = glow;
+            context.fillRect(x - radius * 0.33, y - radius * 0.33, radius * 0.66, radius * 0.66);
+          }
+          context.restore();
+        };
+
+        const drawResonance = (centerX, centerY, radius, intensity, time) => {
+          const outward = phase === "ai_speaking";
+          const active = phase !== "resting";
+          context.save();
+          context.globalCompositeOperation = "screen";
+          context.translate(centerX, centerY);
+          const orbitScale = outward ? 1.18 + intensity * 0.28 : active ? 0.86 - intensity * 0.1 : 0.95;
+          for (let band = 0; band < 6; band += 1) {
+            const rotation = band * Math.PI / 6 + (active ? time * 0.00012 * (band % 2 ? 1 : -1) : 0);
+            context.save();
+            context.rotate(rotation);
+            context.scale(1, 0.34 + band * 0.045);
+            context.shadowColor = band % 2 ? "rgba(255, 219, 174, 0.7)" : "rgba(255, 119, 81, 0.7)";
+            context.shadowBlur = 7 + intensity * 11;
+            context.strokeStyle = band % 2
+              ? `rgba(255, 222, 180, ${0.12 + intensity * 0.2})`
+              : `rgba(255, 139, 91, ${0.12 + intensity * 0.22})`;
+            context.lineWidth = 0.75 + intensity * 0.8;
+            context.beginPath();
+            context.arc(0, 0, radius * orbitScale * (1 + band * 0.085), 0, Math.PI * 2);
+            context.stroke();
+            context.restore();
+          }
+          if (active) {
+            for (let index = 0; index < 12; index += 1) {
+              const angle = index * Math.PI / 6 + time * 0.00035;
+              const distance = radius * orbitScale * (0.85 + 0.22 * Math.sin(time * 0.0012 + index));
+              context.fillStyle = `rgba(255, 231, 199, ${0.22 + intensity * 0.48})`;
+              context.beginPath();
+              context.arc(Math.cos(angle) * distance, Math.sin(angle) * distance * 0.55, 1 + intensity, 0, Math.PI * 2);
+              context.fill();
+            }
+          }
+          context.restore();
+          drawSimpleCore(centerX, centerY, radius * 0.48, intensity, 1);
+        };
+
+        const drawConcept = (centerX, centerY, radius, intensity, time) => {
+          if (concept === "wave") drawWave(centerX, centerY, radius, intensity, time);
+          else if (concept === "plasma") drawPlasma(centerX, centerY, radius, intensity, time);
+          else if (concept === "swarm") drawSwarm(centerX, centerY, radius, intensity, time);
+          else if (concept === "flux") drawFlux(centerX, centerY, radius, intensity, time);
+          else if (concept === "prism") drawPrism(centerX, centerY, radius, intensity, time);
+          else if (concept === "tide") drawTide(centerX, centerY, radius, intensity, time);
+          else if (concept === "resonance") drawResonance(centerX, centerY, radius, intensity, time);
+          else {
+            drawWaves(centerX, centerY, radius, intensity, time);
+            drawSphere(centerX, centerY, radius, intensity, time);
+          }
+        };
+
+        const render = (now) => {
+          frame = 0;
+          if (!enabled || !resize()) return;
+          const elapsed = Math.min(40, Math.max(0, now - lastFrameAt));
+          lastFrameAt = now;
+          const nextPhase = readVisualPhase(now, elapsed);
+          if (nextPhase !== phase) {
+            transitionContext.setTransform(1, 0, 0, 1, 0, 0);
+            transitionContext.clearRect(0, 0, transitionCanvas.width, transitionCanvas.height);
+            transitionContext.drawImage(canvas, 0, 0);
+            transitionStartedAt = now;
+            transitionActive = !reduceMotion.matches;
+            phase = nextPhase;
+            phaseStartedAt = now;
+          }
+          let intensity = 0;
+          if (phase === "user_speaking") intensity = Math.max(0.18, inputLevel);
+          else if (phase === "ai_speaking") {
+            const measuredLevel = readOutputLevel(elapsed);
+            intensity = outputAnalyser
+              ? Math.max(0.08, measuredLevel)
+              : 0.28
+                + Math.max(0, Math.sin(now * 0.0067)) * 0.2
+                + Math.max(0, Math.sin(now * 0.013 + 1.7)) * 0.13;
+          } else if (phase === "listening") intensity = 0.12;
+          intensity = clamp01(intensity);
+
+          context = renderContext;
+          context.setTransform(1, 0, 0, 1, 0, 0);
+          context.clearRect(0, 0, renderCanvas.width, renderCanvas.height);
+          context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+          const centerX = width / 2;
+          const centerY = height / 2;
+          const radius = Math.min(width, height) * 0.235;
+          drawConcept(centerX, centerY, radius, intensity, now);
+
+          const linearProgress = transitionActive
+            ? clamp01((now - transitionStartedAt) / PHASE_TRANSITION_MS)
+            : 1;
+          const transitionProgress = linearProgress * linearProgress * (3 - 2 * linearProgress);
+          context = mainContext;
+          context.setTransform(1, 0, 0, 1, 0, 0);
+          context.clearRect(0, 0, canvas.width, canvas.height);
+          context.globalAlpha = transitionProgress;
+          context.drawImage(renderCanvas, 0, 0);
+          if (transitionActive && transitionProgress < 1) {
+            context.globalAlpha = 1 - transitionProgress;
+            context.drawImage(transitionCanvas, 0, 0);
+          } else {
+            transitionActive = false;
+          }
+          context.globalAlpha = 1;
+
+          if (!reduceMotion.matches && (phase !== "resting" || transitionActive)) {
+            frame = window.requestAnimationFrame(render);
+          }
+        };
+
+        const requestRender = () => {
+          if (!enabled || frame) return;
+          lastFrameAt = performance.now();
+          frame = window.requestAnimationFrame(render);
+        };
+
+        new MutationObserver(requestRender).observe(document.body, {
+          attributes: true,
+          attributeFilter: ["class"],
+        });
+        if ("ResizeObserver" in window) {
+          new ResizeObserver(requestRender).observe(canvas);
+        }
+
+        return {
+          setConcept(next) {
+            concept = MOTION_CONCEPTS.includes(next) ? next : "halo";
+            requestRender();
+          },
+          setEnabled(next) {
+            enabled = Boolean(next);
+            if (!enabled && frame) {
+              window.cancelAnimationFrame(frame);
+              frame = 0;
+              mainContext.clearRect(0, 0, canvas.width, canvas.height);
+              renderContext.clearRect(0, 0, renderCanvas.width, renderCanvas.height);
+            }
+            requestRender();
+          },
+          setOutputAnalyser(next) {
+            outputAnalyser = next || null;
+            outputBins = null;
+            outputLevel = 0;
+            requestRender();
+          },
+          clearOutputAnalyser(current) {
+            if (outputAnalyser !== current) return;
+            outputAnalyser = null;
+            outputBins = null;
+            outputLevel = 0;
+          },
+        };
+      }
+
+      function createMotionPreviews(choices) {
+        const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+        const items = choices.map((button) => {
+          const canvas = button.querySelector(".motion-thumbnail");
+          return {
+            button,
+            canvas,
+            context: canvas.getContext("2d"),
+            concept: String(button.dataset.motion || "wave"),
+            active: false,
+            frame: 0,
+          };
+        });
+
+        const prepare = (item) => {
+          const size = 76;
+          const ratio = Math.min(2, window.devicePixelRatio || 1);
+          if (item.canvas.width !== size * ratio || item.canvas.height !== size * ratio) {
+            item.canvas.width = size * ratio;
+            item.canvas.height = size * ratio;
+          }
+          item.context.setTransform(ratio, 0, 0, ratio, 0, 0);
+          item.context.clearRect(0, 0, size, size);
+          return size;
+        };
+
+        const core = (context, x, y, radius, intensity, transparent = false) => {
+          const glow = context.createRadialGradient(x - radius * 0.25, y - radius * 0.28, 0, x, y, radius * 1.2);
+          glow.addColorStop(0, `rgba(255, 246, 224, ${transparent ? 0.34 : 0.78})`);
+          glow.addColorStop(0.24, `rgba(255, 169, 108, ${0.42 + intensity * 0.24})`);
+          glow.addColorStop(0.78, `rgba(170, 48, 36, ${transparent ? 0.1 : 0.34})`);
+          glow.addColorStop(1, "rgba(91, 17, 13, 0.02)");
+          context.fillStyle = glow;
+          context.beginPath();
+          context.arc(x, y, radius, 0, Math.PI * 2);
+          context.fill();
+          context.strokeStyle = `rgba(255, 224, 187, ${0.35 + intensity * 0.38})`;
+          context.lineWidth = 0.75 + intensity * 0.55;
+          context.shadowColor = "rgba(255, 151, 91, 0.7)";
+          context.shadowBlur = 5 + intensity * 7;
+          context.stroke();
+          context.shadowBlur = 0;
+        };
+
+        const previewBlob = (context, x, y, radius, intensity, time) => {
+          const points = 30;
+          context.beginPath();
+          for (let index = 0; index <= points; index += 1) {
+            const angle = (index / points) * Math.PI * 2;
+            const amount = 0.02 + intensity * 0.11;
+            const localRadius = radius * (1 + amount * (
+              Math.sin(angle * 2 + time * 0.002) * 0.58
+              + Math.sin(angle * 3 - time * 0.0014) * 0.42
+            ));
+            const pointX = x + Math.cos(angle) * localRadius;
+            const pointY = y + Math.sin(angle) * localRadius;
+            if (index === 0) context.moveTo(pointX, pointY);
+            else context.lineTo(pointX, pointY);
+          }
+          context.closePath();
+          const fill = context.createRadialGradient(x - radius * 0.3, y - radius * 0.3, 0, x, y, radius * 1.1);
+          fill.addColorStop(0, "rgba(255, 238, 211, 0.84)");
+          fill.addColorStop(0.32, `rgba(255, 145, 94, ${0.54 + intensity * 0.2})`);
+          fill.addColorStop(1, "rgba(139, 37, 31, 0.34)");
+          context.fillStyle = fill;
+          context.shadowColor = "rgba(255, 139, 80, 0.65)";
+          context.shadowBlur = 7 + intensity * 8;
+          context.fill();
+          context.strokeStyle = `rgba(255, 224, 187, ${0.42 + intensity * 0.3})`;
+          context.lineWidth = 0.8;
+          context.stroke();
+          context.shadowBlur = 0;
+        };
+
+        const draw = (item, now = 0) => {
+          const size = prepare(item);
+          const context = item.context;
+          const x = size / 2;
+          const y = size / 2;
+          const selected = item.button.classList.contains("is-selected");
+          const intensity = item.active ? 0.78 : selected ? 0.32 : 0.18;
+          const time = item.active ? now : 2200;
+          context.save();
+          context.globalCompositeOperation = "screen";
+
+          if (item.concept === "wave") {
+            context.strokeStyle = `rgba(255, 224, 186, ${0.4 + intensity * 0.38})`;
+            context.lineWidth = 0.75;
+            context.beginPath();
+            context.arc(x, y, 21, 0, Math.PI * 2);
+            context.stroke();
+            context.save();
+            context.beginPath();
+            context.arc(x, y, 20, 0, Math.PI * 2);
+            context.clip();
+            const layers = [
+              { y: -5.2, amplitude: 2.6, alpha: 0.16, width: 0.5, phase: 2.4 },
+              { y: -2.5, amplitude: 3.2, alpha: 0.3, width: 0.65, phase: 1.2 },
+              { y: 0, amplitude: 4.2, alpha: 0.76, width: 1, phase: 0 },
+              { y: 2.5, amplitude: 3, alpha: 0.28, width: 0.62, phase: -1.1 },
+              { y: 5.2, amplitude: 2.4, alpha: 0.14, width: 0.48, phase: -2.3 },
+            ];
+            for (const layer of layers) {
+              context.strokeStyle = `rgba(255, 229, 194, ${layer.alpha})`;
+              context.lineWidth = layer.width;
+              context.shadowColor = "rgba(255, 151, 91, 0.7)";
+              context.shadowBlur = item.active ? 7 : 3;
+              context.beginPath();
+              for (let index = 0; index <= 70; index += 1) {
+                const progress = index / 70;
+                const px = 18 + progress * 40;
+                const envelope = Math.pow(Math.sin(progress * Math.PI), 1.6);
+                const sideDirection = progress < 0.5 ? 1 : -1;
+                const drift = item.active ? -time * 0.0015 * sideDirection : 0;
+                const signal = Math.sin(progress * Math.PI * 5 + drift + layer.phase)
+                  + Math.sin(progress * Math.PI * 10.4 - drift * 0.7 + layer.phase) * 0.22;
+                const spread = item.active ? 1.32 : 1;
+                const motionAmount = item.active ? 0.9 : 0.46;
+                const py = y + layer.y * spread + signal * layer.amplitude * motionAmount * envelope;
+                if (index === 0) context.moveTo(px, py);
+                else context.lineTo(px, py);
+              }
+              context.stroke();
+            }
+            context.restore();
+          } else if (item.concept === "plasma") {
+            core(context, x, y, 21, intensity);
+            context.beginPath();
+            context.arc(x, y, 19, 0, Math.PI * 2);
+            context.clip();
+            for (let index = 0; index < 6; index += 1) {
+              const angle = index * 1.7 + time * 0.001 * (index % 2 ? 1 : -1);
+              const bx = x + Math.cos(angle) * (5 + index % 3 * 3);
+              const by = y + Math.sin(angle * 1.2) * (7 + index % 2 * 3);
+              const plasma = context.createRadialGradient(bx, by, 0, bx, by, 9);
+              plasma.addColorStop(0, `rgba(255, 235, 201, ${0.22 + intensity * 0.3})`);
+              plasma.addColorStop(1, "rgba(255, 96, 72, 0)");
+              context.fillStyle = plasma;
+              context.fillRect(bx - 10, by - 10, 20, 20);
+            }
+          } else if (item.concept === "halo") {
+            for (let index = 0; index < 4; index += 1) {
+              const progress = item.active ? (time * 0.0005 + index / 4) % 1 : (index + 1) / 5;
+              const ringRadius = 22 + progress * 13;
+              context.strokeStyle = `rgba(255, 188, 119, ${Math.sin(progress * Math.PI) * (0.14 + intensity * 0.24)})`;
+              context.lineWidth = 0.7 + intensity * 0.5;
+              context.beginPath();
+              context.arc(x, y, ringRadius, 0, Math.PI * 2);
+              context.stroke();
+            }
+            core(context, x, y, 19, intensity);
+          } else if (item.concept === "swarm") {
+            for (let index = 0; index < 48; index += 1) {
+              const angle = index * 2.399 + (item.active ? time * 0.00035 : 0);
+              const seed = ((index * 31) % 47) / 47;
+              const progress = item.active ? (time * 0.00058 + seed) % 1 : seed;
+              const distance = 6 + progress * (item.active ? 31 : 25);
+              context.fillStyle = `rgba(255, ${166 + index % 3 * 20}, 108, ${0.2 + intensity * 0.48})`;
+              context.beginPath();
+              context.arc(x + Math.cos(angle) * distance, y + Math.sin(angle) * distance, index % 9 === 0 ? 1.2 : 0.55, 0, Math.PI * 2);
+              context.fill();
+            }
+            core(context, x, y, 8, intensity);
+          } else if (item.concept === "flux") {
+            for (let lane = -3; lane <= 3; lane += 1) {
+              if (!lane) continue;
+              const offset = lane * 5.6;
+              context.strokeStyle = `rgba(255, 186, 119, ${0.15 + intensity * 0.2})`;
+              context.lineWidth = 0.65;
+              context.beginPath();
+              context.moveTo(6, y + offset * 0.25);
+              context.bezierCurveTo(18, y + offset, 26, y + offset * 0.6, x, y + offset * 0.38);
+              context.bezierCurveTo(50, y + offset * 0.6, 58, y + offset, 70, y + offset * 0.25);
+              context.stroke();
+            }
+            if (item.active) {
+              for (let index = 0; index < 6; index += 1) {
+                const progress = (time * 0.00065 + index / 6) % 1;
+                const dotX = x + progress * 32;
+                const dotY = y + Math.sin(progress * Math.PI * 2 + index) * 8;
+                context.fillStyle = `rgba(255, 229, 191, ${0.38 + intensity * 0.45})`;
+                context.beginPath();
+                context.arc(dotX, dotY, 0.8 + intensity * 0.5, 0, Math.PI * 2);
+                context.fill();
+              }
+            }
+            core(context, x, y, 12, intensity);
+          } else if (item.concept === "prism") {
+            for (let lane = -2; lane <= 2; lane += 1) {
+              const offset = lane * 7;
+              const refracted = offset * (item.active ? 1.08 : 0.58);
+              context.strokeStyle = `rgba(255, 223, 190, ${0.1 + intensity * 0.18})`;
+              context.lineWidth = 0.55;
+              context.beginPath();
+              context.moveTo(5, y + offset);
+              context.lineTo(19, y + offset);
+              context.bezierCurveTo(25, y + refracted, 31, y + refracted * 0.65, x, y + refracted * 0.55);
+              context.bezierCurveTo(45, y + refracted * 0.65, 51, y + refracted, 57, y + offset);
+              context.lineTo(71, y + offset);
+              context.stroke();
+            }
+            const lens = context.createRadialGradient(x - 5, y - 6, 0, x, y, 23);
+            lens.addColorStop(0, `rgba(255, 244, 225, ${0.09 + intensity * 0.08})`);
+            lens.addColorStop(0.58, "rgba(88, 19, 20, 0.07)");
+            lens.addColorStop(1, `rgba(255, 199, 157, ${0.08 + intensity * 0.12})`);
+            context.fillStyle = lens;
+            context.beginPath();
+            context.arc(x, y, 21, 0, Math.PI * 2);
+            context.fill();
+            const colors = ["255,238,214", "255,119,91", "255,194,126"];
+            colors.forEach((color, index) => {
+              context.strokeStyle = `rgba(${color},${0.28 + intensity * 0.36})`;
+              context.lineWidth = 0.65 + intensity * 0.25;
+              context.beginPath();
+              context.arc(x + index - 1, y + 1 - index, 20 - index, Math.PI * (0.15 + index * 0.46), Math.PI * (0.78 + index * 0.44));
+              context.stroke();
+            });
+            const apertureRadius = item.active ? 4.8 + Math.sin(time * 0.008) * 1.2 : 2.2;
+            const focus = context.createRadialGradient(x, y, 0, x, y, apertureRadius * 2.4);
+            focus.addColorStop(0, `rgba(255, 249, 228, ${item.active ? 0.82 : 0.46})`);
+            focus.addColorStop(0.35, `rgba(255, 159, 101, ${item.active ? 0.48 : 0.2})`);
+            focus.addColorStop(1, "rgba(255, 104, 78, 0)");
+            context.fillStyle = focus;
+            context.beginPath();
+            context.arc(x, y, apertureRadius * 2.4, 0, Math.PI * 2);
+            context.fill();
+            if (item.active) {
+              for (let index = 0; index < 3; index += 1) {
+                const progress = (time * 0.0005 + index / 3) % 1;
+                context.strokeStyle = `rgba(255, 211, 171, ${Math.sin(progress * Math.PI) * 0.3})`;
+                context.lineWidth = 0.65;
+                context.beginPath();
+                context.arc(x, y, 22 + progress * 12, -0.42, 0.42);
+                context.moveTo(x - Math.cos(0.42) * (22 + progress * 12), y + Math.sin(0.42) * (22 + progress * 12));
+                context.arc(x, y, 22 + progress * 12, Math.PI - 0.42, Math.PI + 0.42);
+                context.stroke();
+              }
+            }
+          } else if (item.concept === "tide") {
+            previewBlob(context, x, y, 20, intensity, time);
+          } else if (item.concept === "resonance") {
+            context.translate(x, y);
+            for (let band = 0; band < 5; band += 1) {
+              context.save();
+              context.rotate(band * Math.PI / 5 + (item.active ? time * 0.00045 * (band % 2 ? 1 : -1) : 0));
+              context.scale(1, 0.34 + band * 0.06);
+              context.strokeStyle = `rgba(255, ${band % 2 ? 221 : 139}, ${band % 2 ? 179 : 91}, ${0.16 + intensity * 0.28})`;
+              context.lineWidth = 0.7;
+              context.beginPath();
+              context.arc(0, 0, 18 + band * 2.2, 0, Math.PI * 2);
+              context.stroke();
+              context.restore();
+            }
+            context.translate(-x, -y);
+            core(context, x, y, 8, intensity);
+          }
+          context.restore();
+        };
+
+        const stop = (item) => {
+          item.active = false;
+          if (item.frame) window.cancelAnimationFrame(item.frame);
+          item.frame = 0;
+          draw(item);
+        };
+        const animate = (item, now) => {
+          item.frame = 0;
+          if (!item.active) return;
+          draw(item, now);
+          if (!reduceMotion.matches) {
+            item.frame = window.requestAnimationFrame((nextNow) => animate(item, nextNow));
+          }
+        };
+        const start = (item) => {
+          item.active = true;
+          if (item.frame) return;
+          if (reduceMotion.matches) draw(item, performance.now());
+          else item.frame = window.requestAnimationFrame((now) => animate(item, now));
+        };
+
+        for (const item of items) {
+          item.button.addEventListener("mouseenter", () => start(item));
+          item.button.addEventListener("mouseleave", () => stop(item));
+          item.button.addEventListener("focus", () => {
+            if (item.button.matches(":focus-visible")) start(item);
+          });
+          item.button.addEventListener("blur", () => stop(item));
+          draw(item);
+        }
+
+        return {
+          refresh() {
+            for (const item of items) {
+              if (!item.active) draw(item);
+            }
+          },
+        };
       }
 
       function setState(next) {
@@ -3719,6 +5080,7 @@
         if (view === "persona") openPersonaModal();
         else if (view === "keys") openSettingsModal();
         else if (view === "voice") openVoiceModal();
+        else if (view === "motion") openMotionModal();
         else if (view === "pronunciation") void openPronunciationModal();
         else if (view === "usage") void openUsageModal();
         else showSidebarHome();
@@ -3752,6 +5114,7 @@
           personaModal.hidden = true;
           settingsModal.hidden = true;
           voiceModal.hidden = true;
+          motionModal.hidden = true;
           pronunciationModal.hidden = true;
           usageModal.hidden = true;
           brandMenu.hidden = false;
@@ -3765,6 +5128,7 @@
         personaModal.hidden = true;
         settingsModal.hidden = true;
         voiceModal.hidden = true;
+        motionModal.hidden = true;
         pronunciationModal.hidden = true;
         usageModal.hidden = true;
         brandMenu.hidden = false;
@@ -3779,6 +5143,7 @@
         brandMenu.hidden = true;
         settingsModal.hidden = true;
         voiceModal.hidden = true;
+        motionModal.hidden = true;
         pronunciationModal.hidden = true;
         usageModal.hidden = true;
         personaModal.hidden = false;
@@ -3788,6 +5153,23 @@
 
       function closePersonaModal() {
         personaModal.hidden = true;
+        brandMenu.hidden = false;
+      }
+
+      function openMotionModal() {
+        revealSidebar();
+        brandMenu.hidden = true;
+        personaModal.hidden = true;
+        settingsModal.hidden = true;
+        voiceModal.hidden = true;
+        pronunciationModal.hidden = true;
+        usageModal.hidden = true;
+        motionModal.hidden = false;
+        os1Sidebar.scrollTo({ top: 0 });
+      }
+
+      function closeMotionModal() {
+        motionModal.hidden = true;
         brandMenu.hidden = false;
       }
 
@@ -3953,6 +5335,7 @@
         brandMenu.hidden = true;
         personaModal.hidden = true;
         voiceModal.hidden = true;
+        motionModal.hidden = true;
         pronunciationModal.hidden = true;
         usageModal.hidden = true;
         settingsModal.hidden = false;
@@ -3972,6 +5355,7 @@
         brandMenu.hidden = true;
         personaModal.hidden = true;
         settingsModal.hidden = true;
+        motionModal.hidden = true;
         pronunciationModal.hidden = true;
         usageModal.hidden = true;
         voiceModal.hidden = false;
@@ -3991,6 +5375,7 @@
         personaModal.hidden = true;
         settingsModal.hidden = true;
         voiceModal.hidden = true;
+        motionModal.hidden = true;
         usageModal.hidden = true;
         pronunciationModal.hidden = false;
         os1Sidebar.scrollTo({ top: 0 });
@@ -4008,6 +5393,7 @@
         personaModal.hidden = true;
         settingsModal.hidden = true;
         voiceModal.hidden = true;
+        motionModal.hidden = true;
         pronunciationModal.hidden = true;
         usageModal.hidden = false;
         os1Sidebar.scrollTo({ top: 0 });
