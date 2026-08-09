@@ -1,211 +1,129 @@
 # OS1
 
-> A small voice agent you can talk to like a calm, fast, always-available teammate.
+**A local-first voice companion built for continuous, natural conversation.**
 
-![OS1 homepage](https://cdn.jsdelivr.net/gh/slayermm1122/os1@main/docs/assets/os1-home.jpg)
+OS1 replaces the usual chat box with a single live voice surface. Start once, speak naturally, pause when you are done, and hear the reply as it is generated. The interface stays deliberately quiet so the conversation—not the machinery—remains the focus.
 
-OS1 is an open-source experiment in natural voice support: one warm room, one button, one voice.
+![OS1 live voice interface](docs/assets/os1-home.jpg)
 
-The goal is simple: make talking to a model feel easy and intimate. Not a search box. Not a ticket form. A short spoken answer, in a continuous conversation.
+## Why OS1
 
-OS1 is designed for scenes like:
+- **One continuous conversation.** Voice activity detection closes each turn automatically while the realtime session stays open for the next one.
+- **Low-latency speech.** Transcription, model output, and speech are streamed end to end instead of waiting for a complete response at every stage.
+- **Natural interruption.** Full-duplex barge-in stops queued speech and keeps only the part of the reply that was actually heard.
+- **A choice of brains.** Switch between Grok, DeepSeek, and Gemini from the interface; the next response uses the newly selected model.
+- **A voice you can shape.** Choose from ElevenLabs voices, set the reply language, tune listening sensitivity, and teach OS1 uncommon terms or spoken aliases.
+- **A presence, not a dashboard.** Eight responsive motion systems, synchronized captions, conversation bubbles, and restrained state changes make the assistant feel alive without making it loud.
+- **Local control.** Provider keys and core settings stay on your machine; secrets are never returned to the browser.
 
-- Personal voice companions and calm desk assistants
-- Lightweight prototypes for voice AI before building a full production stack
-- Local experiments with realtime speech-to-text, LLM replies, and streaming speech
+![OS1 motion selection](docs/assets/os1-motion.jpg)
 
-The interface is intentionally minimal: a warm orange-red room, one orb, live conversation bubbles.
+## Quick start
 
-> [!IMPORTANT]
-> OS1 is an independent, non-commercial toy project for research and technical exchange. It is not affiliated with, endorsed by, or connected to the film *Her*, Warner Bros., Annapurna Pictures, or any related rights holder. The name "OS1" in this repository refers only to this software experiment. All film titles, characters, and related intellectual property belong to their respective owners.
-
-## Version
-
-Current version: `v0.03.03`
-
-This is still deliberately small, inspectable, and easy to change.
-
-## What Works In v0.03.03
-
-- One-click Live voice mode with browser PCM streaming
-- One continuous ElevenLabs Scribe connection across multiple turns
-- **VAD auto end-of-speech**: pause briefly to finish; no 15-second hard stop or countdown
-- Sidebar-selectable Grok `grok-4.5`, DeepSeek `deepseek-v4-flash`, and Gemini `gemini-3.5-flash-lite`
-- Provider-specific fast settings: Grok `low`, DeepSeek thinking disabled, and Gemini `minimal`
-- Streaming LLM output from the backend
-- One preconnected ElevenLabs Multi-Context TTS WebSocket (`eleven_flash_v2_5`)
-- Full-duplex barge-in that stops queued speech and preserves only its audible prefix
-- AudioContext playback for streamed PCM audio chunks
-- Mic-reactive orb bars while you speak; restrained motion while OS1 replies
-- Chat bubbles in the center panel: you on the right, OS1 on the left
-- Overlaying OS1 sidebar with Persona, Voice, Pronunciation, Usage, and API-key status views
-- Persona settings for the AI name, user name, and default / concise / conversational response style
-- ElevenLabs My Voices plus two default voices, response-language filters, timed previews, and `.env`-backed selection
-- Auto, English, or Simplified Chinese reply modes independent of the selected multilingual voice
-- Scribe keyterms and an API-managed ElevenLabs pronunciation alias dictionary
-- API keys and persistent settings read only from the local `.env`
-- ElevenLabs account name and remaining credits in the sidebar
-- Capability-specific LLM, STT, and TTS gateways
-- Content-free per-turn latency, usage, cache, model, and error telemetry in local SQLite
-- Startup readiness checks for the configured xAI model and ElevenLabs voice path
-- Explicit `checking`, `listening`, `thinking`, and `speaking` interface states
-- Structured provider errors with upstream status, official error detail, and request ID
-- Short spoken-chat system instructions so replies stay brief and TTS-friendly
-
-## Current Limits
-
-One tap starts a continuous Live session; a second tap closes it. Silence commits one utterance while Scribe keeps listening for the next. The page-level session closes after three minutes without user speech, model output, or playback.
-
-The current flow is:
-
-```text
-Browser PCM
-  -> persistent backend session WebSocket
-  -> persistent ElevenLabs realtime STT (repeated VAD commits)
-  -> selected provider's streaming response
-  -> per-turn context on one ElevenLabs Multi-Context TTS WebSocket
-  -> browser AudioContext playback
-```
-
-Transcription runs while you speak, so the wait after you pause stays short.
-
-Conversation history is currently short-lived and intentionally simple. The backend keeps every turn for the lifetime of the local session, expires an idle session after one hour by default, and loses it when the process restarts. Telemetry persists individual turns by default unless explicitly disabled, but it is not a memory system and there is no persisted conversation entity above `turn_id` yet.
-
-The startup readiness gate uses authenticated provider capability endpoints and does not generate text or audio. It verifies the current network path, key acceptance, and required realtime STT/TTS permissions; the live streaming request can still fail later if a provider changes state or the account runs out of credits.
-
-## Versioning
-
-OS1 uses `X.Y.Z` to describe the kind of change:
-
-- `X` changes when the product identity or overall interface is substantially redesigned.
-- `Y` changes for user-visible features, experience improvements, and fixes.
-- `Z` changes for internal backend, architecture, and engineering upgrades.
-
-`v0.02.01` is a `Z` release: the voice experience remains the same while the backend becomes modular and observable.
-
-`v0.02.02` adds a startup provider readiness gate and a quiet thinking-state animation while Grok is preparing its first output.
-
-`v0.02.03` makes that readiness gate compatible with restricted ElevenLabs keys and surfaces sanitized provider error details in the interface.
-
-`v0.03.02` synchronizes live captions to ElevenLabs STT/TTS timestamps and the browser audio output clock.
-
-`v0.03.03` moves the voice loop to VAD end-of-speech, chat bubbles, quieter settings, and short spoken replies.
-
-See [CHANGELOG.md](CHANGELOG.md) for the history of each release.
-
-## What You Need
-
-You need:
+### Requirements
 
 - Python 3.11+
-- An API key for each brain model you want to select (xAI, DeepSeek, or Google AI Studio)
-- An ElevenLabs API key
-- A browser with microphone permission
+- An [ElevenLabs](https://elevenlabs.io/) API key with realtime STT and WebSocket TTS access (`voices_read` and `user_read` enable the full sidebar experience)
+- At least one model-provider key: [xAI](https://x.ai/), [DeepSeek](https://www.deepseek.com/), or [Google AI Studio](https://aistudio.google.com/)
+- A browser with microphone access
 
-The default backend settings use:
-
-- Brain: `xAI` / `grok-4.5`
-- Voice: `ElevenLabs`
-- TTS model: `eleven_flash_v2_5`
-- STT model: `scribe_v2_realtime`
-
-## Quick Start
-
-> [!IMPORTANT]
-> Provider authentication is configured only by editing the local `.env` file. The browser and sidebar do not accept API keys. Copy `.env.example` to `.env`, enter the keys there, and restart OS1 after changing a provider key.
+### Run locally
 
 ```bash
+git clone https://github.com/slayermm1122/os1.git
+cd os1
+
 python3 -m venv .venv
-. .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-# Edit .env and set one or more brain keys plus ELEVENLABS_API_KEY.
-uvicorn backend.app:app --reload --host 127.0.0.1 --port 8000
-```
-
-Then open:
-
-```text
-http://127.0.0.1:8000
-```
-
-### Keep OS1 running with PM2
-
-The FastAPI process serves the frontend, API, WebSockets, and local SQLite access together, so
-OS1 only needs one process. Start it without the development reloader and save the PM2 process
-list so the existing PM2 LaunchAgent can restore it after login:
-
-```bash
-pm2 start ecosystem.config.cjs
-pm2 save
-```
-
-Useful commands:
-
-```bash
-pm2 status os1
-pm2 logs os1
-pm2 restart os1
-pm2 stop os1
-```
-
-OS1 reads these secrets only from the local `.env` file:
-
-- `LLM_API_KEY` or `XAI_API_KEY` for Grok
-- `DEEPSEEK_API_KEY`
-- `GEMINI_API_KEY`
-- `ELEVENLABS_API_KEY`
-
-The API Key sidebar page is status-only: it reports whether the backend loaded each key, but it cannot add or change credentials. After editing either provider key in `.env`, restart the server so authentication is checked again.
-
-The ElevenLabs key needs the TTS/STT capabilities used by OS1, plus `voices_read` for My Voices and `user_read` for the account name and remaining-credit display. Provider keys are never returned to frontend code, accepted through browser request headers, or stored in browser storage.
-
-Persona, brain, voice, language, and pronunciation settings are local too. The sidebar writes `LLM_PROVIDER`, `ASSISTANT_NAME`, `USER_NAME`, `ASSISTANT_PERSONA`, `ELEVENLABS_VOICE_ID`, `ASSISTANT_RESPONSE_LANGUAGE`, and Scribe keyterms to `.env`. Alias rules are managed through the ElevenLabs API; only the dictionary and current version locators are persisted locally. Selecting a voice never changes the reply language. No browser storage is used.
-
-## Local `.env`
-
-`.env` is OS1's only local persistent configuration source. API keys must be edited there manually. Voice selection, Persona, language, listening, and pronunciation controls update their corresponding local `.env` values through the loopback-only backend.
-
-```bash
+.venv/bin/pip install -r requirements.txt
 cp .env.example .env
 ```
 
-`.env` is ignored by git. Do not commit real API keys.
+Add your provider keys to `.env`:
 
-Telemetry is enabled for local development so every turn and provider stage can be inspected. Set `TELEMETRY_ENABLED=false` in your private `.env` only when full-content local recording is not acceptable.
+```dotenv
+ELEVENLABS_API_KEY=your_key
 
-## Security
+# Choose one brain: xai, deepseek, or google.
+LLM_PROVIDER=xai
+XAI_API_KEY=your_key
 
-OS1 is local-first research software. Read [SECURITY.md](SECURITY.md) before publishing, deploying, or sharing a hosted instance.
+# Optional: configure more brains for in-app switching.
+# DEEPSEEK_API_KEY=your_key
+# GEMINI_API_KEY=your_key
+```
 
-OS1 v0.03.03 accepts loopback traffic only and is not a public deployment. Telemetry is enabled by default and stores usage metrics—tokens, cache hits and misses, reasoning/output counts, audio duration, TTS characters, latency, requested and returned model identifiers, and status—in the ignored local file `data/telemetry.sqlite`. New telemetry records do not store transcripts, prompts, or AI response content. The Usage sidebar summarizes each brain separately over 7 days, 30 days, or the complete local history. Existing databases created by older OS1 versions may still contain historical content until those rows are explicitly removed. Set `TELEMETRY_ENABLED=false` to stop new usage records.
+Start OS1 on the loopback interface:
 
-## Roadmap
+```bash
+.venv/bin/uvicorn backend.app:app --reload --host 127.0.0.1 --port 8000
+```
 
-### v0.04
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000), allow microphone access, and press the orb. Provider and voice selections made in the sidebar are written back to the local `.env` file.
 
-More voice-provider choices and deeper model comparison telemetry.
+## What is inside
 
-### v0.05
+| Area | Current support |
+| --- | --- |
+| Brain | Grok `grok-4.5`, DeepSeek `deepseek-v4-flash`, Gemini `gemini-3.5-flash-lite` |
+| Listening | ElevenLabs Scribe realtime STT, VAD turn detection, keyterms, English and Chinese detection |
+| Speaking | ElevenLabs streaming TTS, My Voices, previews, pronunciation aliases, timestamp alignment |
+| Conversation | Persistent live session, per-session context, barge-in, synchronized captions |
+| Personalization | Assistant and user names, three response styles, language selection, eight motion styles |
+| Observability | Per-provider latency, token, audio, character, cache, status, and error metrics in local SQLite |
 
-Continuous memory for a single-window AI.
+## How it works
 
-OS1 will remain one continuous interface rather than becoming a list of separate chat threads. This release will introduce deliberate memory maintenance instead of sending an ever-growing transcript back to the model. The current state and design boundary are recorded in the [memory plan](docs/memory-plan.md); consolidation, forgetting, and correction rules remain open for the dedicated design phase.
+```mermaid
+flowchart LR
+    A["Browser microphone"] -->|"PCM over WebSocket"| B["Realtime Scribe STT"]
+    B --> C["Grok · DeepSeek · Gemini"]
+    C -->|"streaming text"| D["ElevenLabs TTS"]
+    D -->|"PCM + alignment"| E["Audio playback and captions"]
+    B -.-> F[("Local SQLite metrics")]
+    C -.-> F
+    D -.-> F
+```
 
-## Project Shape
+One browser-to-backend WebSocket carries the live session. Scribe remains connected across turns, the selected language model streams its response, and a preconnected multi-context TTS socket begins playback before the full answer is complete.
+
+The backend is intentionally split at capability boundaries, so model, speech-to-text, and text-to-speech providers are isolated behind gateway interfaces rather than coupled to the UI.
 
 ```text
 backend/
-  app.py        Application composition and lifecycle
-  api/          HTTP, SSE, and WebSocket transport
-  core/         Turn orchestration, sessions, and errors
-  gateways/     Replaceable AI, STT, and TTS providers
-  telemetry/    Async recorder and SQLite schema
+  api/          HTTP and realtime WebSocket transport
+  core/         orchestration, sessions, settings, and safety boundaries
+  gateways/     model, STT, TTS, voice, and account integrations
+  telemetry/    local SQLite metrics
 
 frontend/
-  index.html    Minimal voice interface
+  index.html    the single-window voice interface
+  captions.js   audio-clock synchronized captions
 ```
 
-## Legal
+## Local data and security
 
-This is a personal research project. It is not a commercial product and is not endorsed by any film studio or related rights holder.
+OS1 is designed to run only on `127.0.0.1`; it is not a public web service. API keys and core settings stay in `.env`; the selected motion style is the only preference stored in browser local storage. New telemetry records contain operational metrics rather than transcripts, prompts, or replies. Conversation context is kept in memory for the local session and is cleared when the backend restarts.
+
+Read [SECURITY.md](SECURITY.md) before changing the network boundary or deploying OS1 anywhere beyond your own machine. Existing telemetry databases created by older versions may still contain historical conversation content.
+
+## Development
+
+Run the complete test suite:
+
+```bash
+.venv/bin/python -m unittest discover -s tests -v
+```
+
+Check a running instance:
+
+```bash
+curl http://127.0.0.1:8000/api/health
+```
+
+Release history is kept in [CHANGELOG.md](CHANGELOG.md).
+
+## Scope
+
+OS1 is personal, local-first research software. It currently depends on external model and speech APIs, does not persist long-term conversation memory, and is not intended for public or multi-user deployment.
+
+Its visual atmosphere is inspired by the warmth and intimacy associated with Samantha's OS in *Her*, not by the film's literal interface. This project is independent and is not affiliated with or endorsed by the film, its studios, or its rights holders.
