@@ -4,7 +4,7 @@
 
 OS1 replaces the usual chat box with a single live voice surface. Start once, speak naturally, pause when you are done, and hear the reply as it is generated. The interface stays deliberately quiet so the conversation—not the machinery—remains the focus.
 
-![OS1 live voice interface](docs/assets/os1-home.jpg)
+![OS1 live voice interface](https://cdn.jsdelivr.net/gh/slayermm1122/os1@fbbe23dc4d473375c16030a58b39516b8e72643b/docs/assets/os1-home.jpg)
 
 ## Why OS1
 
@@ -16,7 +16,7 @@ OS1 replaces the usual chat box with a single live voice surface. Start once, sp
 - **A presence, not a dashboard.** Eight responsive motion systems, synchronized captions, conversation bubbles, and restrained state changes make the assistant feel alive without making it loud.
 - **Local control.** Provider keys and core settings stay on your machine; secrets are never returned to the browser.
 
-![OS1 motion selection](docs/assets/os1-motion.jpg)
+![OS1 motion selection](https://cdn.jsdelivr.net/gh/slayermm1122/os1@fbbe23dc4d473375c16030a58b39516b8e72643b/docs/assets/os1-motion.jpg)
 
 ## Quick start
 
@@ -60,6 +60,8 @@ Start OS1 on the loopback interface:
 
 Open [http://127.0.0.1:8000](http://127.0.0.1:8000), allow microphone access, and press the orb. Provider and voice selections made in the sidebar are written back to the local `.env` file.
 
+SQLite needs no separate installation or setup. Python includes the driver, and OS1 creates `data/telemetry.sqlite` plus its schema automatically on first start. The Usage view is initially empty and begins filling after completed turns; telemetry is enabled by default through `TELEMETRY_ENABLED=true`.
+
 ## What is inside
 
 | Area | Current support |
@@ -69,7 +71,7 @@ Open [http://127.0.0.1:8000](http://127.0.0.1:8000), allow microphone access, an
 | Speaking | ElevenLabs streaming TTS, My Voices, previews, pronunciation aliases, timestamp alignment |
 | Conversation | Persistent live session, per-session context, barge-in, synchronized captions |
 | Personalization | Assistant and user names, three response styles, language selection, eight motion styles |
-| Observability | Per-provider latency, token, audio, character, cache, status, and error metrics in local SQLite |
+| Observability | Per-provider latency, token, audio, character, cache, status, and error metrics in an auto-created local SQLite database |
 
 ## How it works
 
@@ -124,6 +126,6 @@ Release history is kept in [CHANGELOG.md](CHANGELOG.md).
 
 ## Scope
 
-OS1 is personal, local-first research software. It currently depends on external model and speech APIs, does not persist long-term conversation memory, and is not intended for public or multi-user deployment.
+OS1 is personal, local-first research software. It currently depends on external model and speech APIs and is not intended for public or multi-user deployment.
 
 Its visual atmosphere is inspired by the warmth and intimacy associated with Samantha's OS in *Her*, not by the film's literal interface. This project is independent and is not affiliated with or endorsed by the film, its studios, or its rights holders.
