@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/slayermm1122/os1/main/docs/assets/os1-logo.png" width="88" alt="OS1" />
+  <img src="https://cdn.jsdelivr.net/gh/slayermm1122/os1@ac93844/docs/assets/os1-logo.png" width="88" alt="OS1" />
   <h1>
     OS1<br />
     <sub><sub>a fully open sourced AI coworker and companion</sub></sub>
@@ -163,7 +163,7 @@ Release history is kept in [CHANGELOG.md](CHANGELOG.md).
 ---
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/slayermm1122/os1/main/docs/assets/os1-logo.png" width="54" alt="OS1" />
+  <img src="https://cdn.jsdelivr.net/gh/slayermm1122/os1@ac93844/docs/assets/os1-logo.png" width="54" alt="OS1" />
 </p>
 
 <p align="center">
