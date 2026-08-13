@@ -9,7 +9,7 @@ from pathlib import Path
 from dotenv import set_key
 
 from ..config import Settings
-from .messages import normalize_persona, sanitize_person_name
+from .messages import normalize_persona, sanitize_person_name, sanitize_pronunciation
 
 
 _VOICE_ID_RE = re.compile(r"[A-Za-z0-9_-]{5,128}$")
@@ -104,22 +104,38 @@ class LocalSettingsService:
         assistant_name: str,
         user_name: str,
         persona: str,
+        assistant_name_pronunciation: str = "",
+        user_name_pronunciation: str = "",
     ) -> None:
         clean_assistant_name = sanitize_person_name(assistant_name)
         clean_user_name = sanitize_person_name(user_name)
+        clean_assistant_pronunciation = sanitize_pronunciation(assistant_name_pronunciation)
+        clean_user_pronunciation = sanitize_pronunciation(user_name_pronunciation)
         clean_persona = normalize_persona(persona)
-        if assistant_name.strip() and not clean_assistant_name:
-            raise ValueError("Name of AI may contain letters, spaces, hyphens, or apostrophes.")
-        if user_name.strip() and not clean_user_name:
-            raise ValueError("Name of user may contain letters, spaces, hyphens, or apostrophes.")
-        if persona.strip().lower() not in {"default", "concise", "conversational"}:
-            raise ValueError("Persona must be default, concise, or conversational.")
+        if assistant_name and not clean_assistant_name:
+            raise ValueError("Name of AI must contain only consecutive letters, with no spaces.")
+        if user_name and not clean_user_name:
+            raise ValueError("Name of user must contain only consecutive letters, with no spaces.")
+        if assistant_name_pronunciation.strip() and not clean_assistant_pronunciation:
+            raise ValueError("AI name pronunciation may contain at most 120 characters.")
+        if user_name_pronunciation.strip() and not clean_user_pronunciation:
+            raise ValueError("User name pronunciation may contain at most 120 characters.")
+        if clean_assistant_pronunciation and not clean_assistant_name:
+            raise ValueError("Enter the AI name before adding its pronunciation.")
+        if clean_user_pronunciation and not clean_user_name:
+            raise ValueError("Enter the user name before adding its pronunciation.")
+        if persona.strip().lower() not in {"default", "concise", "conversational", "empathetic"}:
+            raise ValueError("Persona must be default, concise, conversational, or empathetic.")
         with self._lock:
             self._set("ASSISTANT_NAME", clean_assistant_name)
+            self._set("ASSISTANT_NAME_PRONUNCIATION", clean_assistant_pronunciation)
             self._set("USER_NAME", clean_user_name)
+            self._set("USER_NAME_PRONUNCIATION", clean_user_pronunciation)
             self._set("ASSISTANT_PERSONA", clean_persona)
             self.settings.assistant_name = clean_assistant_name
+            self.settings.assistant_name_pronunciation = clean_assistant_pronunciation
             self.settings.user_name = clean_user_name
+            self.settings.user_name_pronunciation = clean_user_pronunciation
             self.settings.assistant_persona = clean_persona
 
     def _set(self, key: str, value: str) -> None:

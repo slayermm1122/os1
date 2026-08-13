@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import unittest
+import tempfile
+from pathlib import Path
 
+from backend.core.chat_history import JSONLChatHistory
 from backend.core.messages import build_messages
 from backend.core.sessions import KVConversationStore
 
@@ -69,6 +72,83 @@ class MessageBuilderTests(unittest.TestCase):
             store.get_history("one"),
             [{"role": "user", "content": "hello\n\nPlease respond in English."}],
         )
+
+    def test_names_are_unicode_letters_without_spaces_and_pronunciation_is_prompted(self) -> None:
+        messages = build_messages(
+            system_prompt="stable-system",
+            user_text="hello",
+            history=[],
+            assistant_name="ソフィー",
+            assistant_name_pronunciation="so fee",
+            user_name="moi",
+            user_name_pronunciation="mou e",
+            persona="empathetic",
+        )
+        prompt = messages[0]["content"]
+        self.assertIn('Your name is "ソフィー"', prompt)
+        self.assertIn('approximate pronunciation is "so fee"', prompt)
+        self.assertIn('user\'s name is "moi"', prompt)
+        self.assertIn('approximate pronunciation is "mou e"', prompt)
+        self.assertIn("empathetic AI companion", prompt)
+
+    def test_jsonl_history_keeps_full_interrupted_reply_and_filters_by_session(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            history = JSONLChatHistory(Path(temp) / "chat.jsonl")
+            history.append_turn(
+                session_id="one",
+                turn_id="turn-one",
+                user_text="hello",
+                assistant_text="A complete response.",
+                interrupted=True,
+                playback_started=True,
+                spoken_text="A complete",
+            )
+            history.append_turn(
+                session_id="two",
+                turn_id="turn-two",
+                user_text="ignored",
+                assistant_text="ignored",
+            )
+            record = history.session("one")[0]
+            self.assertEqual(record["user"], "hello")
+            self.assertEqual(
+                record["assistant"],
+                "A complete(interrupted by user) response.",
+            )
+
+    def test_jsonl_thinking_interruption_marks_both_messages(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            history = JSONLChatHistory(Path(temp) / "chat.jsonl")
+            history.append_turn(
+                session_id="one",
+                turn_id="turn-one",
+                user_text="hello",
+                assistant_text="A complete response.",
+                interrupted=True,
+            )
+            record = history.session("one")[0]
+            self.assertEqual(record["user"], "hello(interrupted)")
+            self.assertEqual(record["assistant"], "(interrupted)A complete response.")
+
+    def test_jsonl_user_phase_is_replaced_by_completed_turn(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            history = JSONLChatHistory(Path(temp) / "chat.jsonl")
+            history.append_user(
+                session_id="one",
+                turn_id="turn-one",
+                user_text="hello",
+            )
+            self.assertEqual(history.session("one")[0]["phase"], "user")
+            history.append_turn(
+                session_id="one",
+                turn_id="turn-one",
+                user_text="hello",
+                assistant_text="hi there",
+            )
+            records = history.session("one")
+            self.assertEqual(len(records), 1)
+            self.assertEqual(records[0]["assistant"], "hi there")
+            self.assertEqual(records[0]["phase"], "complete")
 
 
 if __name__ == "__main__":

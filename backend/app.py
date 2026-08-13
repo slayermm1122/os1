@@ -10,6 +10,7 @@ from .api.realtime import create_realtime_router
 from .api.routes import create_router
 from .config import settings
 from .core.connectivity import ConnectivityService
+from .core.chat_history import JSONLChatHistory
 from .core.local_settings import LocalSettingsService
 from .core.live_sessions import LiveSessionRegistry
 from .core.orchestrator import TurnOrchestrator
@@ -48,6 +49,7 @@ answer_ai = AIAdapter(
 )
 local_settings = LocalSettingsService(settings, settings.root_dir / ".env")
 live_sessions = LiveSessionRegistry()
+chat_history = JSONLChatHistory(settings.chat_history_path)
 tts = TTSAdapter(
     [ElevenLabsTTSGateway(settings)],
     default_provider=settings.default_tts_provider,
@@ -87,6 +89,7 @@ services = ApplicationServices(
     local_settings=local_settings,
     pronunciation=ElevenLabsPronunciationGateway(settings),
     live_sessions=live_sessions,
+    chat_history=chat_history,
 )
 
 

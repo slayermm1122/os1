@@ -2,7 +2,7 @@
   <img src="https://cdn.jsdelivr.net/gh/slayermm1122/os1@ac93844/docs/assets/os1-logo.png" width="88" alt="OS1" />
   <h1>
     OS1<br />
-    <sub><sub>a fully open sourced AI coworker and companion</sub></sub>
+    <sub><sub>a fully open-source AI coworker and companion</sub></sub>
   </h1>
   <p>
     <a href="#quick-start">Quick start</a>
@@ -18,10 +18,10 @@
 <br />
 
 <p align="center">
-  <img src="https://cdn.jsdelivr.net/gh/slayermm1122/os1@4a681937965e1e941a65e26b46305b6a6d87f294/docs/assets/os1-home.jpg" width="100%" alt="OS1 listening with the Plasma orb" />
+  <img src="docs/assets/os1-home.jpg" width="100%" alt="OS1 ready to listen with the Plasma motion" />
 </p>
 
-<p align="center"><sub>Powered by ElevenLabs, Grok, DeepSeek and all major labs.</sub></p>
+<p align="center"><sub>Powered by ElevenLabs, Grok, DeepSeek, and Gemini.</sub></p>
 
 ## One room. One voice. One continuous conversation.
 
@@ -34,7 +34,7 @@
 **Voice only.** Speech is the most instinctive interface we have. OS1 is intentionally built around listening and speaking, without a text box or typed-chat mode. The goal is not to make another messenger—it is to make interacting with AI feel immediate, embodied, and human.
 
 <p align="center">
-  <img src="https://cdn.jsdelivr.net/gh/slayermm1122/os1@dd887547917f109d9877d37298281f88beb11045/docs/assets/os1-motion.jpg" width="100%" alt="Choosing an OS1 orb motion" />
+  <img src="docs/assets/os1-motion.jpg" width="100%" alt="Choosing Plasma in the Presence motion settings" />
 </p>
 
 <p align="center"><sub>Personalize the responsive motion of your AI.</sub></p>
@@ -72,9 +72,9 @@ Start the room:
 .venv/bin/uvicorn backend.app:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Open [http://127.0.0.1:8000](http://127.0.0.1:8000), allow microphone access, and press the orb.
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000), allow microphone access, and select **Tap to speak** beneath the motion.
 
-SQLite needs no separate installation or setup. OS1 creates `data/telemetry.sqlite` and its schema on first start. Usage begins filling after your first completed turns.
+Local storage needs no separate installation or setup. OS1 creates `data/telemetry.sqlite` for usage metrics and `data/chat_history.jsonl` for conversation history as they are needed.
 
 <details>
 <summary><strong>Current support</strong></summary>
@@ -84,8 +84,8 @@ SQLite needs no separate installation or setup. OS1 creates `data/telemetry.sqli
 | Brain | Grok `grok-4.5`, DeepSeek `deepseek-v4-flash`, Gemini `gemini-3.5-flash-lite` |
 | Listening | ElevenLabs Scribe realtime STT, VAD turn detection, keyterms, English and Chinese detection |
 | Speaking | ElevenLabs Flash v2.5 streaming TTS for a faster, more natural realtime experience; My Voices, previews, pronunciation aliases, and timestamp alignment |
-| Conversation | Persistent live session, per-session context, barge-in, synchronized captions |
-| Personalization | AI and user names, three response styles, language selection, eight motion styles |
+| Conversation | Persistent live session, full session context, natural barge-in, interruption-aware JSONL history, synchronized captions |
+| Personalization | AI and user names with optional pronunciation hints, four response styles, language selection, eight motion styles |
 | Observability | Provider latency, usage, cache, status, and error metrics in local SQLite |
 
 The ElevenLabs key needs realtime STT and WebSocket TTS access. `voices_read` and `user_read` enable the complete voice-library and account experience.
@@ -100,17 +100,23 @@ The ElevenLabs key needs realtime STT and WebSocket TTS access. `voices_read` an
 
 One browser-to-backend WebSocket carries the live session. Scribe stays connected across turns, the selected language model streams its response, and a preconnected multi-context TTS socket begins playback before the answer is complete.
 
+### Presence and Echoes
+
+Open **Presence** from the left edge to shape the active companion: Persona, Brain, Voice, Motion, Pronunciation, Usage, and API keys all live there. Open **Echoes** from the right edge to read the current session's conversation history. Echoes is loaded from the local JSONL history and updates after a user turn or spoken reply finishes.
+
+Closing and reopening the live WebSocket reuses the current session, so its model context and Echoes continue instead of starting over. Changing either name or its pronunciation hint deliberately starts a new session with empty context and an empty Echoes panel; the earlier session remains in the append-only JSONL file and is not deleted.
+
 ### Bring your own brain
 
-Add a provider key to `.env`, then choose the model from **OS1 → Brain**. OS1 currently supports xAI, DeepSeek, and Google AI Studio. A selection applies to the next response, so you can move between configured models without restarting the conversation.
+Add a provider key to `.env`, then choose the model from **Presence → Brain**. OS1 currently supports xAI, DeepSeek, and Google AI Studio. A selection applies to the next response, so you can move between configured models without restarting the conversation.
 
 ### Bring your own voice
 
-Connect your ElevenLabs account with `ELEVENLABS_API_KEY`, then open **OS1 → Voice**. OS1 loads the voices in your ElevenLabs library automatically, lets you preview and select them, and shows the account name and remaining credits. You can also choose automatic, English, or Chinese responses and tune when silence ends your turn.
+Connect your ElevenLabs account with `ELEVENLABS_API_KEY`, then open **Presence → Voice**. OS1 loads the voices in your ElevenLabs library automatically, lets you preview and select them, and shows the account name and remaining credits. You can also choose automatic, English, or Chinese responses and tune when silence ends your turn.
 
 ### Understand your usage
 
-Open **OS1 → Usage** to see the last seven days, thirty days, or all local history. OS1 separates language-model usage from ElevenLabs usage and shows calls, latency, tokens and cache behavior, audio duration, TTS characters, model breakdowns, daily activity, failures, and cancellations. These metrics come from the local SQLite database; new records do not contain conversation text.
+Open **Presence → Usage** to see the last seven days, thirty days, or all local metrics. OS1 separates language-model usage from ElevenLabs usage and shows calls, latency, tokens and cache behavior, audio duration, TTS characters, model breakdowns, daily activity, failures, and cancellations. These metrics come from the local SQLite database; new records do not contain conversation text.
 
 <details>
 <summary><strong>Project structure</strong></summary>
@@ -131,7 +137,7 @@ frontend/
 
 ## Local by design
 
-OS1 is designed for `127.0.0.1`, not public or multi-user deployment. API keys and core settings stay in `.env`; the selected motion style is the only preference stored in browser local storage. New telemetry contains operational metrics, not transcripts, prompts, or replies.
+OS1 is designed for `127.0.0.1`, not public or multi-user deployment. API keys and core settings stay in `.env`; the selected motion style is the only preference stored in browser local storage. Conversation history is stored separately in `data/chat_history.jsonl`; telemetry contains operational metrics, not transcripts, prompts, or replies.
 
 Read [SECURITY.md](SECURITY.md) before changing the network boundary.
 

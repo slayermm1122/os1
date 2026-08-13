@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from .config import Settings
 from .core.connectivity import ConnectivityService
+from .core.chat_history import JSONLChatHistory
 from .core.local_settings import LocalSettingsService
 from .core.live_sessions import LiveSessionRegistry
 from .core.orchestrator import TurnOrchestrator
@@ -26,3 +27,4 @@ class ApplicationServices:
     local_settings: LocalSettingsService | None = None
     pronunciation: ElevenLabsPronunciationGateway | None = None
     live_sessions: LiveSessionRegistry | None = None
+    chat_history: JSONLChatHistory | None = None

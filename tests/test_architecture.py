@@ -879,7 +879,7 @@ class ConnectivityTests(unittest.IsolatedAsyncioTestCase):
         brain = FakeProbe("xai")
         stt_probe = FakeProbe("elevenlabs")
         tts_probe = FakeProbe("fake_tts")
-        settings = Settings(enforce_local_access=False)
+        settings = Settings(enforce_local_access=False, llm_provider="xai")
         recorder = SQLiteTelemetryRecorder(Path("unused.sqlite"), enabled=False)
         orchestrator = TurnOrchestrator(
             settings=settings,

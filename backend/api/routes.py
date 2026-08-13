@@ -56,8 +56,10 @@ class PronunciationDictionaryRequest(BaseModel):
 
 class PersonaRequest(BaseModel):
     assistant_name: str = Field(default="", max_length=40)
+    assistant_name_pronunciation: str = Field(default="", max_length=120)
     user_name: str = Field(default="", max_length=40)
-    persona: str = Field(default="default", pattern=r"^(default|concise|conversational)$")
+    user_name_pronunciation: str = Field(default="", max_length=120)
+    persona: str = Field(default="default", pattern=r"^(default|concise|conversational|empathetic)$")
 
 
 def create_router(services: ApplicationServices) -> APIRouter:
@@ -102,7 +104,9 @@ def create_router(services: ApplicationServices) -> APIRouter:
             "selected_voice_id": settings.elevenlabs_voice_id,
             "response_language_mode": settings.assistant_response_language,
             "assistant_name": settings.assistant_name,
+            "assistant_name_pronunciation": settings.assistant_name_pronunciation,
             "user_name": settings.user_name,
+            "user_name_pronunciation": settings.user_name_pronunciation,
             "assistant_persona": settings.assistant_persona,
             "vad_silence_threshold_secs": settings.elevenlabs_stt_vad_silence_threshold_secs,
             "vad_threshold": settings.elevenlabs_stt_vad_threshold,
@@ -350,22 +354,50 @@ def create_router(services: ApplicationServices) -> APIRouter:
         if services.local_settings is None:
             raise HTTPException(status_code=503, detail="Local persona settings are unavailable.")
         try:
+            if services.live_sessions is not None and await services.live_sessions.count():
+                raise HTTPException(
+                    status_code=409,
+                    detail="Close the live voice session before changing persona settings.",
+                )
+            names_changed = (
+                request.assistant_name.strip() != settings.assistant_name
+                or request.assistant_name_pronunciation.strip()
+                != settings.assistant_name_pronunciation
+                or request.user_name.strip() != settings.user_name
+                or request.user_name_pronunciation.strip() != settings.user_name_pronunciation
+            )
             await _in_thread(
                 lambda: services.local_settings.update_persona(
                     assistant_name=request.assistant_name,
+                    assistant_name_pronunciation=request.assistant_name_pronunciation,
                     user_name=request.user_name,
+                    user_name_pronunciation=request.user_name_pronunciation,
                     persona=request.persona,
                 )
             )
             return {
                 "assistant_name": settings.assistant_name,
+                "assistant_name_pronunciation": settings.assistant_name_pronunciation,
                 "user_name": settings.user_name,
+                "user_name_pronunciation": settings.user_name_pronunciation,
                 "persona": settings.assistant_persona,
+                "new_session_id": _new_session_id() if names_changed else None,
             }
+        except HTTPException:
+            raise
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except Exception as exc:
             raise _http_error(exc) from exc
+
+    @router.get("/api/history")
+    async def chat_history(session_id: str = "") -> dict[str, object]:
+        records = (
+            await _in_thread(lambda: services.chat_history.session(session_id))
+            if services.chat_history is not None
+            else []
+        )
+        return {"session_id": session_id, "turns": records}
 
     @router.get("/api/account")
     async def account_summary() -> dict[str, object]:
@@ -409,7 +441,9 @@ def create_router(services: ApplicationServices) -> APIRouter:
                 voice_api_key=None,
                 voice_id=None,
                 assistant_name=settings.assistant_name,
+                assistant_name_pronunciation=settings.assistant_name_pronunciation,
                 user_name=settings.user_name,
+                user_name_pronunciation=settings.user_name_pronunciation,
                 assistant_persona=settings.assistant_persona,
             ):
                 yield sse(event)

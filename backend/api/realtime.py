@@ -142,7 +142,9 @@ def create_realtime_router(services: ApplicationServices) -> APIRouter:
                     services.settings.elevenlabs_stt_vad_silence_threshold_secs
                 ),
                 assistant_name=services.settings.assistant_name,
+                assistant_name_pronunciation=services.settings.assistant_name_pronunciation,
                 user_name=services.settings.user_name,
+                user_name_pronunciation=services.settings.user_name_pronunciation,
                 assistant_persona=services.settings.assistant_persona,
             ):
                 await send_event(event)
@@ -288,6 +290,13 @@ def create_realtime_router(services: ApplicationServices) -> APIRouter:
             sample_rate = int(init.get("sample_rate") or 16000)
             if sample_rate not in SUPPORTED_SAMPLE_RATES:
                 raise ValueError
+            session_persona = {
+                "assistant_name": services.settings.assistant_name,
+                "assistant_name_pronunciation": services.settings.assistant_name_pronunciation,
+                "user_name": services.settings.user_name,
+                "user_name_pronunciation": services.settings.user_name_pronunciation,
+                "persona": services.settings.assistant_persona,
+            }
         except Exception:
             await _send(
                 websocket,
@@ -315,6 +324,7 @@ def create_realtime_router(services: ApplicationServices) -> APIRouter:
         listening_event = asyncio.Event()
         pending_settings: set[str] = set()
         interruption_waiters: dict[str, asyncio.Future[str]] = {}
+        background_turn_tasks: set[asyncio.Task[None]] = set()
         active_turn_task: asyncio.Task[None] | None = None
         active_state: LiveTurnState | None = None
         last_language = "en"
@@ -364,6 +374,8 @@ def create_realtime_router(services: ApplicationServices) -> APIRouter:
                     if spoken_text is None
                     else _safe_spoken_prefix(state.assistant_text, spoken_text)
                 )
+                if spoken_text is not None and state.playback_started and not assistant_text:
+                    assistant_text = "(interrupted by user)"
                 services.orchestrator.sessions.append_exchange(
                     session_id,
                     state.model_user_text,
@@ -371,14 +383,28 @@ def create_realtime_router(services: ApplicationServices) -> APIRouter:
                 )
                 state.history_committed = True
 
+        async def commit_record(state: LiveTurnState) -> None:
+            if state.record_committed or not state.completed or services.chat_history is None:
+                return
+            await asyncio.to_thread(
+                services.chat_history.append_turn,
+                session_id=session_id,
+                turn_id=state.context_id,
+                user_text=state.user_text,
+                assistant_text=state.assistant_text,
+                interrupted=state.interrupted,
+                playback_started=state.playback_started,
+                spoken_text=state.spoken_text,
+            )
+            state.record_committed = True
+            await send_event(PipelineEvent("history_updated", {"session_id": session_id}))
+
         async def interrupt_active() -> None:
             nonlocal active_turn_task, active_state, last_activity
             state = active_state
             if state is None or state.history_committed:
                 return
-            if active_turn_task is not None and not active_turn_task.done():
-                active_turn_task.cancel()
-                await asyncio.gather(active_turn_task, return_exceptions=True)
+            state.interrupted = True
             await live_tts.close_context(state.context_id)
             if state.trace is not None:
                 state.trace.event(
@@ -403,8 +429,18 @@ def create_realtime_router(services: ApplicationServices) -> APIRouter:
             except TimeoutError:
                 spoken = ""
             interruption_waiters.pop(state.context_id, None)
-            await commit_history(state, spoken)
+            state.spoken_text = spoken
+            state.playback_started = state.playback_started or bool(spoken)
+            if state.playback_started:
+                await commit_history(state, spoken)
+            else:
+                state.history_committed = True
             last_activity = asyncio.get_running_loop().time()
+            if active_turn_task is not None and not active_turn_task.done():
+                background_turn_tasks.add(active_turn_task)
+                active_turn_task.add_done_callback(background_turn_tasks.discard)
+            elif state.completed:
+                await commit_record(state)
             active_turn_task = None
             active_state = None
 
@@ -428,6 +464,7 @@ def create_realtime_router(services: ApplicationServices) -> APIRouter:
                     state=state,
                     live_tts=live_tts,
                     response_language=language,
+                    persona_snapshot=session_persona,
                 ):
                     if event.event in {"delta", "display", "audio"}:
                         last_activity = asyncio.get_running_loop().time()
@@ -442,6 +479,9 @@ def create_realtime_router(services: ApplicationServices) -> APIRouter:
                 if not trace.finished:
                     trace.finish("failed", assistant_text=state.assistant_text)
                 await send_event(PipelineEvent("error", info.payload(trace.turn_id)))
+            finally:
+                if state.interrupted or state.history_committed:
+                    await commit_record(state)
 
         async def start_turn(
             user_text: str,
@@ -466,6 +506,19 @@ def create_realtime_router(services: ApplicationServices) -> APIRouter:
             trace = services.orchestrator.new_trace(session_id=session_id, kind="voice_live")
             state.context_id = trace.turn_id
             state.trace = trace
+            if services.chat_history is not None:
+                await asyncio.to_thread(
+                    services.chat_history.append_user,
+                    session_id=session_id,
+                    turn_id=state.context_id,
+                    user_text=state.user_text,
+                )
+                await send_event(
+                    PipelineEvent(
+                        "history_updated",
+                        {"session_id": session_id, "turn_id": state.context_id, "phase": "user"},
+                    )
+                )
             stt_call_id = uuid.uuid4().hex
             services.telemetry.start_stt_call(
                 trace,
@@ -664,10 +717,15 @@ def create_realtime_router(services: ApplicationServices) -> APIRouter:
                             background_since = None
                         if name in {"browser.playback_started", "browser.playback_ended"}:
                             last_activity = asyncio.get_running_loop().time()
+                        if name == "browser.playback_started" and active_state is not None:
+                            turn_id = str(payload.get("turn_id") or "")
+                            if turn_id == active_state.context_id:
+                                active_state.playback_started = True
                         if name == "browser.playback_ended" and active_state is not None:
                             turn_id = str(payload.get("turn_id") or "")
                             if turn_id == active_state.context_id:
                                 await commit_history(active_state, None)
+                                await commit_record(active_state)
                                 active_state = None
                         elif name == "browser.playback_interrupted":
                             turn_id = str(payload.get("turn_id") or "")
@@ -706,13 +764,13 @@ def create_realtime_router(services: ApplicationServices) -> APIRouter:
                 return
 
         try:
-            await live_tts.connect()
             if services.live_sessions is not None:
                 await services.live_sessions.register(
                     session_key,
                     notify_setting,
                     close_from_registry,
                 )
+            await live_tts.connect()
             await send_event(
                 PipelineEvent(
                     "live_ready",
@@ -720,6 +778,7 @@ def create_realtime_router(services: ApplicationServices) -> APIRouter:
                         "session_id": session_id,
                         "state": "preconnected",
                         "voice_id": services.settings.elevenlabs_voice_id,
+                        "persona": session_persona,
                     },
                 )
             )
@@ -759,8 +818,18 @@ def create_realtime_router(services: ApplicationServices) -> APIRouter:
                 ),
                 return_exceptions=True,
             )
+            if background_turn_tasks:
+                try:
+                    await asyncio.wait_for(
+                        asyncio.gather(*background_turn_tasks, return_exceptions=True),
+                        timeout=services.settings.upstream_stream_timeout_seconds,
+                    )
+                except TimeoutError:
+                    for task in background_turn_tasks:
+                        task.cancel()
             if active_state is not None and not active_state.history_committed:
                 await commit_history(active_state, "")
+                await commit_record(active_state)
             await live_tts.close()
             if services.live_sessions is not None:
                 await services.live_sessions.unregister(session_key)

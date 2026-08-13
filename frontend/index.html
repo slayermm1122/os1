@@ -6,6 +6,54 @@
     <title>OS1</title>
     <link rel="icon" type="image/svg+xml" href="/assets/os1-logo.svg" />
     <style>
+      @font-face {
+        font-family: "OS1 Cormorant";
+        src: url("/assets/font-test-fonts/cormorant-garamond-300.ttf") format("truetype");
+        font-weight: 300;
+        font-style: normal;
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: "OS1 Cormorant";
+        src: url("/assets/font-test-fonts/cormorant-garamond-full.ttf") format("truetype");
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: "OS1 Cormorant";
+        src: url("/assets/font-test-fonts/cormorant-garamond-500.ttf") format("truetype");
+        font-weight: 500;
+        font-style: normal;
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: "OS1 Cormorant";
+        src: url("/assets/font-test-fonts/cormorant-garamond-600.ttf") format("truetype");
+        font-weight: 600;
+        font-style: normal;
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: "OS1 Cormorant";
+        src: url("/assets/font-test-fonts/cormorant-garamond-700.ttf") format("truetype");
+        font-weight: 700;
+        font-style: normal;
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: "OS1 WenKai";
+        src: url("/assets/font-test-fonts/lxgw-wenkai.ttf") format("truetype");
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+
       :root {
         color-scheme: dark;
         --bg-0: #5f1710;
@@ -27,9 +75,7 @@
         margin: 0;
         min-height: 100vh;
         overflow: hidden;
-        font-family:
-          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-          sans-serif;
+        font-family: "OS1 Cormorant", "OS1 WenKai", serif;
         color: var(--ink);
         background:
           radial-gradient(circle at 50% 50%, rgba(255, 218, 156, 0.26), transparent 32rem),
@@ -57,21 +103,11 @@
       }
 
       .brand-button {
-        appearance: none;
-        border: 0;
-        padding: 0;
-        background: transparent;
         color: var(--ink);
-        font: inherit;
+        font-family: "Bodoni 72", "Bodoni 72 Smallcaps", "OS1 Cormorant", serif;
         font-size: 18px;
-        font-weight: 650;
-        cursor: pointer;
-        transition: opacity 160ms ease, transform 160ms ease;
-      }
-
-      .brand-button:hover {
-        opacity: 0.86;
-        transform: translateY(-1px);
+        font-weight: 400;
+        letter-spacing: -0.035em;
       }
 
       .brand-menu {
@@ -173,7 +209,6 @@
         top: var(--orb-center-y);
         left: 50%;
         transform: translate(-50%, -50%);
-        appearance: none;
         width: var(--orb-size);
         aspect-ratio: 1;
         border: 1px solid rgba(255, 246, 236, 0.16);
@@ -189,8 +224,8 @@
           0 0 28px rgba(255, 210, 170, 0.08),
           0 0 64px rgba(255, 180, 130, 0.05),
           0 28px 100px rgba(72, 13, 8, 0.24);
-        cursor: pointer;
-        pointer-events: auto;
+        cursor: default;
+        pointer-events: none;
         transition:
           border-color 170ms ease,
           box-shadow 170ms ease,
@@ -238,39 +273,6 @@
 
       body.has-orb-motion .motion-canvas {
         display: block;
-      }
-
-      body.has-orb-motion .orb:not(:disabled):hover {
-        border-color: transparent;
-        background: transparent;
-        box-shadow: none;
-      }
-
-      .orb:not(:disabled):hover {
-        border-color: rgba(255, 246, 236, 0.34);
-        background: rgba(255, 246, 236, 0.07);
-        --orb-glow-opacity: 0.95;
-        box-shadow:
-          inset 0 0 100px rgba(255, 232, 210, 0.2),
-          0 0 36px rgba(255, 220, 180, 0.14),
-          0 0 80px rgba(255, 190, 140, 0.08),
-          0 30px 110px rgba(72, 13, 8, 0.28);
-      }
-
-      .orb:not(:disabled):hover::before {
-        transform: scale(1.03);
-      }
-
-      .orb:not(:disabled):active {
-        transform: translate(-50%, -50%) scale(0.992);
-      }
-
-      .orb:disabled {
-        cursor: default;
-      }
-
-      .orb:focus {
-        outline: none;
       }
 
       body.keys-missing .orb,
@@ -382,6 +384,7 @@
       @media (prefers-reduced-motion: reduce) {
         .orb,
         .orb::before,
+        .hint-line,
         .bar {
           transition: none;
         }
@@ -389,20 +392,31 @@
         body.is-recording .bar {
           animation: none;
         }
+        .history-panel,
+        .history-backdrop {
+          animation: none;
+        }
       }
 
       .hint-line {
+        appearance: none;
         position: absolute;
         bottom: 0;
         left: 50%;
-        width: calc(100% - 48px);
         transform: translateX(-50%);
         min-height: 20px;
-        color: rgba(255, 246, 236, 0.42);
+        border: 0;
+        padding: 2px 4px;
+        background: transparent;
+        color: rgba(255, 246, 236, 0.46);
+        font: inherit;
         font-size: 13px;
         line-height: 1.35;
         text-align: center;
-        pointer-events: none;
+        white-space: nowrap;
+        cursor: pointer;
+        pointer-events: auto;
+        transition: color 160ms ease, transform 160ms ease;
       }
 
       .hint-line.is-personalized {
@@ -410,11 +424,23 @@
       }
 
       .hint-line.is-session-active {
-        color: rgba(255, 246, 236, 0.3);
+        color: rgba(255, 246, 236, 0.46);
       }
 
-      .orb:focus-visible .hint-line {
-        color: rgba(255, 246, 236, 0.52);
+      .hint-line:not(:disabled):hover,
+      .hint-line:focus-visible {
+        color: rgba(255, 246, 236, 0.92);
+        outline: none;
+        transform: translateX(-50%) translateY(-2px);
+      }
+
+      .hint-line.is-session-active:not(:disabled):hover,
+      .hint-line.is-session-active:focus-visible {
+        transform: translateX(-50%) translateY(2px);
+      }
+
+      .hint-line:disabled {
+        cursor: default;
       }
 
       .conversation-panel {
@@ -922,6 +948,12 @@
         gap: 18px;
       }
 
+      .persona-name-row {
+        display: grid;
+        grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+        gap: 18px;
+      }
+
       .settings-modal input.persona-input[type="text"] {
         height: 32px;
         padding: 0 1px 5px;
@@ -943,6 +975,8 @@
         align-items: center;
         gap: 18px;
       }
+
+      .persona-choices { flex-wrap: wrap; }
 
       .persona-choice,
       .voice-language-choice {
@@ -1159,12 +1193,15 @@
         z-index: 9;
         background: rgba(48, 7, 4, 0.18);
         backdrop-filter: blur(3px);
-        animation: sidebarVeilIn 180ms ease both;
+        animation: sidebarVeilIn 240ms ease both;
+        /* The scene remains live beneath the veil, but the veil owns every
+           outside click so it can only dismiss the open panel. */
+        pointer-events: auto;
       }
 
       .sidebar-backdrop.is-closing {
-        animation: sidebarVeilOut 170ms ease both;
-        pointer-events: none;
+        animation: sidebarVeilOut 230ms ease both;
+        pointer-events: auto;
       }
 
       .sidebar-backdrop[hidden],
@@ -1186,14 +1223,130 @@
         background: rgba(91, 20, 14, 0.965);
         box-shadow: 26px 0 80px rgba(40, 6, 4, 0.18);
         backdrop-filter: blur(22px);
-        animation: sidebarIn 180ms ease both;
+        animation: sidebarIn 240ms ease both;
         scrollbar-width: thin;
         scrollbar-color: rgba(255, 246, 236, 0.14) transparent;
       }
 
       .os1-sidebar.is-closing {
-        animation: sidebarOut 170ms ease both;
+        animation: sidebarOut 230ms ease both;
         pointer-events: none;
+      }
+
+      .rail-toggle {
+        appearance: none;
+        position: fixed;
+        top: 50%;
+        z-index: 8;
+        transform: translateY(-50%);
+        border: 0;
+        padding: 8px 2px;
+        background: transparent;
+        color: rgba(255, 246, 236, 0.46);
+        font: inherit;
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        writing-mode: vertical-rl;
+        cursor: pointer;
+        transition: color 160ms ease, transform 160ms ease;
+      }
+
+      .presence-toggle { left: 18px; }
+      .echoes-toggle { right: 18px; }
+
+      .rail-toggle::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 50%;
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: rgba(255, 224, 156, 0.94);
+        box-shadow: 0 0 12px rgba(255, 192, 112, 0.55);
+        opacity: 0;
+        transform: translateX(-50%) scale(0.5);
+        transition: opacity 180ms ease, transform 180ms ease;
+      }
+
+      .rail-toggle.has-unread::after { opacity: 1; transform: translateX(-50%) scale(1); }
+
+      .rail-toggle:hover,
+      .rail-toggle:focus-visible {
+        color: rgba(255, 246, 236, 0.92);
+        outline: none;
+      }
+
+      .echoes-toggle:hover,
+      .echoes-toggle:focus-visible { transform: translateY(-50%) translateX(-2px); }
+      .presence-toggle:hover,
+      .presence-toggle:focus-visible { transform: translateY(-50%) translateX(2px); }
+
+      .history-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 9;
+        background: rgba(48, 7, 4, 0.18);
+        backdrop-filter: blur(3px);
+        animation: sidebarVeilIn 240ms ease both;
+        pointer-events: auto;
+      }
+
+      .history-backdrop.is-closing {
+        animation: sidebarVeilOut 230ms ease both;
+        pointer-events: auto;
+      }
+
+      .history-backdrop[hidden],
+      .history-panel[hidden] { display: none; }
+
+      .history-panel {
+        position: fixed;
+        inset: 0 0 0 auto;
+        z-index: 10;
+        width: min(430px, 100vw);
+        height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        padding: 28px 30px 26px;
+        border-left: 1px solid rgba(255, 246, 236, 0.075);
+        background: rgba(91, 20, 14, 0.965);
+        box-shadow: -26px 0 80px rgba(40, 6, 4, 0.18);
+        backdrop-filter: blur(22px);
+        animation: historyPanelIn 240ms ease both;
+      }
+
+      .history-panel.is-closing {
+        animation: historyPanelOut 230ms ease both;
+        pointer-events: none;
+      }
+
+      .history-panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 30px;
+      }
+
+      .history-title { margin: 0; font-size: 17px; font-weight: 540; }
+      .history-list { min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+      .history-empty { color: rgba(255, 246, 236, 0.38); font-size: 13px; line-height: 1.6; }
+      .history-turn { padding: 15px 0 19px; }
+      .history-turn:first-child { padding-top: 0; }
+      .history-speaker { margin-bottom: 5px; color: rgba(255, 246, 236, 0.36); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; }
+      .history-text { color: rgba(255, 220, 202, 0.82); font-size: 14px; font-weight: 400; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+      .history-answer { margin-top: 14px; }
+      .history-answer .history-speaker { color: rgba(255, 228, 156, 0.44); }
+      .history-answer .history-text { color: rgba(255, 244, 220, 0.88); }
+
+      @keyframes historyPanelIn {
+        from { opacity: 0; transform: translateX(20px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+
+      @keyframes historyPanelOut {
+        from { opacity: 1; transform: translateX(0); }
+        to { opacity: 0; transform: translateX(20px); }
       }
 
       .sidebar-header,
@@ -1787,7 +1940,9 @@
         .sidebar-backdrop,
         .os1-sidebar,
         .os1-sidebar .brand-menu,
-        .os1-sidebar .settings-modal {
+        .os1-sidebar .settings-modal,
+        .history-panel,
+        .history-backdrop {
           animation: none;
         }
 
@@ -1854,6 +2009,16 @@
           padding: 24px 26px;
         }
 
+        .presence-toggle { left: 9px; }
+        .echoes-toggle { right: 9px; }
+
+        .history-panel {
+          width: min(390px, 100vw);
+          padding: 24px 26px;
+        }
+
+        .persona-name-row { grid-template-columns: 1fr; gap: 12px; }
+
         .provider-row {
           grid-template-columns: 1fr;
         }
@@ -1864,7 +2029,7 @@
     <main>
       <div class="topbar">
         <div>
-          <button id="brandButton" class="brand-button" type="button" aria-haspopup="dialog" aria-expanded="false">OS1</button>
+          <span class="brand-button">OS1</span>
         </div>
         <div id="status">ready</div>
       </div>
@@ -1873,7 +2038,7 @@
         <button id="keyPrompt" class="key-prompt" type="button" hidden>
           Configure API keys in .env
         </button>
-        <button id="talkButton" class="orb" type="button" aria-label="开始录音">
+        <div class="orb">
           <canvas id="motionCanvas" class="motion-canvas" aria-hidden="true"></canvas>
           <div class="bars" aria-hidden="true">
             <div class="bar"></div>
@@ -1885,8 +2050,8 @@
             <div class="bar"></div>
             <div class="bar"></div>
           </div>
-          <div id="hint" class="hint-line">Tap to speak</div>
-        </button>
+          <button id="talkButton" class="hint-line" type="button" aria-label="开始录音">Tap to speak</button>
+        </div>
         <section class="conversation-panel" aria-label="conversation">
           <div id="chatThread" class="chat-thread" aria-live="polite" tabindex="0"></div>
         </section>
@@ -1894,10 +2059,23 @@
     </main>
     <audio id="player"></audio>
 
+    <button id="presenceToggle" class="rail-toggle presence-toggle" type="button" aria-haspopup="dialog" aria-expanded="false">Presence</button>
+    <button id="historyToggle" class="rail-toggle echoes-toggle" type="button" aria-haspopup="dialog" aria-expanded="false">Echoes</button>
+    <div id="historyBackdrop" class="history-backdrop" hidden></div>
+    <aside id="historyPanel" class="history-panel" hidden aria-hidden="true" aria-label="Conversation echoes">
+      <header class="history-panel-header">
+        <h2 class="history-title">Echoes</h2>
+        <button id="historyClose" class="modal-close" type="button" aria-label="Close history">×</button>
+      </header>
+      <div id="historyList" class="history-list" aria-live="polite">
+        <div class="history-empty">No messages in this session yet.</div>
+      </div>
+    </aside>
+
     <div id="os1SidebarBackdrop" class="sidebar-backdrop" hidden></div>
     <aside id="os1Sidebar" class="os1-sidebar" hidden aria-hidden="true" aria-label="OS1 settings">
       <header class="sidebar-header">
-        <button id="sidebarHome" class="sidebar-wordmark" type="button">OS1</button>
+        <button id="sidebarHome" class="sidebar-wordmark" type="button">Presence</button>
         <button id="sidebarClose" class="modal-close" type="button" aria-label="Close settings">×</button>
       </header>
 
@@ -1961,6 +2139,7 @@
           <h2 id="personaTitle" class="modal-title">Persona</h2>
         </div>
         <section class="provider-section persona-fields">
+          <div class="persona-name-row">
           <label class="field">
             <span class="field-label-row">
               <span class="field-label">Name of AI</span>
@@ -1969,9 +2148,20 @@
             <input id="assistantName" class="persona-input" type="text" name="os1-assistant-display-name" autocomplete="new-password" data-1p-ignore="true" data-lpignore="true" data-form-type="other" maxlength="40" placeholder="Optional" />
           </label>
           <label class="field">
+            <span class="field-label">Approximate pronunciation</span>
+            <input id="assistantNamePronunciation" class="persona-input" type="text" maxlength="120" placeholder="Optional, for example mou e" />
+          </label>
+          </div>
+          <div class="persona-name-row">
+          <label class="field">
             <span class="field-label">Name of user</span>
             <input id="userName" class="persona-input" type="text" name="os1-user-display-name" autocomplete="new-password" data-1p-ignore="true" data-lpignore="true" data-form-type="other" maxlength="40" placeholder="Optional" />
           </label>
+          <label class="field">
+            <span class="field-label">Approximate pronunciation</span>
+            <input id="userNamePronunciation" class="persona-input" type="text" maxlength="120" placeholder="Optional, any phonetic style" />
+          </label>
+          </div>
         </section>
 
         <section class="provider-section">
@@ -1980,6 +2170,7 @@
             <button class="persona-choice is-selected" type="button" role="radio" aria-checked="true" data-persona="default">Default</button>
             <button class="persona-choice" type="button" role="radio" aria-checked="false" data-persona="concise">Concise</button>
             <button class="persona-choice" type="button" role="radio" aria-checked="false" data-persona="conversational">Conversational</button>
+            <button class="persona-choice" type="button" role="radio" aria-checked="false" data-persona="empathetic">Empathetic</button>
           </div>
           <div id="personaDescription" class="persona-description">Use OS1’s base response style.</div>
         </section>
@@ -2184,7 +2375,6 @@
     <script src="/assets/captions.js"></script>
     <script>
       const createCaptionTimeline = window.OS1Captions.createTimeline;
-      const brandButton = document.querySelector("#brandButton");
       const brandMenu = document.querySelector("#brandMenu");
       const os1Sidebar = document.querySelector("#os1Sidebar");
       const os1SidebarBackdrop = document.querySelector("#os1SidebarBackdrop");
@@ -2209,6 +2399,7 @@
       const brainChoices = Array.from(document.querySelectorAll(".brain-choice"));
       const brainError = document.querySelector("#brainError");
       const userNameInput = document.querySelector("#userName");
+      const userNamePronunciationInput = document.querySelector("#userNamePronunciation");
       const currentVoiceHint = document.querySelector("#currentVoiceHint");
       const personaChoices = Array.from(document.querySelectorAll(".persona-choice"));
       const personaDescription = document.querySelector("#personaDescription");
@@ -2226,6 +2417,13 @@
       const voiceRefreshButton = document.querySelector("#voiceRefreshButton");
       const voiceLanguageChoices = Array.from(document.querySelectorAll(".voice-language-choice"));
       const assistantNameInput = document.querySelector("#assistantName");
+      const assistantNamePronunciationInput = document.querySelector("#assistantNamePronunciation");
+      const presenceToggle = document.querySelector("#presenceToggle");
+      const historyToggle = document.querySelector("#historyToggle");
+      const historyBackdrop = document.querySelector("#historyBackdrop");
+      const historyPanel = document.querySelector("#historyPanel");
+      const historyClose = document.querySelector("#historyClose");
+      const historyList = document.querySelector("#historyList");
       const voiceProviderSelect = document.querySelector("#voiceProvider");
       const voiceProviderLabel = document.querySelector("#voiceProviderLabel");
       const brainProviderLabel = document.querySelector("#brainProviderLabel");
@@ -2254,7 +2452,7 @@
       const accountError = document.querySelector("#accountError");
       const accountRefreshButton = document.querySelector("#accountRefreshButton");
       const statusEl = document.querySelector("#status");
-      const hintEl = document.querySelector("#hint");
+      const hintEl = talkButton;
       const chatThread = document.querySelector("#chatThread");
       const player = document.querySelector("#player");
       let userBubbleEl = null;
@@ -2314,6 +2512,7 @@
       let connectivityRetryTimer = 0;
       let connectivityCheckId = 0;
       let sidebarCloseTimer = 0;
+      let historyCloseTimer = 0;
       let selectedBrainProvider = "xai";
       let brainCatalog = [];
 
@@ -2332,7 +2531,7 @@
       let previewProgressFrame = 0;
       const previewDurations = new Map();
       let activePersona = "default";
-      let savedPersona = { assistantName: "", userName: "", persona: "default" };
+      let savedPersona = { assistantName: "", assistantNamePronunciation: "", userName: "", userNamePronunciation: "", persona: "default" };
       let keyterms = [];
       let aliasRules = [];
       let pronunciationLoaded = false;
@@ -2355,8 +2554,7 @@
         updateVadSliderLabels();
       });
 
-      brandButton.addEventListener("click", (event) => {
-        event.stopPropagation();
+      presenceToggle.addEventListener("click", () => {
         if (os1Sidebar.hidden) openSidebar();
         else closeSidebar();
       });
@@ -2390,7 +2588,12 @@
       voiceRefreshButton.addEventListener("click", () => void refreshVoiceLibrary({ force: true }));
       accountRefreshButton.addEventListener("click", () => void refreshAccountSummary({ force: true }));
       assistantNameInput.addEventListener("input", markPersonaDirty);
+      assistantNamePronunciationInput.addEventListener("input", markPersonaDirty);
       userNameInput.addEventListener("input", markPersonaDirty);
+      userNamePronunciationInput.addEventListener("input", markPersonaDirty);
+      historyToggle.addEventListener("click", () => void openHistoryPanel());
+      historyClose.addEventListener("click", closeHistoryPanel);
+      historyBackdrop.addEventListener("click", closeHistoryPanel);
       for (const choice of personaChoices) {
         choice.addEventListener("click", () => setPersonaChoice(choice.dataset.persona));
       }
@@ -2423,6 +2626,7 @@
       document.addEventListener("visibilitychange", reportVisibility);
       window.addEventListener("keydown", (event) => {
         if (event.key === "Escape") {
+          closeHistoryPanel();
           closeSidebar();
         }
       });
@@ -2463,6 +2667,7 @@
           closeRealtimeSocket();
           const socket = new WebSocket(realtimeSessionUrl());
           realtimeSocket = socket;
+          syncPersonaUi();
           socket.binaryType = "arraybuffer";
           bindLiveSocket(socket);
           const ready = waitForLiveReady(socket);
@@ -2523,6 +2728,7 @@
           setState("disconnected");
           setStatus("disconnected");
           updateKeyState();
+          syncPersonaUi();
         });
         socket.addEventListener("error", () => {
           if (realtimeSocket === socket) setStatus("live connection error");
@@ -2584,12 +2790,22 @@
         if (data.session_id) sessionId = data.session_id;
         if (event === "live_ready") {
           livePreconnected = true;
+          if (data.persona && typeof data.persona === "object") {
+            savedPersona = {
+              assistantName: String(data.persona.assistant_name || ""),
+              assistantNamePronunciation: String(data.persona.assistant_name_pronunciation || ""),
+              userName: String(data.persona.user_name || ""),
+              userNamePronunciation: String(data.persona.user_name_pronunciation || ""),
+              persona: String(data.persona.persona || "default"),
+            };
+          }
           socket.dispatchEvent(new Event("os1-live-ready"));
           reportVisibility();
           if (!liveActive) {
             setState("preconnected");
             setStatus("preconnected");
           }
+          syncPersonaUi();
           return;
         }
         if (event === "listening_started") {
@@ -2641,6 +2857,14 @@
           setStatus(event === "session_idle" ? "disconnected · inactive" : "disconnected");
           return;
         }
+        if (event === "history_updated") {
+          if (!historyPanel.hidden) {
+            await loadHistory();
+          } else {
+            historyToggle.classList.add("has-unread");
+          }
+          return;
+        }
         const turnId = String(data.turn_id || data.context_id || "");
         if (!turnId && event !== "error" && event !== "status") return;
         let turn = liveTurns.get(turnId);
@@ -2667,6 +2891,7 @@
         mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const socket = new WebSocket(realtimeTurnUrl());
         realtimeSocket = socket;
+        syncPersonaUi();
         activeTurn = createTurnState();
         bindRealtimeSocket(socket, activeTurn);
         await waitForSocketOpen(socket);
@@ -3590,6 +3815,109 @@
         chatThread.scrollTop = 0;
       }
 
+      async function openHistoryPanel() {
+        closeSidebar();
+        window.clearTimeout(historyCloseTimer);
+        historyCloseTimer = 0;
+        historyPanel.classList.remove("is-closing");
+        historyBackdrop.classList.remove("is-closing");
+        historyPanel.hidden = false;
+        historyBackdrop.hidden = false;
+        historyPanel.setAttribute("aria-hidden", "false");
+        historyToggle.setAttribute("aria-expanded", "true");
+        historyToggle.classList.remove("has-unread");
+        updateTalkButtonState();
+        await loadHistory();
+      }
+
+      function closeHistoryPanel() {
+        if (historyPanel.hidden || historyPanel.classList.contains("is-closing")) return;
+        historyPanel.setAttribute("aria-hidden", "true");
+        historyToggle.setAttribute("aria-expanded", "false");
+        historyPanel.classList.add("is-closing");
+        historyBackdrop.classList.add("is-closing");
+        const closeDelay = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 230;
+        historyCloseTimer = window.setTimeout(() => {
+          historyPanel.hidden = true;
+          historyBackdrop.hidden = true;
+          historyPanel.classList.remove("is-closing");
+          historyBackdrop.classList.remove("is-closing");
+          historyCloseTimer = 0;
+          updateTalkButtonState();
+          historyToggle.focus({ preventScroll: true });
+        }, closeDelay);
+      }
+
+      async function loadHistory() {
+        if (!sessionId) {
+          renderHistory([]);
+          return;
+        }
+        try {
+          const response = await fetch(`/api/history?session_id=${encodeURIComponent(sessionId)}`, { cache: "no-store" });
+          if (!response.ok) throw new Error(await apiErrorMessage(response));
+          const payload = await response.json();
+          renderHistory(Array.isArray(payload.turns) ? payload.turns : []);
+        } catch (error) {
+          historyList.replaceChildren();
+          const empty = document.createElement("div");
+          empty.className = "history-empty";
+          empty.textContent = error?.message || "Could not load history.";
+          historyList.appendChild(empty);
+        }
+      }
+
+      function visibleBeforeInterruption(value) {
+        const text = String(value || "");
+        const markers = ["(interrupted by user)", "(interrupted)"];
+        let end = text.length;
+        for (const marker of markers) {
+          const index = text.indexOf(marker);
+          if (index >= 0) end = Math.min(end, index);
+        }
+        return text.slice(0, end).trim();
+      }
+
+      function renderHistory(turns) {
+        historyList.replaceChildren();
+        const visible = turns.filter(
+          (turn) => !String(turn.assistant || "").startsWith("(interrupted)"),
+        ).map((turn) => ({
+          user: visibleBeforeInterruption(turn.user),
+          assistant: visibleBeforeInterruption(turn.assistant),
+        })).filter((turn) => turn.user || turn.assistant);
+        if (!visible.length) {
+          const empty = document.createElement("div");
+          empty.className = "history-empty";
+          empty.textContent = "No messages in this session yet.";
+          historyList.appendChild(empty);
+          return;
+        }
+        for (const turn of visible) {
+          const item = document.createElement("article");
+          item.className = "history-turn";
+          if (turn.user) item.appendChild(historyMessage(savedPersona.userName || "me", turn.user));
+          if (turn.assistant) {
+            const answer = historyMessage(savedPersona.assistantName || "OS1", turn.assistant);
+            answer.classList.add("history-answer");
+            item.appendChild(answer);
+          }
+          historyList.appendChild(item);
+        }
+      }
+
+      function historyMessage(label, text) {
+        const block = document.createElement("div");
+        const speaker = document.createElement("div");
+        speaker.className = "history-speaker";
+        speaker.textContent = label;
+        const content = document.createElement("div");
+        content.className = "history-text";
+        content.textContent = text;
+        block.append(speaker, content);
+        return block;
+      }
+
       function scrollChatToBottom() {
         chatThread.scrollTop = chatThread.scrollHeight;
       }
@@ -3728,6 +4056,14 @@
         }
         hintEl.classList.remove("is-personalized");
         hintEl.hidden = true;
+      }
+
+      function syncRelationshipLabels() {
+        const chineseInterface = responseLanguageMode === "zh";
+        presenceToggle.textContent = chineseInterface ? "我" : "Presence";
+        historyToggle.textContent = chineseInterface ? "我们" : "Echoes";
+        sidebarHome.textContent = chineseInterface ? "我" : "Presence";
+        document.querySelector(".history-title").textContent = chineseInterface ? "我们" : "Echoes";
       }
 
       function loadMotionPreference() {
@@ -4919,7 +5255,7 @@
         document.body.classList.toggle("is-recording", next === "recording");
         document.body.classList.toggle("is-speaking", next === "speaking");
         document.body.classList.toggle("is-thinking", next === "thinking");
-        talkButton.disabled = !canTalk();
+        updateTalkButtonState();
         talkButton.setAttribute(
           "aria-label",
           liveActive ? "关闭 Live 对话" : "开始 Live 对话",
@@ -4934,6 +5270,14 @@
 
       function canTalk() {
         return hasApiKeys() && providersReady && !connectivityChecking;
+      }
+
+      function panelIsOpen() {
+        return !os1Sidebar.hidden || !historyPanel.hidden;
+      }
+
+      function updateTalkButtonState() {
+        talkButton.disabled = !canTalk() || panelIsOpen();
       }
 
       function hasApiKeys() {
@@ -4958,7 +5302,7 @@
           connectivityChecking || (!missing && !providersReady),
         );
         keyPrompt.hidden = !missing;
-        talkButton.disabled = !canTalk();
+        updateTalkButtonState();
       }
 
       async function refreshServerKeyState() {
@@ -5004,13 +5348,18 @@
             selectedVoiceId = String(health.selected_voice_id || health.default_male_voice_id || "");
             responseLanguageMode = String(health.response_language_mode || "auto").toLowerCase();
             voiceLanguage = responseLanguageMode;
+            syncRelationshipLabels();
             syncVoiceLanguageFilter();
             assistantNameInput.value = String(health.assistant_name || "");
+            assistantNamePronunciationInput.value = String(health.assistant_name_pronunciation || "");
             userNameInput.value = String(health.user_name || "");
+            userNamePronunciationInput.value = String(health.user_name_pronunciation || "");
             activePersona = String(health.assistant_persona || "default");
             savedPersona = {
               assistantName: assistantNameInput.value,
+              assistantNamePronunciation: assistantNamePronunciationInput.value,
               userName: userNameInput.value,
+              userNamePronunciation: userNamePronunciationInput.value,
               persona: activePersona,
             };
             syncPersonaUi();
@@ -5200,18 +5549,19 @@
         os1Sidebar.hidden = false;
         os1SidebarBackdrop.hidden = false;
         os1Sidebar.setAttribute("aria-hidden", "false");
-        brandButton.setAttribute("aria-expanded", "true");
+        presenceToggle.setAttribute("aria-expanded", "true");
+        updateTalkButtonState();
       }
 
       function closeSidebar() {
         if (os1Sidebar.hidden || os1Sidebar.classList.contains("is-closing")) return;
         stopVoicePreview();
         os1Sidebar.setAttribute("aria-hidden", "true");
-        brandButton.setAttribute("aria-expanded", "false");
+        presenceToggle.setAttribute("aria-expanded", "false");
         os1Sidebar.classList.add("is-closing");
         os1SidebarBackdrop.classList.add("is-closing");
         updateKeyState();
-        const closeDelay = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 170;
+        const closeDelay = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 230;
         sidebarCloseTimer = window.setTimeout(() => {
           os1Sidebar.hidden = true;
           os1SidebarBackdrop.hidden = true;
@@ -5226,7 +5576,8 @@
           usageModal.hidden = true;
           brandMenu.hidden = false;
           sidebarCloseTimer = 0;
-          brandButton.focus({ preventScroll: true });
+          updateTalkButtonState();
+          presenceToggle.focus({ preventScroll: true });
         }, closeDelay);
       }
 
@@ -5358,7 +5709,9 @@
       function currentPersonaState() {
         return {
           assistantName: normalizePersonaName(assistantNameInput.value),
+          assistantNamePronunciation: normalizePersonaName(assistantNamePronunciationInput.value),
           userName: normalizePersonaName(userNameInput.value),
+          userNamePronunciation: normalizePersonaName(userNamePronunciationInput.value),
           persona: activePersona,
         };
       }
@@ -5366,7 +5719,9 @@
       function personaIsDirty() {
         const current = currentPersonaState();
         return current.assistantName !== savedPersona.assistantName
+          || current.assistantNamePronunciation !== savedPersona.assistantNamePronunciation
           || current.userName !== savedPersona.userName
+          || current.userNamePronunciation !== savedPersona.userNamePronunciation
           || current.persona !== savedPersona.persona;
       }
 
@@ -5376,12 +5731,16 @@
         personaSaveState.textContent = dirty ? "Unsaved changes · confirm to apply" : "Up to date";
         personaSaveState.classList.toggle("is-dirty", dirty);
         personaSaveState.classList.remove("is-success");
-        savePersonaButton.disabled = !dirty;
+        const personaLocked = personaSessionLocked();
+        savePersonaButton.disabled = !dirty || personaLocked;
         savePersonaButton.textContent = dirty ? "Apply changes" : "Applied";
+        if (personaLocked) {
+          personaSaveState.textContent = "Close the live session to change persona";
+        }
       }
 
       function setPersonaChoice(persona) {
-        activePersona = ["default", "concise", "conversational"].includes(persona)
+        activePersona = ["default", "concise", "conversational", "empathetic"].includes(persona)
           ? persona
           : "default";
         syncPersonaUi();
@@ -5393,14 +5752,25 @@
           default: "Use OS1’s base response style.",
           concise: "Direct, complete, and brief.",
           conversational: "Connected replies with a relevant follow-up.",
+          empathetic: "A caring AI companion who notices feelings and responds with warmth.",
         };
         for (const choice of personaChoices) {
           const selected = choice.dataset.persona === activePersona;
           choice.classList.toggle("is-selected", selected);
           choice.setAttribute("aria-checked", String(selected));
+          choice.disabled = personaSessionLocked();
         }
+        assistantNameInput.disabled = personaSessionLocked();
+        assistantNamePronunciationInput.disabled = personaSessionLocked();
+        userNameInput.disabled = personaSessionLocked();
+        userNamePronunciationInput.disabled = personaSessionLocked();
         personaDescription.textContent = descriptions[activePersona] || descriptions.default;
         markPersonaDirty();
+      }
+
+      function personaSessionLocked() {
+        return realtimeSocket?.readyState === WebSocket.CONNECTING
+          || realtimeSocket?.readyState === WebSocket.OPEN;
       }
 
       async function savePersonaSettings() {
@@ -5416,15 +5786,24 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               assistant_name: current.assistantName,
+              assistant_name_pronunciation: current.assistantNamePronunciation,
               user_name: current.userName,
+              user_name_pronunciation: current.userNamePronunciation,
               persona: current.persona,
             }),
           });
           if (!response.ok) throw new Error(await apiErrorMessage(response));
           const payload = await response.json();
           assistantNameInput.value = String(payload.assistant_name || "");
+          assistantNamePronunciationInput.value = String(payload.assistant_name_pronunciation || "");
           userNameInput.value = String(payload.user_name || "");
+          userNamePronunciationInput.value = String(payload.user_name_pronunciation || "");
           activePersona = String(payload.persona || "default");
+          if (payload.new_session_id) {
+            sessionId = String(payload.new_session_id);
+            clearConversation();
+            renderHistory([]);
+          }
           savedPersona = currentPersonaState();
           syncPersonaUi();
           setHint(state);
@@ -5474,6 +5853,7 @@
         const previous = responseLanguageMode;
         responseLanguageMode = mode;
         voiceLanguage = mode;
+        syncRelationshipLabels();
         syncVoiceLanguageFilter();
         renderVoiceList(availableVoices);
         setHint(state);
@@ -5487,11 +5867,13 @@
           const payload = await response.json();
           responseLanguageMode = String(payload.mode || mode);
           voiceLanguage = responseLanguageMode;
+          syncRelationshipLabels();
           syncVoiceLanguageFilter();
           renderVoiceList(availableVoices);
         } catch (error) {
           responseLanguageMode = previous;
           voiceLanguage = previous;
+          syncRelationshipLabels();
           syncVoiceLanguageFilter();
           renderVoiceList(availableVoices);
           voiceLibraryStatus.textContent = error?.message || "Could not save language mode.";

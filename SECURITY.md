@@ -48,6 +48,8 @@ Telemetry is enabled by default and stored in `data/telemetry.sqlite`. OS1 creat
 
 New telemetry records deliberately exclude user transcripts, prompts, conversation history, model responses, and TTS input text. The schema retains legacy content columns for database compatibility, but current writes leave them empty. Databases created by older OS1 versions may still contain historical content.
 
+The local conversation history panel is backed by `data/chat_history.jsonl`. This append-only file contains user transcripts and complete model replies, including replies from interrupted turns. Protect or remove it separately when handling sensitive conversations.
+
 Telemetry does not intentionally store API keys, request headers, or raw audio. It is diagnostic data, not an anonymity system: timestamps, model names, voice IDs, request IDs, error details, and usage patterns may still be sensitive.
 
 On POSIX systems, the default telemetry directory is restricted to mode `0700` and the database plus SQLite sidecars to `0600`. These permissions reduce access by other local accounts but do not provide encryption at rest.

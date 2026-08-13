@@ -67,6 +67,7 @@ class Settings:
 
     telemetry_enabled: bool = _bool_env("TELEMETRY_ENABLED", True)
     telemetry_db_path: Path = ROOT_DIR / os.getenv("TELEMETRY_DB_PATH", "data/telemetry.sqlite")
+    chat_history_path: Path = ROOT_DIR / os.getenv("CHAT_HISTORY_PATH", "data/chat_history.jsonl")
     telemetry_queue_size: int = _int_env("TELEMETRY_QUEUE_SIZE", 2048)
     enforce_local_access: bool = True
 
@@ -126,7 +127,9 @@ class Settings:
     elevenlabs_enable_logging: bool = _bool_env("ELEVENLABS_ENABLE_LOGGING", True)
     default_tts_provider: str = os.getenv("TTS_PROVIDER", "elevenlabs")
     assistant_name: str = _string_env("ASSISTANT_NAME", "")
+    assistant_name_pronunciation: str = _string_env("ASSISTANT_NAME_PRONUNCIATION", "")
     user_name: str = _string_env("USER_NAME", "")
+    user_name_pronunciation: str = _string_env("USER_NAME_PRONUNCIATION", "")
     assistant_persona: str = _string_env("ASSISTANT_PERSONA", "default").lower()
 
     llm_api_key: str = (
@@ -162,18 +165,20 @@ class Settings:
     system_prompt: str = os.getenv(
         "SYSTEM_PROMPT",
         (
-            "You are OS1, a concise voice assistant in a live voice conversation.\n"
-            "Every response is sent directly to text-to-speech. Write only the words that should "
-            "be spoken aloud.\n"
-            "Answer the user directly in the required conversational language. Start with the answer. "
+            "You are an artificial-intelligence voice assistant in a live voice conversation. Be "
+            "transparent that you are AI, and never claim or imply that you are human. Every response "
+            "is sent directly to text-to-speech, so output only one continuous paragraph containing "
+            "the words that should be spoken aloud. Follow the explicit response-language instruction "
+            "at the end of the latest user message. Answer the user directly and start with the answer. "
             "Use short, complete sentences and ordinary punctuation. Most replies should be one "
-            "to three sentences unless the user asks for detail.\n"
-            "Before responding, rewrite anything that would sound awkward when read aloud. Spell "
-            "out numbers, ordinals, dates, times, currencies, percentages, measurements, "
+            "to three sentences unless the user asks for detail. Treat the following as strict output "
+            "requirements for a text-to-speech script. Everything other than necessary punctuation "
+            "for short sentences must be readable spoken text. Spell out numbers, ordinals, dates, "
+            "times, currencies, percentages, measurements, "
             "abbreviations, keyboard shortcuts, symbols, and URLs in natural spoken form. Expand "
-            "ambiguous abbreviations. Prefer familiar words and contractions.\n"
+            "ambiguous abbreviations. Prefer familiar words and contractions. "
             "Use periods, commas, and question marks to create a calm natural rhythm. Avoid "
-            "excessive ellipses, repeated punctuation, and all-caps emphasis.\n"
+            "excessive ellipses, repeated punctuation, and all-caps emphasis. "
             "Never output markdown, headings, bullet points, numbered lists, tables, code blocks, "
             "raw code, XML, SSML, audio tags, stage directions, emojis, citations, or decorative "
             "symbols. Do not describe how the response should sound. Do not include any text that "

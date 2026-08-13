@@ -374,10 +374,14 @@ class LiveLLM:
     model = "live-model"
     reasoning_effort = "low"
 
+    def __init__(self) -> None:
+        self.requests: list[LLMRequest] = []
+
     def request_snapshot(self, request: LLMRequest) -> dict[str, object]:
         return {"messages": request.messages, "model": self.model}
 
     async def stream(self, request: LLMRequest) -> AsyncIterator[LLMStreamEvent]:
+        self.requests.append(request)
         yield LLMStreamEvent(kind="delta", text="A live answer.")
         yield LLMStreamEvent(
             kind="complete",
@@ -467,14 +471,20 @@ class LiveSessionIntegrationTests(unittest.TestCase):
                 enforce_local_access=False,
                 assistant_response_language="en",
                 elevenlabs_voice_id="voice-id",
+                assistant_name="Sophie",
+                assistant_name_pronunciation="so fee",
+                user_name="Moi",
+                user_name_pronunciation="mou e",
+                assistant_persona="empathetic",
             )
             stt = ContinuousFakeSTT()
             live_tts = FakeLiveTTSConnection()
             gateway = LiveTTSGateway(live_tts)
             sessions = SessionStore(max_turns=10, max_sessions=10, ttl_seconds=3600)
+            llm = LiveLLM()
             orchestrator = TurnOrchestrator(
                 settings=settings,
-                llm=LiveLLM(),
+                llm=llm,
                 stt=stt,
                 tts=TTSAdapter([gateway], default_provider="elevenlabs"),
                 sessions=sessions,
@@ -505,7 +515,21 @@ class LiveSessionIntegrationTests(unittest.TestCase):
                         "session_id": "live-session",
                         "sample_rate": 16000,
                     })
-                    self.assertEqual(websocket.receive_json()["event"], "live_ready")
+                    ready = websocket.receive_json()
+                    self.assertEqual(ready["event"], "live_ready")
+                    self.assertEqual(
+                        ready["data"]["persona"],
+                        {
+                            "assistant_name": "Sophie",
+                            "assistant_name_pronunciation": "so fee",
+                            "user_name": "Moi",
+                            "user_name_pronunciation": "mou e",
+                            "persona": "empathetic",
+                        },
+                    )
+                    settings.assistant_name = "Changed"
+                    settings.user_name = "Different"
+                    settings.assistant_persona = "concise"
                     websocket.send_json({"type": "listen_start"})
                     while "stt_ready" not in received:
                         received.append(websocket.receive_json()["event"])
@@ -548,6 +572,13 @@ class LiveSessionIntegrationTests(unittest.TestCase):
             self.assertEqual(history[0]["content"], "utterance 1\n\nPlease respond in English.")
             self.assertEqual(history[1]["content"], "A live")
             self.assertEqual(history[2]["content"], "utterance 2\n\nPlease respond in English.")
+            self.assertEqual(len(llm.requests), 2)
+            for request in llm.requests:
+                system_prompt = request.messages[0]["content"]
+                self.assertIn('Your name is "Sophie"', system_prompt)
+                self.assertIn('user\'s name is "Moi"', system_prompt)
+                self.assertIn("empathetic AI companion", system_prompt)
+                self.assertNotIn('Your name is "Changed"', system_prompt)
 
 
 if __name__ == "__main__":

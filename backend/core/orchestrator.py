@@ -34,6 +34,10 @@ class LiveTurnState:
     response_language: str = "en"
     completed: bool = False
     history_committed: bool = False
+    record_committed: bool = False
+    interrupted: bool = False
+    playback_started: bool = False
+    spoken_text: str = ""
     trace: TurnTrace | None = None
 
 
@@ -146,7 +150,9 @@ class TurnOrchestrator:
             voice_id=voice_id,
             tts_provider=tts_provider,
             assistant_name=self.settings.assistant_name,
+            assistant_name_pronunciation=self.settings.assistant_name_pronunciation,
             user_name=self.settings.user_name,
+            user_name_pronunciation=self.settings.user_name_pronunciation,
             assistant_persona=self.settings.assistant_persona,
             response_language=resolve_response_language(
                 self.settings.assistant_response_language,
@@ -170,7 +176,9 @@ class TurnOrchestrator:
         vad_threshold: float | None = None,
         vad_silence_threshold_secs: float | None = None,
         assistant_name: str | None = None,
+        assistant_name_pronunciation: str | None = None,
         user_name: str | None = None,
+        user_name_pronunciation: str | None = None,
         assistant_persona: str | None = None,
         response_language: str | None = None,
     ) -> AsyncIterator[PipelineEvent]:
@@ -254,7 +262,9 @@ class TurnOrchestrator:
             voice_id=voice_id,
             tts_provider=tts_provider,
             assistant_name=assistant_name,
+            assistant_name_pronunciation=assistant_name_pronunciation,
             user_name=user_name,
+            user_name_pronunciation=user_name_pronunciation,
             assistant_persona=assistant_persona,
             response_language=response_language or resolve_response_language(
                 self.settings.assistant_response_language,
@@ -274,7 +284,9 @@ class TurnOrchestrator:
         voice_id: str | None,
         tts_provider: str | None = None,
         assistant_name: str | None = None,
+        assistant_name_pronunciation: str | None = None,
         user_name: str | None = None,
+        user_name_pronunciation: str | None = None,
         assistant_persona: str | None = None,
         response_language: str | None = None,
     ) -> AsyncIterator[PipelineEvent]:
@@ -286,7 +298,9 @@ class TurnOrchestrator:
                 user_text=user_text,
                 history=history,
                 assistant_name=assistant_name or "",
+                assistant_name_pronunciation=assistant_name_pronunciation or "",
                 user_name=user_name or "",
+                user_name_pronunciation=user_name_pronunciation or "",
                 persona=assistant_persona or "default",
                 response_language=response_language or resolve_response_language(
                     self.settings.assistant_response_language,
@@ -472,6 +486,7 @@ class TurnOrchestrator:
         state: LiveTurnState,
         live_tts,
         response_language: str,
+        persona_snapshot: dict[str, str] | None = None,
     ) -> AsyncIterator[PipelineEvent]:
         """Stream one answer through a context on a session-owned TTS connection.
 
@@ -480,13 +495,22 @@ class TurnOrchestrator:
         """
         trace.update_text(user_text=state.user_text)
         history = self.sessions.get_history(trace.session_id)
+        persona_values = persona_snapshot or {}
         messages = build_messages(
             system_prompt=self.settings.system_prompt,
             user_text=state.user_text,
             history=history,
-            assistant_name=self.settings.assistant_name,
-            user_name=self.settings.user_name,
-            persona=self.settings.assistant_persona,
+            assistant_name=persona_values.get("assistant_name", self.settings.assistant_name),
+            assistant_name_pronunciation=persona_values.get(
+                "assistant_name_pronunciation",
+                self.settings.assistant_name_pronunciation,
+            ),
+            user_name=persona_values.get("user_name", self.settings.user_name),
+            user_name_pronunciation=persona_values.get(
+                "user_name_pronunciation",
+                self.settings.user_name_pronunciation,
+            ),
+            persona=persona_values.get("persona", self.settings.assistant_persona),
             response_language=response_language,
         )
         state.model_user_text = messages[-1]["content"]
@@ -512,25 +536,28 @@ class TurnOrchestrator:
                         continue
                     state.assistant_text += llm_event.text
                     trace.update_text(assistant_text=state.assistant_text)
-                    await event_queue.put(
-                        ("event", self.event(trace, "delta", {"text": llm_event.text}))
-                    )
+                    if not state.interrupted:
+                        await event_queue.put(
+                            ("event", self.event(trace, "delta", {"text": llm_event.text}))
+                        )
                     speech_buffer += llm_event.text
                     ready, speech_buffer = pop_ready_speech_chunks(speech_buffer)
-                    for chunk in ready:
-                        await text_queue.put(chunk)
-                        await event_queue.put(
-                            ("event", self.event(trace, "display", {"text": chunk}))
-                        )
+                    if not state.interrupted:
+                        for chunk in ready:
+                            await text_queue.put(chunk)
+                            await event_queue.put(
+                                ("event", self.event(trace, "display", {"text": chunk}))
+                            )
                 final_chunk = speech_buffer.strip()
-                if final_chunk:
+                if final_chunk and not state.interrupted:
                     await text_queue.put(final_chunk)
                     await event_queue.put(
                         ("event", self.event(trace, "display", {"text": final_chunk}))
                     )
-                await event_queue.put(
-                    ("event", self.event(trace, "done", {"text": state.assistant_text}))
-                )
+                if not state.interrupted:
+                    await event_queue.put(
+                        ("event", self.event(trace, "done", {"text": state.assistant_text}))
+                    )
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
@@ -578,6 +605,8 @@ class TurnOrchestrator:
                 ):
                     if output.kind != "audio":
                         continue
+                    if state.interrupted:
+                        continue
                     if first_audio_ms is None:
                         first_audio_ms = trace.offset_ms() - call_start
                         trace.event("tts.first_audio", stage="tts", metadata={"call_id": call_id})
@@ -594,7 +623,8 @@ class TurnOrchestrator:
                     if output.alignment is not None:
                         data["alignment"] = caption_payload(output.alignment)
                     await event_queue.put(("event", self.event(trace, "audio", data)))
-                await event_queue.put(("event", self.event(trace, "audio_done")))
+                if not state.interrupted:
+                    await event_queue.put(("event", self.event(trace, "audio_done")))
             except asyncio.CancelledError:
                 input_text, input_chars = _tts_input_metrics(input_chunks)
                 self.telemetry.finish_tts_call(

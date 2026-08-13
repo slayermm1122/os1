@@ -34,6 +34,10 @@ class LiveSessionRegistry:
             if result is not None:
                 await result
 
+    async def count(self) -> int:
+        async with self._lock:
+            return len(self._sessions)
+
     async def close_all(self) -> None:
         async with self._lock:
             callbacks = [callback for _, callback in self._sessions.values()]

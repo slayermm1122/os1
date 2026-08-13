@@ -1,17 +1,24 @@
 from __future__ import annotations
 
+import json
+
 Message = dict[str, str]
 
-_PERSONAS = {"default", "concise", "conversational"}
+_PERSONAS = {"default", "concise", "conversational", "empathetic"}
 
 
 def sanitize_person_name(value: str | None) -> str:
-    name = " ".join(str(value or "").split()).strip()
-    if not name or len(name) > 40 or not name[0].isalpha():
+    name = str(value or "").strip()
+    if not name or len(name) > 40:
         return ""
-    if not all(character.isalpha() or character in " -'’" for character in name):
+    if not all(character.isalpha() for character in name):
         return ""
     return name
+
+
+def sanitize_pronunciation(value: str | None) -> str:
+    pronunciation = " ".join(str(value or "").split()).strip()
+    return pronunciation if len(pronunciation) <= 120 else ""
 
 
 def sanitize_assistant_name(value: str | None) -> str:
@@ -30,7 +37,9 @@ def build_messages(
     user_text: str,
     history: list[Message],
     assistant_name: str = "",
+    assistant_name_pronunciation: str = "",
     user_name: str = "",
+    user_name_pronunciation: str = "",
     persona: str = "default",
     response_language: str = "en",
 ) -> list[Message]:
@@ -38,15 +47,26 @@ def build_messages(
     identity_lines: list[str] = []
     ai_name = sanitize_person_name(assistant_name)
     human_name = sanitize_person_name(user_name)
+    ai_pronunciation = sanitize_pronunciation(assistant_name_pronunciation)
+    human_pronunciation = sanitize_pronunciation(user_name_pronunciation)
     style = normalize_persona(persona)
     if ai_name:
-        identity_lines.append(
-            f'Your name is "{ai_name}". Do not identify yourself by any company or model name.'
-        )
+        line = f'Your name is {json.dumps(ai_name, ensure_ascii=False)}.'
+        if ai_pronunciation:
+            line += (
+                " Its approximate pronunciation is "
+                f"{json.dumps(ai_pronunciation, ensure_ascii=False)}."
+            )
+        identity_lines.append(line)
     if human_name:
-        identity_lines.append(
-            f'The user\'s name is "{human_name}". Use it naturally and sparingly when appropriate.'
-        )
+        line = f"The user's name is {json.dumps(human_name, ensure_ascii=False)}."
+        if human_pronunciation:
+            line += (
+                " Its approximate pronunciation is "
+                f"{json.dumps(human_pronunciation, ensure_ascii=False)}."
+            )
+        line += " Use the name naturally and sparingly when appropriate."
+        identity_lines.append(line)
     if style == "concise":
         identity_lines.append(
             "Answer concisely and directly. Fully answer the question, then stop without filler."
@@ -55,6 +75,12 @@ def build_messages(
         identity_lines.append(
             "Respond conversationally, connect each reply to what the user just said, and after "
             "answering ask one relevant follow-up question."
+        )
+    elif style == "empathetic":
+        identity_lines.append(
+            "Respond as a deeply caring and empathetic AI companion. Notice the user's feelings, "
+            "validate them sincerely without overdoing it, and prioritize warmth, reassurance, and "
+            "attentive support while remaining honest that you are AI."
         )
 
     system_parts: list[str] = []

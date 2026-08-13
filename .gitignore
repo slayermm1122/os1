@@ -9,6 +9,7 @@ AGENTS.md
 # Local runtime and evaluation databases.
 data/*.sqlite
 data/*.sqlite-*
+data/*.jsonl
 
 # Retired local corpus files are not part of the application or repository.
 knowledge/
