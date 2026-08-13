@@ -12,6 +12,7 @@ The notable changes in each OS1 release. Unreleased work reflects the current `m
 - Added session-scoped JSONL conversation history with interruption-aware records and a live Echoes panel.
 - Added optional user and assistant names, pronunciation hints, an empathetic companion style, and stable session prompts.
 - Refined the voice surface with paired translucent side panels, deliberate start/stop interactions, and new editorial typography.
+- Removed narrow-screen adaptations so every viewport preserves the same fixed spatial composition.
 - Added eight responsive orb motions and a quieter single-window interface.
 - Added content-free local usage metrics by model and date range.
 
